@@ -1,9 +1,18 @@
-[gd_scene load_steps=2 format=3 uid="uid://blttyrakix8rx"]
+[gd_scene load_steps=3 format=3 uid="uid://blttyrakix8rx"]
 
 [ext_resource type="Texture2D" uid="uid://b8n13hs4ctut0" path="res://icon.svg" id="1_6agfh"]
+[ext_resource type="Script" path="res://2d/hello_world.gd" id="1_uac6g"]
 
 [node name="Node2D" type="Node2D"]
+script = ExtResource("1_uac6g")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Player" type="Player" parent="."]
 position = Vector2(600, 320)
 texture = ExtResource("1_6agfh")
+
+[node name="Timer" type="Timer" parent="."]
+wait_time = 2.0
+autostart = true
+
+[connection signal="speed_increased" from="Player" to="." method="_on_player_speed_increased"]
+[connection signal="timeout" from="Timer" to="." method="_on_timer_timeout"]
