@@ -1,0 +1,41 @@
+[gd_scene load_steps=3 format=3 uid="uid://cq8y8noljvg3f"]
+
+[ext_resource type="Script" path="res://islands/island_builder.gd" id="1_08ksb"]
+
+[sub_resource type="IslandBuilderShape" id="IslandBuilderShape_p6use"]
+shape = 1
+rotation = Vector3(-0.132236, 0.375355, 0.322905)
+radius = 0.5
+
+[node name="IslandBuilder" type="Node"]
+script = ExtResource("1_08ksb")
+
+[node name="world" type="Node3D" parent="."]
+
+[node name="IslandBuilder" type="IslandBuilder" parent="world"]
+shapes = Array[IslandBuilderShape]([SubResource("IslandBuilderShape_p6use")])
+unique_name_in_owner = true
+
+[node name="CSGBox3D" type="CSGBox3D" parent="world/IslandBuilder"]
+transform = Transform3D(0.5, 0.866025, 0, -0.866025, 0.5, 0, 0, 0, 1, -0.176627, 0, 0.312287)
+size = Vector3(2.00928, 1, 1)
+
+[node name="CSGBox3D2" type="CSGBox3D" parent="world/IslandBuilder"]
+transform = Transform3D(-0.0603709, 0.924321, -0.376812, -0.997611, -0.0685722, -0.00837546, -0.0335804, 0.375406, 0.926252, -0.0650463, 0.302016, -0.47287)
+size = Vector3(2.65356, 1.54004, 1.20105)
+
+[node name="CSGBox3D3" type="CSGBox3D" parent="world/IslandBuilder"]
+transform = Transform3D(2.51596, 0, 1.08071, 0, 1.66428, 0, -2.1483, 0, 1.26566, 1.47805, 0, -0.501041)
+
+[node name="CSGSphere3D" type="CSGSphere3D" parent="world/IslandBuilder"]
+transform = Transform3D(0.866955, -0.341069, 0.363402, 0.314552, 0.940038, 0.131851, -0.386582, 0, 0.922255, 0, 0, 0)
+visible = false
+
+[node name="CSGBox3D4" type="CSGBox3D" parent="world/IslandBuilder"]
+transform = Transform3D(0.549709, 0, -0.835357, -0.274804, 0.944342, -0.180835, 0.788863, 0.328966, 0.519113, 0.0645951, -0.465818, 0.540442)
+size = Vector3(1.53662, 2.0791, 1)
+
+[node name="mesh_preview" type="MeshInstance3D" parent="world"]
+
+[node name="aabb_preview" type="GPUParticles3D" parent="world"]
+visibility_aabb = AABB(-0.784045, -0.640554, -0.708754, 1.56809, 1.28111, 1.41751)
