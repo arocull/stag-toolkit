@@ -11,6 +11,6 @@ config_version=5
 [application]
 
 config/name="StagToolkit"
-run/main_scene="res://2d/hello_world.tscn"
+run/main_scene="res://islands/island_builder.tscn"
 config/features=PackedStringArray("4.2", "Forward Plus")
 config/icon="res://icon.svg"

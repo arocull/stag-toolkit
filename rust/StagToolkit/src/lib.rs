@@ -1,13 +1,24 @@
-use godot::engine::Json;
+use godot::engine::mesh::ArrayType;
+use godot::engine::mesh::PrimitiveType;
+use godot::engine::ArrayMesh;
+use godot::engine::Material;
+use godot::engine::MeshDataTool;
+use godot::obj::WithBaseField;
 use godot::prelude::*;
 use godot::engine::Node3D;
 use godot::engine::Resource;
 use json::object;
-use json::JsonValue;
+use utilities::ceili;
+use utilities::maxi;
+use utilities::push_warning;
 use utilities::{exp, log};
 use utilities::maxf;
+use fast_surface_nets::ndshape::{ConstShape, ConstShape3u32};
+use fast_surface_nets::{surface_nets, SurfaceNetsBuffer};
 
 use core::fmt;
+use std::borrow::BorrowMut;
+use std::cmp::min;
 
 struct StagToolkit;
 
@@ -18,11 +29,11 @@ unsafe impl ExtensionLibrary for StagToolkit {}
 pub fn rotate_xyz(v: Vector3, euler: Vector3) -> Vector3 {
     // Rotation Order: YXZ
     return v.rotated(
-        Vector3::UP, euler.y
+        Vector3::FORWARD, euler.z
     ).rotated(
         Vector3::RIGHT, euler.x
     ).rotated(
-        Vector3::FORWARD, euler.z
+        Vector3::UP, euler.y
     );
 }
 
@@ -86,7 +97,7 @@ impl IResource for IslandBuilderShape {
         }
     }
     fn to_string(&self) -> GString {
-        let Self { shape, position, rotation, scale, radius, .. } = &self;
+        let Self { shape, position, rotation, scale,  .. } = &self;
 
         let obj = object! {
             "shape": stringify!(shape),
@@ -178,11 +189,23 @@ impl IslandBuilderShape {
     }
 }
 
+
+// VOXEL RANGES
+const MAX_VOLUME_GRID_SIZE: u32 = 32;
+type ChunkShape = ConstShape3u32<MAX_VOLUME_GRID_SIZE, MAX_VOLUME_GRID_SIZE, MAX_VOLUME_GRID_SIZE>;
+
 #[derive(GodotClass)]
 #[class(base=Node3D,tool)]
 struct IslandBuilder {
     #[export]
     shapes: Array<Gd<IslandBuilderShape>>,
+    #[export]
+    cell_size: f32, // Size of volume cell, in meters 
+    #[export]
+    volume_padding: f32,
+    #[export]
+    island_material: Option<Gd<Material>>,
+
     base: Base<Node3D>,
 }
 #[godot_api]
@@ -190,6 +213,9 @@ impl INode3D for IslandBuilder {
     fn init(base: Base<Node3D>) -> Self {
         Self {
             shapes: Array::new(),
+            cell_size: 0.1,
+            volume_padding: 0.2,
+            island_material: None,
             base,
         }
     }
@@ -197,10 +223,113 @@ impl INode3D for IslandBuilder {
 #[godot_api]
 impl IslandBuilder {
     #[func]
-    fn generate(&mut self) {
-        godot_print!("Generate!");
+    fn generate(&mut self, mut mesh: Gd<ArrayMesh>) { //  -> Gd<ArrayMesh>
+        godot_print!("Generating...");
 
+        // Figure out how big we're going
+        let aabb = self.get_aabb().expand(Vector3::splat(self.volume_padding));
+        let cells_x = ceili((aabb.size.x / self.cell_size) as f64);
+        let cells_y = ceili((aabb.size.y / self.cell_size) as f64);
+        let cells_z = ceili((aabb.size.z / self.cell_size) as f64);
+        let max_cells = min(maxi(maxi(cells_x, cells_y), cells_z) as u32, MAX_VOLUME_GRID_SIZE - 1);
+
+        // Generate an island chunk buffer of max size 
+        let mut sdf = [1.0 as f32; ChunkShape::USIZE];
+        for i in 0u32..ChunkShape::SIZE {
+            let [x, y, z] = ChunkShape::delinearize(i);
+            
+            // Get field position at given point
+            let pos = aabb.position + Vector3::new(
+                x as f32 * self.cell_size, y as f32 * self.cell_size, z as f32 * self.cell_size
+            );
+
+            // Accumulate signed distance field values at this point
+            let mut d = 1.0;
+            for mut shape in self.shapes.iter_shared() {
+                // Smooth union new shape with current one
+                d = sdf_smooth_min(d, shape.bind_mut().distance(pos), 3.0);
+            }
+            sdf[i as usize] = d as f32; // Finally, store value
+        }
+        
+        // Create a SurfaceNet buffer, then create surface net
+        let mut buffer = SurfaceNetsBuffer::default();
+        surface_nets(&sdf, &ChunkShape {}, [0; 3], [max_cells; 3], &mut buffer);
+
+        // Create a new mesh to put data in
+        // let mesh = ArrayMesh::new_gd();
+
+        // If our buffer is empty, do nothing
+        if buffer.indices.is_empty() {
+            godot_warn!("Island buffer is empty");
+            // return mesh;
+            return;
+        }
+
+        // Create a mesh data tool to start parsing mesh data
+        godot_print!("Island buffer is NOT empty, building mesh...");
+
+        if buffer.positions.len() != buffer.normals.len() {
+            godot_warn!("Position buffer length does not match normal buffer length");
+        }
+
+        // Process and pipe data into Godot mesh
+        let mut array_indices = PackedInt32Array::new();
+        
+        array_indices.resize(buffer.indices.len());
+        for idx in 0..buffer.indices.len()-1 {
+            array_indices.set(idx, buffer.indices[idx] as i32);
+        }
+
+        let mut array_positions = PackedVector3Array::new();
+        let mut array_normals = PackedVector3Array::new();
+        array_positions.resize(buffer.positions.len());
+        array_normals.resize(buffer.normals.len());
+        for idx in 0..buffer.positions.len()-1 {
+            let pos = buffer.positions[idx];
+            let normal = buffer.normals[idx];
+            array_positions.set(idx, Vector3::new(pos[0], pos[1], pos[2]) + aabb.position);
+            array_normals.set(idx, Vector3::new(normal[0], normal[1], normal[2]).normalized());
+        }
+
+        // Initialize mesh surface arrays
+        // To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
+        let mut surface_arrays = Array::new();
+        surface_arrays.resize(ArrayType::MAX.ord() as usize, &Array::<Variant>::new().to_variant());
+        
+        // Bind vertex data
+        surface_arrays.set(ArrayType::VERTEX.ord() as usize, array_positions.to_variant());
+        surface_arrays.set(ArrayType::NORMAL.ord() as usize, array_normals.to_variant());
+        surface_arrays.set(ArrayType::TANGENT.ord() as usize, Variant::nil());
+        
+        // Bind masking data
+        surface_arrays.set(ArrayType::COLOR.ord() as usize, Variant::nil());
+        
+        // Bind UV projections
+        surface_arrays.set(ArrayType::TEX_UV.ord() as usize, Variant::nil());
+        surface_arrays.set(ArrayType::TEX_UV2.ord() as usize, Variant::nil());
+
+        // Bind custom arrays
+        surface_arrays.set(ArrayType::CUSTOM0.ord() as usize, Variant::nil());
+        surface_arrays.set(ArrayType::CUSTOM1.ord() as usize, Variant::nil());
+        surface_arrays.set(ArrayType::CUSTOM2.ord() as usize, Variant::nil());
+        surface_arrays.set(ArrayType::CUSTOM3.ord() as usize, Variant::nil());
+
+        // Bind skeleton
+        surface_arrays.set(ArrayType::BONES.ord() as usize, Variant::nil());
+        surface_arrays.set(ArrayType::WEIGHTS.ord() as usize, Variant::nil());
+        
+        // FINALLY, bind indices
+        surface_arrays.set(ArrayType::INDEX.ord() as usize, array_indices.to_variant());
+
+        // Add our data to the mesh
+        mesh.borrow_mut().add_surface_from_arrays(PrimitiveType::TRIANGLES, surface_arrays);
+
+        // Return mesh through a signal (TODO, how do we unborrow the object)
         self.base_mut().emit_signal("generated".into(), &[]);
+        godot_print!("All done!");
+
+        // return mesh;
     }
 
     #[func]
@@ -220,7 +349,7 @@ impl IslandBuilder {
     }
 
     #[signal]
-    fn generated();
+    fn generated(); // mesh: Gd<ArrayMesh>
 }
 
 

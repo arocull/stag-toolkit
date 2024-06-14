@@ -9,5 +9,6 @@ edition = "2021"
 crate-type = ["cdylib"]  # Compile this crate to a dynamic C library.
 
 [dependencies]
+fast-surface-nets = "0.2.0"
 godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
 json = "0.12.4"

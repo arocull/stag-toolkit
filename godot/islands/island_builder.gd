@@ -6,9 +6,15 @@ extends Node
 @export var serialize: bool:
 	set(newVal):
 		serialize = false
-		if Engine.is_editor_hint():
+		if newVal:
 			_serialize()
 			print("Serialized")
+@export var build: bool:
+	set(newVal):
+		serialize = false
+		if newVal:
+			_generate()
+			print("Generated")
 
 enum BuilderShape {
 	Box = 0,
@@ -17,13 +23,14 @@ enum BuilderShape {
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	$world/IslandBuilder.generate()
-	
-	for shape: IslandBuilderShape in island_builder.shapes:
-		print(shape.distance(Vector3.ZERO))
-	
 	if not Engine.is_editor_hint():
 		_serialize()
+		_generate()
+
+func _generate():
+	var mesh: ArrayMesh = ArrayMesh.new()
+	island_builder.generate(mesh)
+	$world/mesh_preview.mesh = mesh
 
 func _serialize():
 	island_builder.shapes.clear()
@@ -38,7 +45,7 @@ func _serialize_walk(node: Node):
 		var t: Transform3D = island_builder.global_transform.inverse() * node.global_transform
 		var shape: IslandBuilderShape = IslandBuilderShape.new()
 		shape.position = t.origin
-		shape.rotation = t.basis.get_euler()
+		#shape.rotation = t.basis.get_euler()
 		shape.rotation = t.basis.get_euler(2) # Get rotation in YXZ axis order
 		shape.scale = t.basis.get_scale()
 		
@@ -48,6 +55,4 @@ func _serialize_walk(node: Node):
 			shape.shape = BuilderShape.Sphere
 			shape.radius = node.radius
 		
-		print(shape.get_corners())
-		print(shape.get_aabb())
 		island_builder.shapes.append(shape)
