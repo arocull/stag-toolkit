@@ -29,7 +29,7 @@ unsafe impl ExtensionLibrary for StagToolkit {}
 pub fn rotate_xyz(v: Vector3, euler: Vector3) -> Vector3 {
     // Rotation Order: YXZ
     return v.rotated(
-        Vector3::FORWARD, euler.z
+        Vector3::FORWARD, -euler.z
     ).rotated(
         Vector3::RIGHT, euler.x
     ).rotated(
@@ -41,6 +41,10 @@ pub fn rotate_xyz(v: Vector3, euler: Vector3) -> Vector3 {
 pub fn sdf_smooth_min(a: f64, b: f64, k: f64) -> f64 {
     let res = exp(-k * a) + exp(-k * b);
     return -log(maxf(0.0001, res)) / k;
+}
+
+pub fn max_vector(a: Vector3) -> f32 {
+    return f32::max(f32::max(a.x, a.y), a.z);
 }
 
 // Enums
@@ -82,6 +86,8 @@ struct IslandBuilderShape {
     scale: Vector3,
     #[export]
     radius: f64,
+    #[export]
+    edge_radius: f32,
     base: Base<Resource>,
 }
 #[godot_api]
@@ -93,6 +99,7 @@ impl IResource for IslandBuilderShape {
             rotation: Vector3::ZERO,
             scale: Vector3::ONE,
             radius: 1.0,
+            edge_radius: 0.0,
             base,
         }
     }
@@ -127,18 +134,24 @@ impl IslandBuilderShape {
     //     })
     // }
     #[func]
+    fn to_local(&self, position: Vector3) -> Vector3 {
+        return rotate_xyz(position - self.position, -self.rotation);
+    }
+
+    #[func]
     fn distance(&mut self, position: Vector3) -> f64 {
-        let offset = rotate_xyz(self.position - position, self.rotation);
+        let offset = self.to_local(position);
 
         match self.shape {
             BuilderShape::Sphere => {
-                return (offset * self.scale).length() as f64 - self.radius; // distance minus radius
+                return (offset / self.scale).length() as f64 - self.radius; // distance minus radius
             },
             BuilderShape::Box => { // SDF rounded box
-                let q = offset.abs() - self.scale;
-                return q.coord_max(Vector3::ZERO).length() as f64 + maxf(
-                        maxf(maxf(q.x as f64, q.y as f64), q.z as f64), 0.0
-                    ) - self.radius;
+                let q = offset.abs() - (self.scale / 2.0) + Vector3::splat(self.edge_radius);
+                let m = q.coord_max(Vector3::ZERO);
+                return (m.length() + f32::min(q[q.max_axis_index()], 0.0) - self.edge_radius) as f64;
+                // https://github.com/jasmcole/Blog/blob/master/CSG/src/fragment.ts#L13
+                // https://github.com/fogleman/sdf/blob/main/sdf/d3.py#L140
             },
         }
     }
@@ -227,11 +240,13 @@ impl IslandBuilder {
         godot_print!("Generating...");
 
         // Figure out how big we're going
-        let aabb = self.get_aabb().expand(Vector3::splat(self.volume_padding));
-        let cells_x = ceili((aabb.size.x / self.cell_size) as f64);
-        let cells_y = ceili((aabb.size.y / self.cell_size) as f64);
-        let cells_z = ceili((aabb.size.z / self.cell_size) as f64);
-        let max_cells = min(maxi(maxi(cells_x, cells_y), cells_z) as u32, MAX_VOLUME_GRID_SIZE - 1);
+        let aabb = self.get_aabb().grow(self.volume_padding);
+        // let cells_x = ceili((aabb.size.x / self.cell_size) as f64);
+        // let cells_y = ceili((aabb.size.y / self.cell_size) as f64);
+        // let cells_z = ceili((aabb.size.z / self.cell_size) as f64);
+        // let max_cells = min(maxi(maxi(cells_x, cells_y), cells_z) as u32, MAX_VOLUME_GRID_SIZE - 1);
+
+        let cell_size = Vector3::new(aabb.size.x / (MAX_VOLUME_GRID_SIZE as f32), aabb.size.y / (MAX_VOLUME_GRID_SIZE as f32), aabb.size.z / (MAX_VOLUME_GRID_SIZE as f32));
 
         // Generate an island chunk buffer of max size 
         let mut sdf = [1.0 as f32; ChunkShape::USIZE];
@@ -239,22 +254,22 @@ impl IslandBuilder {
             let [x, y, z] = ChunkShape::delinearize(i);
             
             // Get field position at given point
-            let pos = aabb.position + Vector3::new(
-                x as f32 * self.cell_size, y as f32 * self.cell_size, z as f32 * self.cell_size
+            let sample_position = aabb.position + Vector3::new(
+                x as f32 * cell_size.x, y as f32 * cell_size.y, z as f32 * cell_size.z
             );
 
             // Accumulate signed distance field values at this point
             let mut d = 1.0;
             for mut shape in self.shapes.iter_shared() {
                 // Smooth union new shape with current one
-                d = sdf_smooth_min(d, shape.bind_mut().distance(pos), 3.0);
+                d = sdf_smooth_min(d, shape.bind_mut().distance(sample_position), 3.0);
             }
-            sdf[i as usize] = d as f32; // Finally, store value
+            sdf[i as usize] = -d as f32; // Finally, store value
         }
         
         // Create a SurfaceNet buffer, then create surface net
         let mut buffer = SurfaceNetsBuffer::default();
-        surface_nets(&sdf, &ChunkShape {}, [0; 3], [max_cells; 3], &mut buffer);
+        surface_nets(&sdf, &ChunkShape {}, [0; 3], [MAX_VOLUME_GRID_SIZE - 1; 3], &mut buffer);
 
         // Create a new mesh to put data in
         // let mesh = ArrayMesh::new_gd();
@@ -273,54 +288,54 @@ impl IslandBuilder {
             godot_warn!("Position buffer length does not match normal buffer length");
         }
 
-        // Process and pipe data into Godot mesh
-        let mut array_indices = PackedInt32Array::new();
+               // Process and pipe data into Godot mesh
+               let mut array_indices = PackedInt32Array::new();
         
-        array_indices.resize(buffer.indices.len());
-        for idx in 0..buffer.indices.len()-1 {
-            array_indices.set(idx, buffer.indices[idx] as i32);
-        }
-
-        let mut array_positions = PackedVector3Array::new();
-        let mut array_normals = PackedVector3Array::new();
-        array_positions.resize(buffer.positions.len());
-        array_normals.resize(buffer.normals.len());
-        for idx in 0..buffer.positions.len()-1 {
-            let pos = buffer.positions[idx];
-            let normal = buffer.normals[idx];
-            array_positions.set(idx, Vector3::new(pos[0], pos[1], pos[2]) + aabb.position);
-            array_normals.set(idx, Vector3::new(normal[0], normal[1], normal[2]).normalized());
-        }
-
-        // Initialize mesh surface arrays
-        // To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
-        let mut surface_arrays = Array::new();
-        surface_arrays.resize(ArrayType::MAX.ord() as usize, &Array::<Variant>::new().to_variant());
-        
-        // Bind vertex data
-        surface_arrays.set(ArrayType::VERTEX.ord() as usize, array_positions.to_variant());
-        surface_arrays.set(ArrayType::NORMAL.ord() as usize, array_normals.to_variant());
-        surface_arrays.set(ArrayType::TANGENT.ord() as usize, Variant::nil());
-        
-        // Bind masking data
-        surface_arrays.set(ArrayType::COLOR.ord() as usize, Variant::nil());
-        
-        // Bind UV projections
-        surface_arrays.set(ArrayType::TEX_UV.ord() as usize, Variant::nil());
-        surface_arrays.set(ArrayType::TEX_UV2.ord() as usize, Variant::nil());
-
-        // Bind custom arrays
-        surface_arrays.set(ArrayType::CUSTOM0.ord() as usize, Variant::nil());
-        surface_arrays.set(ArrayType::CUSTOM1.ord() as usize, Variant::nil());
-        surface_arrays.set(ArrayType::CUSTOM2.ord() as usize, Variant::nil());
-        surface_arrays.set(ArrayType::CUSTOM3.ord() as usize, Variant::nil());
-
-        // Bind skeleton
-        surface_arrays.set(ArrayType::BONES.ord() as usize, Variant::nil());
-        surface_arrays.set(ArrayType::WEIGHTS.ord() as usize, Variant::nil());
-        
-        // FINALLY, bind indices
-        surface_arrays.set(ArrayType::INDEX.ord() as usize, array_indices.to_variant());
+               array_indices.resize(buffer.indices.len());
+               for idx in 0..buffer.indices.len() {
+                   array_indices.set(idx,  buffer.indices[idx] as i32);
+               }
+       
+               let mut array_positions = PackedVector3Array::new();
+               let mut array_normals = PackedVector3Array::new();
+               array_positions.resize(buffer.positions.len());
+               array_normals.resize(buffer.normals.len());
+               for idx in 0..buffer.positions.len() {
+                   let pos = buffer.positions[idx];
+                   let normal = buffer.normals[idx];
+                   array_positions.set(idx, Vector3::new(pos[0], pos[1], pos[2]) * cell_size + aabb.position);
+                   array_normals.set(idx, Vector3::new(-normal[0], -normal[1], -normal[2]).normalized());
+               }
+       
+               // Initialize mesh surface arrays
+               // To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
+               let mut surface_arrays = Array::new();
+               surface_arrays.resize(ArrayType::MAX.ord() as usize, &Array::<Variant>::new().to_variant());
+               
+               // Bind vertex data
+               surface_arrays.set(ArrayType::VERTEX.ord() as usize, array_positions.to_variant());
+               surface_arrays.set(ArrayType::NORMAL.ord() as usize, array_normals.to_variant());
+               surface_arrays.set(ArrayType::TANGENT.ord() as usize, Variant::nil());
+               
+               // Bind masking data
+               surface_arrays.set(ArrayType::COLOR.ord() as usize, Variant::nil());
+               
+               // Bind UV projections
+               surface_arrays.set(ArrayType::TEX_UV.ord() as usize, Variant::nil());
+               surface_arrays.set(ArrayType::TEX_UV2.ord() as usize, Variant::nil());
+       
+               // Bind custom arrays
+               surface_arrays.set(ArrayType::CUSTOM0.ord() as usize, Variant::nil());
+               surface_arrays.set(ArrayType::CUSTOM1.ord() as usize, Variant::nil());
+               surface_arrays.set(ArrayType::CUSTOM2.ord() as usize, Variant::nil());
+               surface_arrays.set(ArrayType::CUSTOM3.ord() as usize, Variant::nil());
+       
+               // Bind skeleton
+               surface_arrays.set(ArrayType::BONES.ord() as usize, Variant::nil());
+               surface_arrays.set(ArrayType::WEIGHTS.ord() as usize, Variant::nil());
+               
+               // FINALLY, bind indices
+               surface_arrays.set(ArrayType::INDEX.ord() as usize, array_indices.to_variant());
 
         // Add our data to the mesh
         mesh.borrow_mut().add_surface_from_arrays(PrimitiveType::TRIANGLES, surface_arrays);
@@ -350,56 +365,6 @@ impl IslandBuilder {
 
     #[signal]
     fn generated(); // mesh: Gd<ArrayMesh>
-}
-
-
-// HELLO WORLD
-use godot::engine::Sprite2D;
-
-#[derive(GodotClass)]
-#[class(base=Sprite2D)]
-struct Player {
-    speed: f64,
-    angular_speed: f64,
-
-    base: Base<Sprite2D>
-}
-
-use godot::engine::ISprite2D;
-
-#[godot_api]
-impl ISprite2D for Player {
-    fn init(base: Base<Sprite2D>) -> Self {
-        godot_print!("Hello, world!");
-
-        Self {
-            speed: 400.0,
-            angular_speed: std::f64::consts::PI,
-            base,
-        }
-    }
-
-    fn process(&mut self, delta: f64) {
-        let radians = (self.angular_speed * delta) as f32;
-        // self.base().rotate(radians);
-        self.base_mut().rotate(radians);
-
-        let rotation = self.base().get_rotation();
-        let velocity = Vector2::UP.rotated(rotation) * self.speed as f32;
-        self.base_mut().translate(velocity * delta as f32);
-    }
-}
-
-#[godot_api]
-impl Player {
-    #[func]
-    fn increase_speed(&mut self, amount: f64) {
-        self.speed += amount;
-        self.base_mut().emit_signal("speed_increased".into(), &[]);
-    }
-
-    #[signal]
-    fn speed_increased();
 }
 
 // pub fn add(left: usize, right: usize) -> usize {
