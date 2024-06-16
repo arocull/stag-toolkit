@@ -1,16 +1,14 @@
 use godot::engine::mesh::ArrayType;
 use godot::engine::mesh::PrimitiveType;
 use godot::engine::ArrayMesh;
+use godot::engine::CsgBox3D;
+use godot::engine::CsgSphere3D;
 use godot::engine::Material;
-use godot::engine::MeshDataTool;
 use godot::obj::WithBaseField;
 use godot::prelude::*;
 use godot::engine::Node3D;
 use godot::engine::Resource;
 use json::object;
-use utilities::ceili;
-use utilities::maxi;
-use utilities::push_warning;
 use utilities::{exp, log};
 use utilities::maxf;
 use fast_surface_nets::ndshape::{ConstShape, ConstShape3u32};
@@ -18,7 +16,6 @@ use fast_surface_nets::{surface_nets, SurfaceNetsBuffer};
 
 use core::fmt;
 use std::borrow::BorrowMut;
-use std::cmp::min;
 
 struct StagToolkit;
 
@@ -204,7 +201,7 @@ impl IslandBuilderShape {
 
 
 // VOXEL RANGES
-const MAX_VOLUME_GRID_SIZE: u32 = 32;
+const MAX_VOLUME_GRID_SIZE: u32 = 48;
 type ChunkShape = ConstShape3u32<MAX_VOLUME_GRID_SIZE, MAX_VOLUME_GRID_SIZE, MAX_VOLUME_GRID_SIZE>;
 
 #[derive(GodotClass)]
@@ -213,9 +210,9 @@ struct IslandBuilder {
     #[export]
     shapes: Array<Gd<IslandBuilderShape>>,
     #[export]
-    cell_size: f32, // Size of volume cell, in meters 
+    smoothing_value: f32,
     #[export]
-    volume_padding: f32,
+    default_edge_radius: f32,
     #[export]
     island_material: Option<Gd<Material>>,
 
@@ -226,8 +223,8 @@ impl INode3D for IslandBuilder {
     fn init(base: Base<Node3D>) -> Self {
         Self {
             shapes: Array::new(),
-            cell_size: 0.1,
-            volume_padding: 0.2,
+            smoothing_value: 3.0,
+            default_edge_radius: 0.2,
             island_material: None,
             base,
         }
@@ -235,18 +232,103 @@ impl INode3D for IslandBuilder {
 }
 #[godot_api]
 impl IslandBuilder {
+    /// Serializes children into IslandBuilderShape objects
+    #[func]
+    fn serialize(&mut self) {
+        self.shapes.clear(); // Clear out all existing shapes
+
+        // Iterate through children and find
+        for child in self.base().get_children().iter_shared() {
+            self.serialize_walk(child);
+        }
+    }
+    /// Walks child node trees and performs IslandBuilderShape serialization
+    fn serialize_walk(&mut self, node: Gd<Node>) {
+        // Walk through all of this node's children and perform same operation recursively
+        for child in node.get_children().iter_shared() {
+            self.serialize_walk(child);
+        }
+        
+        // Attempt to cast node into a CSG Box to see if it is a valid shape
+        let csg_box = node.try_cast::<CsgBox3D>();
+        match csg_box {
+
+            // If cast succeeds, create a Box shape and pull corresponding data
+            Ok(csg_box) => {
+                if !csg_box.is_visible() { // Ignore this shape if it is not visible
+                    return;
+                }
+
+                // Instance an IslandBuilderShape placed at our node transform
+                let mut shape = self.initialize_shape(csg_box.get_global_transform());
+                shape.bind_mut().shape = BuilderShape::Box;
+                shape.bind_mut().scale *= csg_box.get_size();
+                // Fetch/update edge_radius metadata from box node
+                shape.bind_mut().edge_radius = self.fetch_edge_radius(csg_box.upcast());
+
+                self.shapes.push(shape);
+            },
+
+            // If box cast fails, try to cast it to a CSG Sphere instead
+            Err(node) => {
+                let csg_sphere = node.try_cast::<CsgSphere3D>();
+                match csg_sphere {
+
+                    // If cast succeeds, create a Sphere shape and pull corresponding data
+                    Ok(csg_sphere) => {
+                        if !csg_sphere.is_visible() { // Ignore this shape if it is not visible
+                            return;
+                        }
+
+                        // Instance an IslandBuilderShape placed at our node transform
+                        let mut shape = self.initialize_shape(csg_sphere.get_global_transform());
+                        shape.bind_mut().shape = BuilderShape::Sphere;
+                        shape.bind_mut().radius = csg_sphere.get_radius().into();
+                        self.shapes.push(shape);
+                    },
+
+                    // Cast failed, do nothing
+                    Err(_node) => {},
+                }
+            },
+        }
+    }
+    /// Initializes and returns an IslandBuilderShape relative to this Islandbuilder using the given global-space Transform3D
+    #[func]
+    fn initialize_shape(&self, global_transform: Transform3D) -> Gd<IslandBuilderShape> {
+        let mut shape = IslandBuilderShape::new_gd();
+
+        // Get transform of node relative to the IslandBuilder transform
+        let t: Transform3D = self.base().get_global_transform().affine_inverse() * global_transform;
+        // Fetch node's relative position
+        shape.bind_mut().position = t.origin;
+        // Fetch rotation, ensuring pitch, yaw, and roll are on expected axii
+        shape.bind_mut().rotation = t.basis.to_quat().to_euler(EulerOrder::ZXY);
+        // Fetch node's scale
+        shape.bind_mut().scale = t.basis.scale();
+
+        return shape;
+    }
+    /// Fetches the edge radius metadata from the given node, or creates a property for it if not
+    fn fetch_edge_radius(&self, mut node: Gd<Node3D>) -> f32 {
+        if node.has_meta("edge_radius".into()) {
+            return node.get_meta("edge_radius".into()).to();
+        }
+        
+        // If no edge radius was set, set a default one
+        node.set_meta("edge_radius".into(), self.default_edge_radius.to_variant());
+        return self.default_edge_radius;
+    }
+
+    /// Generates an island mesh using our IslandBuilderShape list
     #[func]
     fn generate(&mut self, mut mesh: Gd<ArrayMesh>) { //  -> Gd<ArrayMesh>
         godot_print!("Generating...");
 
         // Figure out how big we're going
-        let aabb = self.get_aabb().grow(self.volume_padding);
-        // let cells_x = ceili((aabb.size.x / self.cell_size) as f64);
-        // let cells_y = ceili((aabb.size.y / self.cell_size) as f64);
-        // let cells_z = ceili((aabb.size.z / self.cell_size) as f64);
-        // let max_cells = min(maxi(maxi(cells_x, cells_y), cells_z) as u32, MAX_VOLUME_GRID_SIZE - 1);
-
-        let cell_size = Vector3::new(aabb.size.x / (MAX_VOLUME_GRID_SIZE as f32), aabb.size.y / (MAX_VOLUME_GRID_SIZE as f32), aabb.size.z / (MAX_VOLUME_GRID_SIZE as f32));
+        let aabb = self.get_aabb();
+        let cell_size = self.get_cell_size_internal(aabb); // Fetch cell size of mesh
+        let aabb = aabb.grow(cell_size[cell_size.max_axis_index()]);
 
         // Generate an island chunk buffer of max size 
         let mut sdf = [1.0 as f32; ChunkShape::USIZE];
@@ -254,17 +336,11 @@ impl IslandBuilder {
             let [x, y, z] = ChunkShape::delinearize(i);
             
             // Get field position at given point
-            let sample_position = aabb.position + Vector3::new(
+            let sample_position = aabb.position + cell_size + Vector3::new(
                 x as f32 * cell_size.x, y as f32 * cell_size.y, z as f32 * cell_size.z
             );
 
-            // Accumulate signed distance field values at this point
-            let mut d = 1.0;
-            for mut shape in self.shapes.iter_shared() {
-                // Smooth union new shape with current one
-                d = sdf_smooth_min(d, shape.bind_mut().distance(sample_position), 3.0);
-            }
-            sdf[i as usize] = -d as f32; // Finally, store value
+            sdf[i as usize] = -self.sample_at(sample_position) as f32; // Finally, sample and store value
         }
         
         // Create a SurfaceNet buffer, then create surface net
@@ -347,6 +423,20 @@ impl IslandBuilder {
         // return mesh;
     }
 
+    /// Samples the IslandBuilder SDF at the given local position
+    #[func]
+    fn sample_at(&self, sample_position: Vector3) -> f64 {
+        let mut d = 1.0;
+        // Accumulate signed distance field values at this point
+        for mut shape in self.shapes.iter_shared() {
+            // Smooth union each shape together
+            // Adjust k value for smoothness
+            d = sdf_smooth_min(d, shape.bind_mut().distance(sample_position), self.smoothing_value.into());
+        }
+        return d;
+    }
+
+    /// Calculates the Axis-Aligned Bounding Box for the IslandBuilder given our shape list
     #[func]
     fn get_aabb(&self) -> Aabb {
         let mut aabb = Aabb{position: Vector3::ZERO, size: Vector3::ZERO};
@@ -358,13 +448,28 @@ impl IslandBuilder {
         return aabb;
     }
 
+    /// Returns the anticipated cell size of the volume
+    #[func]
+    fn get_cell_size(&self) -> Vector3 {
+        return self.get_cell_size_internal(self.get_aabb());
+    }
+    fn get_cell_size_internal(&self, aabb: Aabb) -> Vector3 {
+        return Vector3::new(aabb.size.x / ((MAX_VOLUME_GRID_SIZE-2) as f32), aabb.size.y / ((MAX_VOLUME_GRID_SIZE-2) as f32), aabb.size.z / ((MAX_VOLUME_GRID_SIZE-2) as f32));
+    }
+
+    /// Performs an SDF smooth union between two distances (a, b) with the given smoothing value (k)
     #[func]
     fn smooth_union(a: f64, b: f64, k: f64) -> f64 {
         return sdf_smooth_min(a, b, k);
     }
 
+    /// Emitted when IslandBuilder has finished serializing builder shapes
     #[signal]
-    fn generated(); // mesh: Gd<ArrayMesh>
+    fn serialized();
+
+    /// Emitted when IslandBuilder has finished generating an island mesh
+    #[signal]
+    fn generated();
 }
 
 // pub fn add(left: usize, right: usize) -> usize {

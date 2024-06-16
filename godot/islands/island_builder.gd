@@ -38,8 +38,9 @@ func _generate():
 	$world/mesh_preview.mesh = mesh
 
 func _serialize():
-	island_builder.shapes.clear()
-	_serialize_walk(island_builder)
+	island_builder.serialize()
+	#island_builder.shapes.clear()
+	#_serialize_walk(island_builder)
 	$world/aabb_preview.visibility_aabb = island_builder.get_aabb()
 
 func _serialize_walk(node: Node):
