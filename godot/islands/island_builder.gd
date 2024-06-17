@@ -34,6 +34,7 @@ func _ready() -> void:
 func _generate():
 	var mesh: ArrayMesh = island_builder.generate_mesh()
 	$world/mesh_preview.mesh = mesh
+	$world/mesh_preview.visible = true
 
 func _serialize():
 	island_builder.serialize()

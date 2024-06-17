@@ -298,7 +298,7 @@ impl IslandBuilder {
 
             // If cast succeeds, create a Box shape and pull corresponding data
             Ok(csg_box) => {
-                if !csg_box.is_visible() { // Ignore this shape if it is not visible
+                if !csg_box.is_visible_in_tree() { // Ignore this shape if it is not visible
                     return;
                 }
 
@@ -319,7 +319,7 @@ impl IslandBuilder {
 
                     // If cast succeeds, create a Sphere shape and pull corresponding data
                     Ok(csg_sphere) => {
-                        if !csg_sphere.is_visible() { // Ignore this shape if it is not visible
+                        if !csg_sphere.is_visible_in_tree() { // Ignore this shape if it is not visible
                             return;
                         }
 
