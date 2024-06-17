@@ -1,6 +1,8 @@
 use godot::engine::mesh::ArrayType;
 use godot::engine::mesh::PrimitiveType;
 use godot::engine::ArrayMesh;
+use godot::engine::CollisionShape2D;
+use godot::engine::ConvexPolygonShape3D;
 use godot::engine::CsgBox3D;
 use godot::engine::CsgSphere3D;
 use godot::engine::Material;
@@ -24,6 +26,7 @@ use fast_surface_nets::{surface_nets, SurfaceNetsBuffer};
 use core::fmt;
 use std::borrow::{Borrow, BorrowMut};
 use std::cell;
+use std::f64::INFINITY;
 
 struct StagToolkit;
 
@@ -50,6 +53,38 @@ pub fn sdf_smooth_min(a: f64, b: f64, k: f64) -> f64 {
 
 pub fn max_vector(a: Vector3) -> f32 {
     return f32::max(f32::max(a.x, a.y), a.z);
+}
+
+pub fn initialize_surface_array() -> Array<Variant> {
+    let mut surface_arrays = Array::new();
+    surface_arrays.resize(ArrayType::MAX.ord() as usize, &Array::<Variant>::new().to_variant());
+    
+    // Bind vertex data
+    surface_arrays.set(ArrayType::VERTEX.ord() as usize, Variant::nil());
+    surface_arrays.set(ArrayType::NORMAL.ord() as usize, Variant::nil());
+    surface_arrays.set(ArrayType::TANGENT.ord() as usize, Variant::nil());
+    
+    // Bind masking data
+    surface_arrays.set(ArrayType::COLOR.ord() as usize, Variant::nil());
+    
+    // Bind UV projections
+    surface_arrays.set(ArrayType::TEX_UV.ord() as usize, Variant::nil());
+    surface_arrays.set(ArrayType::TEX_UV2.ord() as usize, Variant::nil());
+
+    // Bind custom arrays
+    surface_arrays.set(ArrayType::CUSTOM0.ord() as usize, Variant::nil());
+    surface_arrays.set(ArrayType::CUSTOM1.ord() as usize, Variant::nil());
+    surface_arrays.set(ArrayType::CUSTOM2.ord() as usize, Variant::nil());
+    surface_arrays.set(ArrayType::CUSTOM3.ord() as usize, Variant::nil());
+
+    // Bind skeleton
+    surface_arrays.set(ArrayType::BONES.ord() as usize, Variant::nil());
+    surface_arrays.set(ArrayType::WEIGHTS.ord() as usize, Variant::nil());
+    
+    // FINALLY, bind indices
+    surface_arrays.set(ArrayType::INDEX.ord() as usize, Variant::nil());
+
+    return surface_arrays;
 }
 
 // Enums
@@ -205,6 +240,16 @@ impl IslandBuilderShape {
         
         return aabb;
     }
+
+    /// Simplify the given vector of points based on this IslandBuilderShape
+    fn simplify_hull_internal(&self, pts: Vec<Vector3>) -> Vec<Vector3> {
+        match self.shape {
+            BuilderShape::Sphere => return pts,
+            BuilderShape::Box => {
+                return pts;
+            },
+        }
+    }
 }
 
 
@@ -235,6 +280,8 @@ struct IslandBuilder {
     #[export]
     island_material: Option<Gd<Material>>,
     #[export]
+    preview_material: Option<Gd<Material>>,
+    #[export]
     mask_range_dirt: Vector2,
     #[export]
     mask_range_sand: Vector2,
@@ -256,6 +303,7 @@ impl INode3D for IslandBuilder {
             noise_frequency: 1.0,
             noise_amplitude: 1.0,
             island_material: None,
+            preview_material: None,
             mask_range_dirt: Vector2::new(-0.1, 0.8),
             mask_range_sand: Vector2::new(0.7, 1.0),
             mask_power_sand: 3.0,
@@ -463,13 +511,11 @@ impl IslandBuilder {
 
         // Initialize mesh surface arrays
         // To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
-        let mut surface_arrays = Array::new();
-        surface_arrays.resize(ArrayType::MAX.ord() as usize, &Array::<Variant>::new().to_variant());
+        let mut surface_arrays = initialize_surface_array();
         
         // Bind vertex data
         surface_arrays.set(ArrayType::VERTEX.ord() as usize, array_positions.to_variant());
         surface_arrays.set(ArrayType::NORMAL.ord() as usize, array_normals.to_variant());
-        surface_arrays.set(ArrayType::TANGENT.ord() as usize, Variant::nil());
         
         // Bind masking data
         surface_arrays.set(ArrayType::COLOR.ord() as usize, array_colors.to_variant());
@@ -477,16 +523,6 @@ impl IslandBuilder {
         // Bind UV projections
         surface_arrays.set(ArrayType::TEX_UV.ord() as usize, array_uv1.to_variant());
         surface_arrays.set(ArrayType::TEX_UV2.ord() as usize, array_uv2.to_variant());
-
-        // Bind custom arrays
-        surface_arrays.set(ArrayType::CUSTOM0.ord() as usize, Variant::nil());
-        surface_arrays.set(ArrayType::CUSTOM1.ord() as usize, Variant::nil());
-        surface_arrays.set(ArrayType::CUSTOM2.ord() as usize, Variant::nil());
-        surface_arrays.set(ArrayType::CUSTOM3.ord() as usize, Variant::nil());
-
-        // Bind skeleton
-        surface_arrays.set(ArrayType::BONES.ord() as usize, Variant::nil());
-        surface_arrays.set(ArrayType::WEIGHTS.ord() as usize, Variant::nil());
         
         // FINALLY, bind indices
         surface_arrays.set(ArrayType::INDEX.ord() as usize, array_indices.to_variant());
@@ -501,15 +537,67 @@ impl IslandBuilder {
         }
 
         // Return mesh through a signal (TODO, how do we unborrow the object)
-        self.base_mut().emit_signal("generated_mesh".into(), &[mesh.borrow().to_variant()]);
+        self.base_mut().emit_signal("generated_mesh".into(), &[mesh.borrow().to_variant(), array_positions.to_variant()]);
         godot_print!("All done!");
 
         return mesh;
     }
 
     #[func]
-    fn generate_collision(&self, _parent: Gd<RigidBody3D>) {
+    fn generate_collision(&self, _parent: Gd<RigidBody3D>, pts: PackedVector3Array) -> Array::<Gd<ConvexPolygonShape3D>> {
+        // Validate that we have usable collision shapes
+        let mut hulls = Array::<Gd<ConvexPolygonShape3D>>::new();
+        if self.shapes.len() <= 0 {
+            godot_error!("Attempt to generate collision hulls for an island with no shapes!");
+            return hulls;
+        }
         
+        // Initialize hull storage
+        let mut hull_pts = Vec::<Vec::<Vector3>>::new();
+
+        // Initialize unique point arrays for each hull
+        for _ in 0..self.shapes.len() {
+            let arr: Vec::<Vector3> = Vec::<Vector3>::new();
+            hull_pts.push(arr);
+        }
+
+        // Assign each point to the nearest collision hull
+        let pts_slice = pts.as_slice();
+        for idx in 0..pts_slice.len() {
+            let pt = pts_slice[idx];
+            let mut min_dist = INFINITY;
+            let mut min_shape_idx = 0;
+
+            for shape_idx in 0..self.shapes.len() {
+                let mut shape = self.shapes.get(shape_idx);
+                let d = shape.bind_mut().distance(pt);
+                if d < min_dist {
+                    min_dist = d;
+                    min_shape_idx = shape_idx;
+                }
+            }
+
+            hull_pts[min_shape_idx].push(pt);
+        }
+
+        // Prune unuseful points
+        for i in 0..hull_pts.len() {
+            hull_pts[i] = self.shapes.get(i).bind().simplify_hull_internal(hull_pts[i].clone());
+
+            // To use Godot's quick hull algorithm, first convert points to Godot-usable format
+            let pts_arr = PackedVector3Array::from(hull_pts[i].as_slice());
+            let mut mesh_arr = initialize_surface_array();
+            mesh_arr.set(ArrayType::VERTEX.ord() as usize, pts_arr.to_variant());
+
+            // Initialize an ArrayMesh so Godot can generate a convex shape for us
+            let mut mesh = ArrayMesh::new_gd();
+            mesh.add_surface_from_arrays(PrimitiveType::POINTS, mesh_arr);
+
+            // Store it as a collision hull
+            hulls.push(mesh.create_convex_shape().expect("ArrayMesh failed to create convex hull shape from provided points"));
+        }
+
+        return hulls;
     }
 
     /// Samples the IslandBuilder SDF at the given local position
@@ -576,7 +664,7 @@ impl IslandBuilder {
 
     /// Emitted when IslandBuilder has finished generating an island mesh
     #[signal]
-    fn generated_mesh(mesh: Gd<ArrayMesh>);
+    fn generated_mesh(mesh: Gd<ArrayMesh>, pts: PackedVector3Array);
 }
 
 // pub fn add(left: usize, right: usize) -> usize {

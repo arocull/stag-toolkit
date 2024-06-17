@@ -31,35 +31,30 @@ func _ready() -> void:
 		_serialize()
 		_generate()
 
+func _serialize():
+	island_builder.serialize()
+	$world/aabb_preview.visibility_aabb = island_builder.get_aabb_padded()
+
 func _generate():
 	var mesh: ArrayMesh = island_builder.generate_mesh()
 	$world/mesh_preview.mesh = mesh
 	$world/mesh_preview.visible = true
 
-func _serialize():
-	island_builder.serialize()
-	$world/aabb_preview.visibility_aabb = island_builder.get_aabb_padded()
-
-func _serialize_walk(node: Node):
-	for child in node.get_children():
-		_serialize_walk(child)
+func _on_generated_mesh(mesh: ArrayMesh, pts: PackedVector3Array) -> void:
+	var rigid: RigidBody3D = $world/rigid_body
+	for item in rigid.get_children():
+		item.queue_free()
 	
-	if (node is CSGBox3D or node is CSGSphere3D) and node.visible:
-		var t: Transform3D = island_builder.global_transform.affine_inverse() * node.global_transform
-		var shape: IslandBuilderShape = IslandBuilderShape.new()
-		shape.position = t.origin
-		#shape.rotation = t.basis.get_euler()
-		shape.rotation = t.basis.get_rotation_quaternion().get_euler(EULER_ORDER_ZXY)  # Ensure pitch, yaw, roll are on expected axii (XYZ)
-		#print(rad_to_deg(shape.rotation.x), ",\t ", rad_to_deg(shape.rotation.y), ",\t ", rad_to_deg(shape.rotation.z))
-		shape.scale = t.basis.get_scale()
-		
-		if node is CSGBox3D:
-			shape.scale *= node.size
-		if node is CSGSphere3D:
-			shape.shape = BuilderShape.Sphere
-			shape.radius = node.radius
-		
-		island_builder.shapes.append(shape)
+	var collis = island_builder.generate_collision(rigid, pts)
+	print(collis)
+	for item: ConvexPolygonShape3D in collis:
+		var shape = CollisionShape3D.new()
+		shape.shape = item
+		rigid.add_child(shape)
+		shape.owner = self
+
+func _collision_finished():
+	pass
 
 const TEST_INPUTS: PackedVector3Array = [Vector3.ZERO, Vector3.UP * 0.25, Vector3.UP * 0.5, Vector3.UP * 0.6, Vector3.UP, Vector3.UP * 2.0]
 const TEST_OUPUTS: PackedFloat32Array = [1.0, 0.5]
