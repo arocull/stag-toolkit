@@ -4,18 +4,26 @@ use godot::engine::ArrayMesh;
 use godot::engine::CsgBox3D;
 use godot::engine::CsgSphere3D;
 use godot::engine::Material;
+use godot::engine::RigidBody3D;
 use godot::obj::WithBaseField;
 use godot::prelude::*;
 use godot::engine::Node3D;
 use godot::engine::Resource;
 use json::object;
+use noise::NoiseFn;
+use noise::Perlin;
+use noise::Seedable;
+use utilities::clampf;
+use utilities::pow;
+use utilities::remap;
 use utilities::{exp, log};
 use utilities::maxf;
 use fast_surface_nets::ndshape::{ConstShape, ConstShape3u32};
 use fast_surface_nets::{surface_nets, SurfaceNetsBuffer};
 
 use core::fmt;
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
+use std::cell;
 
 struct StagToolkit;
 
@@ -158,15 +166,15 @@ impl IslandBuilderShape {
         let mut pts: PackedVector3Array = PackedVector3Array::new();
         pts.resize(8);
 
-        let half_scale = self.scale / 2.0;
-        pts.set(0,Vector3::new(half_scale.x, half_scale.y, half_scale.z));   // +X +Y +Z
-        pts.set(1,Vector3::new(-half_scale.x, half_scale.y, half_scale.z));  // -X +Y +Z
-        pts.set(2,Vector3::new(half_scale.x, -half_scale.y, half_scale.z));  // +X -Y +Z
-        pts.set(3,Vector3::new(half_scale.x, half_scale.y, -half_scale.z));  // +X +Y -Z
-        pts.set(4,Vector3::new(-half_scale.x, -half_scale.y, half_scale.z)); // -X -Y +Z
-        pts.set(5,Vector3::new(half_scale.x, -half_scale.y, -half_scale.z)); // +X -Y -Z
-        pts.set(6,Vector3::new(-half_scale.x, half_scale.y, -half_scale.z)); // -X +Y -Z
-        pts.set(7,Vector3::new(-half_scale.x, -half_scale.y, -half_scale.z)); // -X -Y -Z
+        let half_scale = self.scale.abs() / 2.0;
+        pts.set(0,Vector3::new( half_scale.x,   half_scale.y,   half_scale.z)); // +X +Y +Z
+        pts.set(1,Vector3::new(-half_scale.x,   half_scale.y,   half_scale.z)); // -X +Y +Z
+        pts.set(2,Vector3::new( half_scale.x,  -half_scale.y,   half_scale.z)); // +X -Y +Z
+        pts.set(3,Vector3::new( half_scale.x,   half_scale.y,  -half_scale.z)); // +X +Y -Z
+        pts.set(4,Vector3::new(-half_scale.x,  -half_scale.y,   half_scale.z)); // -X -Y +Z
+        pts.set(5,Vector3::new( half_scale.x,  -half_scale.y,  -half_scale.z)); // +X -Y -Z
+        pts.set(6,Vector3::new(-half_scale.x,   half_scale.y,  -half_scale.z)); // -X +Y -Z
+        pts.set(7,Vector3::new(-half_scale.x,  -half_scale.y,  -half_scale.z)); // -X -Y -Z
 
         // If this is a sphere, scale the corners up by the sphere radius
         let scale_factor: f32;
@@ -176,7 +184,7 @@ impl IslandBuilderShape {
         }
 
         for i in 0..=7 {
-            pts.set(i, self.position + rotate_xyz(pts.get(i) * scale_factor, self.rotation));
+            pts.set(i, self.position + rotate_xyz(pts.get(i) * scale_factor, -self.rotation));
         }
 
         return pts;
@@ -201,7 +209,7 @@ impl IslandBuilderShape {
 
 
 // VOXEL RANGES
-const MAX_VOLUME_GRID_SIZE: u32 = 48;
+const MAX_VOLUME_GRID_SIZE: u32 = 64;
 type ChunkShape = ConstShape3u32<MAX_VOLUME_GRID_SIZE, MAX_VOLUME_GRID_SIZE, MAX_VOLUME_GRID_SIZE>;
 
 #[derive(GodotClass)]
@@ -209,12 +217,29 @@ type ChunkShape = ConstShape3u32<MAX_VOLUME_GRID_SIZE, MAX_VOLUME_GRID_SIZE, MAX
 struct IslandBuilder {
     #[export]
     shapes: Array<Gd<IslandBuilderShape>>,
+    #[export(range = (0.0,10.0, or_greater))]
+    cell_padding: i32,
     #[export]
     smoothing_value: f32,
-    #[export]
+    #[export(range = (0.0, 10.0, 0.05, or_greater))]
     default_edge_radius: f32,
+
+    noise: Perlin,
+    #[var(get = get_noise_seed, set = set_noise_seed, usage_flags = [EDITOR])]
+    noise_seed: i64,
+    #[export]
+    noise_frequency: f32,
+    #[export]
+    noise_amplitude: f64,
+
     #[export]
     island_material: Option<Gd<Material>>,
+    #[export]
+    mask_range_dirt: Vector2,
+    #[export]
+    mask_range_sand: Vector2,
+    #[export(range = (0.0, 10.0, 0.01, or_greater))]
+    mask_power_sand: f64,
 
     base: Base<Node3D>,
 }
@@ -223,15 +248,33 @@ impl INode3D for IslandBuilder {
     fn init(base: Base<Node3D>) -> Self {
         Self {
             shapes: Array::new(),
+            cell_padding: 2,
             smoothing_value: 3.0,
             default_edge_radius: 0.2,
+            noise: Perlin::new(0),
+            noise_seed: 0,
+            noise_frequency: 1.0,
+            noise_amplitude: 1.0,
             island_material: None,
+            mask_range_dirt: Vector2::new(-0.1, 0.8),
+            mask_range_sand: Vector2::new(0.7, 1.0),
+            mask_power_sand: 3.0,
             base,
         }
     }
 }
 #[godot_api]
 impl IslandBuilder {
+    /// Re-Initializes the Perlin noise generator on the IslandBuilder
+    #[func]
+    pub fn get_noise_seed(&self) -> i64 {
+        return self.noise.seed() as i64;
+    }
+    #[func]
+    pub fn set_noise_seed(&mut self, new_seed: i64) {
+        self.noise = self.noise.set_seed(new_seed as u32);
+    }
+
     /// Serializes children into IslandBuilderShape objects
     #[func]
     fn serialize(&mut self) {
@@ -322,25 +365,28 @@ impl IslandBuilder {
 
     /// Generates an island mesh using our IslandBuilderShape list
     #[func]
-    fn generate(&mut self, mut mesh: Gd<ArrayMesh>) { //  -> Gd<ArrayMesh>
-        godot_print!("Generating...");
-
+    fn generate_mesh(&mut self) -> Gd<ArrayMesh> { //  -> Gd<ArrayMesh>
         // Figure out how big we're going
         let aabb = self.get_aabb();
         let cell_size = self.get_cell_size_internal(aabb); // Fetch cell size of mesh
-        let aabb = aabb.grow(cell_size[cell_size.max_axis_index()]);
+        let aabb = self.get_aabb_padded_internal(aabb, cell_size);
 
         // Generate an island chunk buffer of max size 
         let mut sdf = [1.0 as f32; ChunkShape::USIZE];
+        // Offset cell size by 1 for bounding box, then make sure samples are centered at center of the cell
+        let position_offset = aabb.position + cell_size * 0.5;
+        // Sample every voxel of island chunk buffer
         for i in 0u32..ChunkShape::SIZE {
+            // Get corresponding X, Y, Z indices of buffer
             let [x, y, z] = ChunkShape::delinearize(i);
             
             // Get field position at given point
-            let sample_position = aabb.position + cell_size + Vector3::new(
+            let sample_position = position_offset + Vector3::new(
                 x as f32 * cell_size.x, y as f32 * cell_size.y, z as f32 * cell_size.z
             );
 
-            sdf[i as usize] = -self.sample_at(sample_position) as f32; // Finally, sample and store value
+            // Finally, sample and store value. Note that SurfaceNet library wants negated distance values
+            sdf[i as usize] = -self.sample_at(sample_position) as f32;
         }
         
         // Create a SurfaceNet buffer, then create surface net
@@ -348,79 +394,122 @@ impl IslandBuilder {
         surface_nets(&sdf, &ChunkShape {}, [0; 3], [MAX_VOLUME_GRID_SIZE - 1; 3], &mut buffer);
 
         // Create a new mesh to put data in
-        // let mesh = ArrayMesh::new_gd();
+        let mut mesh = ArrayMesh::new_gd();
 
         // If our buffer is empty, do nothing
         if buffer.indices.is_empty() {
-            godot_warn!("Island buffer is empty");
-            // return mesh;
-            return;
+            godot_warn!("Island mesh buffer is empty");
+            return mesh;
         }
-
-        // Create a mesh data tool to start parsing mesh data
-        godot_print!("Island buffer is NOT empty, building mesh...");
-
+        // If buffers are out of whack, do nothing
         if buffer.positions.len() != buffer.normals.len() {
             godot_warn!("Position buffer length does not match normal buffer length");
+            return mesh;
         }
 
-               // Process and pipe data into Godot mesh
-               let mut array_indices = PackedInt32Array::new();
+        // Process and pipe data into Godot mesh
+        let mut array_indices = PackedInt32Array::new();
+
+        array_indices.resize(buffer.indices.len());
+        for idx in 0..buffer.indices.len() {
+            array_indices.set(idx,  buffer.indices[idx] as i32);
+        }
+
+        // Initialize arrays for position data 
+        let mut array_positions = PackedVector3Array::new();
+        let mut array_normals = PackedVector3Array::new();
+        // ...and pre-allocate array size so we're not constantly re-allocating
+        array_positions.resize(buffer.positions.len());
+        array_normals.resize(buffer.normals.len());
+
+        // Initialize arrays for baking shader data
+        let mut array_colors = PackedColorArray::new();
+        let mut array_uv1 = PackedVector2Array::new();
+        let mut array_uv2 = PackedVector2Array::new();
+        // ...and pre-allocate array size
+        array_colors.resize(buffer.normals.len());
+        array_uv1.resize(buffer.positions.len());
+        array_uv2.resize(buffer.positions.len());
+
+        // For every vertex position...
+        for idx in 0..buffer.positions.len() {
+            // ...set up mesh data...
+            let pos = Vector3::new(buffer.positions[idx][0], buffer.positions[idx][1], buffer.positions[idx][2]) * cell_size + aabb.position;
+            let normal = Vector3::new(-buffer.normals[idx][0], -buffer.normals[idx][1], -buffer.normals[idx][2]).normalized();
+            array_positions.set(idx, pos);
+            array_normals.set(idx, normal);
+
+            // ...and bake shader data
+            array_uv1.set(idx, Vector2::new(pos.x + pos.z, pos.y));
+            array_uv2.set(idx, Vector2::new(pos.x, pos.z));
+
+            // Get ambient occlusion mask, must calculate AO
+            let mask_ao = 1.0;
+
+            // Do dot product with up vector for masking, then build dirt and sand masks
+            let dot = normal.dot(Vector3::UP) as f64;
+            let mask_dirt = clampf(
+                remap(dot, self.mask_range_dirt.x.into(), self.mask_range_dirt.y.into(), 0.0, 1.0)
+                , 0.0, 1.0
+            );
+            let mask_sand = pow(
+                clampf(
+                    remap(dot, self.mask_range_dirt.x.into(), self.mask_range_dirt.y.into(), 0.0, 1.0)
+                    , 0.0, 1.0
+                ), self.mask_power_sand.into()
+            );
+            array_colors.set(idx, Color::from_rgb(mask_ao as f32, mask_sand as f32, mask_dirt as f32));
+        }
+
+        // Initialize mesh surface arrays
+        // To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
+        let mut surface_arrays = Array::new();
+        surface_arrays.resize(ArrayType::MAX.ord() as usize, &Array::<Variant>::new().to_variant());
         
-               array_indices.resize(buffer.indices.len());
-               for idx in 0..buffer.indices.len() {
-                   array_indices.set(idx,  buffer.indices[idx] as i32);
-               }
-       
-               let mut array_positions = PackedVector3Array::new();
-               let mut array_normals = PackedVector3Array::new();
-               array_positions.resize(buffer.positions.len());
-               array_normals.resize(buffer.normals.len());
-               for idx in 0..buffer.positions.len() {
-                   let pos = buffer.positions[idx];
-                   let normal = buffer.normals[idx];
-                   array_positions.set(idx, Vector3::new(pos[0], pos[1], pos[2]) * cell_size + aabb.position);
-                   array_normals.set(idx, Vector3::new(-normal[0], -normal[1], -normal[2]).normalized());
-               }
-       
-               // Initialize mesh surface arrays
-               // To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
-               let mut surface_arrays = Array::new();
-               surface_arrays.resize(ArrayType::MAX.ord() as usize, &Array::<Variant>::new().to_variant());
-               
-               // Bind vertex data
-               surface_arrays.set(ArrayType::VERTEX.ord() as usize, array_positions.to_variant());
-               surface_arrays.set(ArrayType::NORMAL.ord() as usize, array_normals.to_variant());
-               surface_arrays.set(ArrayType::TANGENT.ord() as usize, Variant::nil());
-               
-               // Bind masking data
-               surface_arrays.set(ArrayType::COLOR.ord() as usize, Variant::nil());
-               
-               // Bind UV projections
-               surface_arrays.set(ArrayType::TEX_UV.ord() as usize, Variant::nil());
-               surface_arrays.set(ArrayType::TEX_UV2.ord() as usize, Variant::nil());
-       
-               // Bind custom arrays
-               surface_arrays.set(ArrayType::CUSTOM0.ord() as usize, Variant::nil());
-               surface_arrays.set(ArrayType::CUSTOM1.ord() as usize, Variant::nil());
-               surface_arrays.set(ArrayType::CUSTOM2.ord() as usize, Variant::nil());
-               surface_arrays.set(ArrayType::CUSTOM3.ord() as usize, Variant::nil());
-       
-               // Bind skeleton
-               surface_arrays.set(ArrayType::BONES.ord() as usize, Variant::nil());
-               surface_arrays.set(ArrayType::WEIGHTS.ord() as usize, Variant::nil());
-               
-               // FINALLY, bind indices
-               surface_arrays.set(ArrayType::INDEX.ord() as usize, array_indices.to_variant());
+        // Bind vertex data
+        surface_arrays.set(ArrayType::VERTEX.ord() as usize, array_positions.to_variant());
+        surface_arrays.set(ArrayType::NORMAL.ord() as usize, array_normals.to_variant());
+        surface_arrays.set(ArrayType::TANGENT.ord() as usize, Variant::nil());
+        
+        // Bind masking data
+        surface_arrays.set(ArrayType::COLOR.ord() as usize, array_colors.to_variant());
+        
+        // Bind UV projections
+        surface_arrays.set(ArrayType::TEX_UV.ord() as usize, array_uv1.to_variant());
+        surface_arrays.set(ArrayType::TEX_UV2.ord() as usize, array_uv2.to_variant());
+
+        // Bind custom arrays
+        surface_arrays.set(ArrayType::CUSTOM0.ord() as usize, Variant::nil());
+        surface_arrays.set(ArrayType::CUSTOM1.ord() as usize, Variant::nil());
+        surface_arrays.set(ArrayType::CUSTOM2.ord() as usize, Variant::nil());
+        surface_arrays.set(ArrayType::CUSTOM3.ord() as usize, Variant::nil());
+
+        // Bind skeleton
+        surface_arrays.set(ArrayType::BONES.ord() as usize, Variant::nil());
+        surface_arrays.set(ArrayType::WEIGHTS.ord() as usize, Variant::nil());
+        
+        // FINALLY, bind indices
+        surface_arrays.set(ArrayType::INDEX.ord() as usize, array_indices.to_variant());
 
         // Add our data to the mesh
         mesh.borrow_mut().add_surface_from_arrays(PrimitiveType::TRIANGLES, surface_arrays);
 
+        // Set mesh surface material, if provided
+        if self.island_material.is_some() {
+            mesh.surface_set_name(0, "island".into());
+            mesh.surface_set_material(0, self.island_material.clone().expect("No island material specified"));
+        }
+
         // Return mesh through a signal (TODO, how do we unborrow the object)
-        self.base_mut().emit_signal("generated".into(), &[]);
+        self.base_mut().emit_signal("generated_mesh".into(), &[mesh.borrow().to_variant()]);
         godot_print!("All done!");
 
-        // return mesh;
+        return mesh;
+    }
+
+    #[func]
+    fn generate_collision(&self, _parent: Gd<RigidBody3D>) {
+        
     }
 
     /// Samples the IslandBuilder SDF at the given local position
@@ -433,7 +522,11 @@ impl IslandBuilder {
             // Adjust k value for smoothness
             d = sdf_smooth_min(d, shape.bind_mut().distance(sample_position), self.smoothing_value.into());
         }
-        return d;
+
+        let noise_pos = sample_position * self.noise_frequency;
+        let noise = self.noise.get([noise_pos.x as f64, noise_pos.y as f64, noise_pos.z as f64]) * self.noise_amplitude;
+
+        return d + noise;
     }
 
     /// Calculates the Axis-Aligned Bounding Box for the IslandBuilder given our shape list
@@ -447,14 +540,28 @@ impl IslandBuilder {
 
         return aabb;
     }
+    /// Calculates the Axis-Aligned Bounding Box for the IslandBuilder, with some extra padding
+    #[func]
+    fn get_aabb_padded(&self) -> Aabb {
+        let aabb = self.get_aabb();
+        return self.get_aabb_padded_internal(aabb, self.get_cell_size_internal(aabb));
+    }
+    /// Calculates the Axis-Aligned Bounding Box for the IslandBuilder, with some extra padding, using pre-calculated values
+    fn get_aabb_padded_internal(&self, mut aabb: Aabb, cell_size: Vector3) -> Aabb {
+        aabb.position -= cell_size * (self.cell_padding as f32 * 0.5);
+        aabb.size += cell_size * (self.cell_padding as f32);
+        return aabb;
+    }
 
-    /// Returns the anticipated cell size of the volume
+    /// Returns the anticipated cell size of the IslandBuilder volume
     #[func]
     fn get_cell_size(&self) -> Vector3 {
         return self.get_cell_size_internal(self.get_aabb());
     }
+    /// Returns the anticipated cell size of the IslandBuilder volume, using a pre-made AABB
     fn get_cell_size_internal(&self, aabb: Aabb) -> Vector3 {
-        return Vector3::new(aabb.size.x / ((MAX_VOLUME_GRID_SIZE-2) as f32), aabb.size.y / ((MAX_VOLUME_GRID_SIZE-2) as f32), aabb.size.z / ((MAX_VOLUME_GRID_SIZE-2) as f32));
+        let grid_size = (MAX_VOLUME_GRID_SIZE - (self.cell_padding as u32)) as f32;
+        return Vector3::new(aabb.size.x / grid_size, aabb.size.y / grid_size, aabb.size.z / grid_size);
     }
 
     /// Performs an SDF smooth union between two distances (a, b) with the given smoothing value (k)
@@ -469,7 +576,7 @@ impl IslandBuilder {
 
     /// Emitted when IslandBuilder has finished generating an island mesh
     #[signal]
-    fn generated();
+    fn generated_mesh(mesh: Gd<ArrayMesh>);
 }
 
 // pub fn add(left: usize, right: usize) -> usize {

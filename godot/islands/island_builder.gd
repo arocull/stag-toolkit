@@ -32,16 +32,12 @@ func _ready() -> void:
 		_generate()
 
 func _generate():
-	var mesh: ArrayMesh = ArrayMesh.new()
-	island_builder.generate(mesh)
-	mesh.regen_normal_maps()
+	var mesh: ArrayMesh = island_builder.generate_mesh()
 	$world/mesh_preview.mesh = mesh
 
 func _serialize():
 	island_builder.serialize()
-	#island_builder.shapes.clear()
-	#_serialize_walk(island_builder)
-	$world/aabb_preview.visibility_aabb = island_builder.get_aabb()
+	$world/aabb_preview.visibility_aabb = island_builder.get_aabb_padded()
 
 func _serialize_walk(node: Node):
 	for child in node.get_children():

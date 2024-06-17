@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" load_steps=3 format=3 uid="uid://bn3boxpxjokmg"]
+
+[ext_resource type="Shader" path="res://art/materials/debug_shaders/debug_vertex_color.gdshader" id="1_6qgln"]
+[ext_resource type="Material" uid="uid://gnxoj1helsar" path="res://art/materials/debug_shaders/materials/mat_debug_wireframe.tres" id="1_ub7v5"]
+
+[resource]
+render_priority = 0
+next_pass = ExtResource("1_ub7v5")
+shader = ExtResource("1_6qgln")
