@@ -1,31 +1,17 @@
-use godot::engine::mesh::ArrayType;
-use godot::engine::mesh::PrimitiveType;
-use godot::engine::ArrayMesh;
-use godot::engine::CollisionShape2D;
-use godot::engine::ConvexPolygonShape3D;
-use godot::engine::CsgBox3D;
-use godot::engine::CsgSphere3D;
-use godot::engine::Material;
-use godot::engine::RigidBody3D;
-use godot::obj::WithBaseField;
 use godot::prelude::*;
+use godot::engine::mesh::{ArrayType, PrimitiveType};
+use godot::engine::{ArrayMesh, ConvexPolygonShape3D, CsgBox3D, CsgSphere3D, Material, RigidBody3D};
+use godot::obj::WithBaseField;
 use godot::engine::Node3D;
 use godot::engine::Resource;
 use json::object;
-use noise::NoiseFn;
-use noise::Perlin;
-use noise::Seedable;
-use utilities::clampf;
-use utilities::pow;
-use utilities::remap;
-use utilities::{exp, log};
-use utilities::maxf;
+use noise::{NoiseFn, Perlin, Seedable};
+use godot::engine::utilities::{clampf, pow, remap, exp, log, maxf};
 use fast_surface_nets::ndshape::{ConstShape, ConstShape3u32};
 use fast_surface_nets::{surface_nets, SurfaceNetsBuffer};
 
 use core::fmt;
 use std::borrow::{Borrow, BorrowMut};
-use std::cell;
 use std::f64::INFINITY;
 
 struct StagToolkit;
@@ -34,6 +20,7 @@ struct StagToolkit;
 unsafe impl ExtensionLibrary for StagToolkit {}
 
 // Utility Functions
+/// Rotates a Godot vector using the provided Euler Angles, in radians
 pub fn rotate_xyz(v: Vector3, euler: Vector3) -> Vector3 {
     // Rotation Order: YXZ
     return v.rotated(
@@ -45,16 +32,17 @@ pub fn rotate_xyz(v: Vector3, euler: Vector3) -> Vector3 {
     );
 }
 
-// Smooth unions two SDF shapes, k = 32.0 was original suggestion
+/// Smooth unions two SDF shapes, k = 32.0 was original suggestion
 pub fn sdf_smooth_min(a: f64, b: f64, k: f64) -> f64 {
     let res = exp(-k * a) + exp(-k * b);
     return -log(maxf(0.0001, res)) / k;
 }
-
+/// Returns the maximum value of a given Godot vector
 pub fn max_vector(a: Vector3) -> f32 {
     return f32::max(f32::max(a.x, a.y), a.z);
 }
 
+/// Initializes Surface Arrays of a Godot vector
 pub fn initialize_surface_array() -> Array<Variant> {
     let mut surface_arrays = Array::new();
     surface_arrays.resize(ArrayType::MAX.ord() as usize, &Array::<Variant>::new().to_variant());
@@ -102,16 +90,6 @@ impl fmt::Display for BuilderShape {
         }
     }
 }
-// impl BuilderShape {
-//     fn from_string(string_value: &str) -> BuilderShape {
-//         return match string_value {
-//             "sphere" => BuilderShape::Sphere,
-//             _ => BuilderShape::Box,
-//         }
-
-//     }
-// }
-
 
 #[derive(GodotClass)]
 #[class(base=Resource)]
@@ -159,20 +137,6 @@ impl IResource for IslandBuilderShape {
 }
 #[godot_api]
 impl IslandBuilderShape {
-    // #[func]
-    // fn from_json(obj: Dictionary) -> Gd<Self> {
-    //     let shape = BuilderShape::from_string(obj.get("shape").unwrap().into());
-    //     let position = obj.get("position").unwrap().try_to(Vector3);
-    //     let rotation = obj.get("position").unwrap();
-    //     let scale = obj.get("position").unwrap();
-    //     Gd::from_object(Self {
-    //         shape,
-    //         position,
-    //         rotation,
-    //         scale,
-    //         base,
-    //     })
-    // }
     #[func]
     fn to_local(&self, position: Vector3) -> Vector3 {
         return rotate_xyz(position - self.position, -self.rotation);
@@ -189,7 +153,7 @@ impl IslandBuilderShape {
             BuilderShape::Box => { // SDF rounded box
                 let q = offset.abs() - (self.scale / 2.0) + Vector3::splat(self.edge_radius);
                 let m = q.coord_max(Vector3::ZERO);
-                return (m.length() + f32::min(q[q.max_axis_index()], 0.0) - self.edge_radius) as f64;
+                return (m.length() + f32::min(max_vector(q), 0.0) - self.edge_radius) as f64;
                 // https://github.com/jasmcole/Blog/blob/master/CSG/src/fragment.ts#L13
                 // https://github.com/fogleman/sdf/blob/main/sdf/d3.py#L140
             },
@@ -202,14 +166,14 @@ impl IslandBuilderShape {
         pts.resize(8);
 
         let half_scale = self.scale.abs() / 2.0;
-        pts.set(0,Vector3::new( half_scale.x,   half_scale.y,   half_scale.z)); // +X +Y +Z
-        pts.set(1,Vector3::new(-half_scale.x,   half_scale.y,   half_scale.z)); // -X +Y +Z
-        pts.set(2,Vector3::new( half_scale.x,  -half_scale.y,   half_scale.z)); // +X -Y +Z
-        pts.set(3,Vector3::new( half_scale.x,   half_scale.y,  -half_scale.z)); // +X +Y -Z
-        pts.set(4,Vector3::new(-half_scale.x,  -half_scale.y,   half_scale.z)); // -X -Y +Z
-        pts.set(5,Vector3::new( half_scale.x,  -half_scale.y,  -half_scale.z)); // +X -Y -Z
-        pts.set(6,Vector3::new(-half_scale.x,   half_scale.y,  -half_scale.z)); // -X +Y -Z
-        pts.set(7,Vector3::new(-half_scale.x,  -half_scale.y,  -half_scale.z)); // -X -Y -Z
+        pts[0] = Vector3::new( half_scale.x,   half_scale.y,   half_scale.z); // +X +Y +Z
+        pts[1] = Vector3::new(-half_scale.x,   half_scale.y,   half_scale.z); // -X +Y +Z
+        pts[2] = Vector3::new( half_scale.x,  -half_scale.y,   half_scale.z); // +X -Y +Z
+        pts[3] = Vector3::new( half_scale.x,   half_scale.y,  -half_scale.z); // +X +Y -Z
+        pts[4] = Vector3::new(-half_scale.x,  -half_scale.y,   half_scale.z); // -X -Y +Z
+        pts[5] = Vector3::new( half_scale.x,  -half_scale.y,  -half_scale.z); // +X -Y -Z
+        pts[6] = Vector3::new(-half_scale.x,   half_scale.y,  -half_scale.z); // -X +Y -Z
+        pts[7] = Vector3::new(-half_scale.x,  -half_scale.y,  -half_scale.z); // -X -Y -Z
 
         // If this is a sphere, scale the corners up by the sphere radius
         let scale_factor: f32;
@@ -219,7 +183,7 @@ impl IslandBuilderShape {
         }
 
         for i in 0..=7 {
-            pts.set(i, self.position + rotate_xyz(pts.get(i) * scale_factor, -self.rotation));
+            pts[i] = self.position + rotate_xyz(pts[i] * scale_factor, -self.rotation);
         }
 
         return pts;
@@ -235,7 +199,7 @@ impl IslandBuilderShape {
 
         // Ensure AABB contains all corners
         for i in 0..=corners.len()-1 {
-            aabb = aabb.expand(corners.get(i));
+            aabb = aabb.expand(corners[i]);
         }
         
         return aabb;
@@ -460,7 +424,7 @@ impl IslandBuilder {
 
         array_indices.resize(buffer.indices.len());
         for idx in 0..buffer.indices.len() {
-            array_indices.set(idx,  buffer.indices[idx] as i32);
+            array_indices[idx] = buffer.indices[idx] as i32;
         }
 
         // Initialize arrays for position data 
@@ -484,12 +448,12 @@ impl IslandBuilder {
             // ...set up mesh data...
             let pos = Vector3::new(buffer.positions[idx][0], buffer.positions[idx][1], buffer.positions[idx][2]) * cell_size + aabb.position;
             let normal = Vector3::new(-buffer.normals[idx][0], -buffer.normals[idx][1], -buffer.normals[idx][2]).normalized();
-            array_positions.set(idx, pos);
-            array_normals.set(idx, normal);
+            array_positions[idx] = pos;
+            array_normals[idx] = normal;
 
             // ...and bake shader data
-            array_uv1.set(idx, Vector2::new(pos.x + pos.z, pos.y));
-            array_uv2.set(idx, Vector2::new(pos.x, pos.z));
+            array_uv1[idx] = Vector2::new(pos.x + pos.z, pos.y);
+            array_uv2[idx] = Vector2::new(pos.x, pos.z);
 
             // Get ambient occlusion mask, must calculate AO
             let mask_ao = 1.0;
@@ -506,7 +470,7 @@ impl IslandBuilder {
                     , 0.0, 1.0
                 ), self.mask_power_sand.into()
             );
-            array_colors.set(idx, Color::from_rgb(mask_ao as f32, mask_sand as f32, mask_dirt as f32));
+            array_colors[idx] = Color::from_rgb(mask_ao as f32, mask_sand as f32, mask_dirt as f32);
         }
 
         // Initialize mesh surface arrays
@@ -569,7 +533,7 @@ impl IslandBuilder {
             let mut min_shape_idx = 0;
 
             for shape_idx in 0..self.shapes.len() {
-                let mut shape = self.shapes.get(shape_idx);
+                let mut shape = self.shapes.get(shape_idx).unwrap();
                 let d = shape.bind_mut().distance(pt);
                 if d < min_dist {
                     min_dist = d;
@@ -582,7 +546,7 @@ impl IslandBuilder {
 
         // Prune unuseful points
         for i in 0..hull_pts.len() {
-            hull_pts[i] = self.shapes.get(i).bind().simplify_hull_internal(hull_pts[i].clone());
+            hull_pts[i] = self.shapes.get(i).unwrap().bind().simplify_hull_internal(hull_pts[i].clone());
 
             // To use Godot's quick hull algorithm, first convert points to Godot-usable format
             let pts_arr = PackedVector3Array::from(hull_pts[i].as_slice());
@@ -623,7 +587,7 @@ impl IslandBuilder {
         let mut aabb = Aabb{position: Vector3::ZERO, size: Vector3::ZERO};
 
         for shape in self.shapes.iter_shared() {
-            aabb = aabb.merge(&shape.bind().get_aabb());
+            aabb = aabb.merge(shape.bind().get_aabb());
         }
 
         return aabb;
