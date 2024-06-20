@@ -12,6 +12,9 @@ func _parse_begin(object: Object) -> void:
 	var builder = object as IslandBuilder
 	update_shapecount(builder)
 	
+	if builder.has_meta("volume"):
+		update_volume(builder.get_meta("volume", 0.0))
+	
 	var bserialize: Button = panel.get_node("%btn_serialize")
 	bserialize.pressed.connect(do_serialize.bind(builder))
 	var bpreview: Button = panel.get_node("%btn_preview")
@@ -23,30 +26,38 @@ func _parse_begin(object: Object) -> void:
 
 func update_shapecount(builder: IslandBuilder):
 	panel.get_node("%shape_count").text = "{0} shapes".format([builder.shapes.size()])
+func update_volume(new_volume: float):
+	panel.get_node("%volume").text = "{0} m³".format([new_volume])
 
 func do_serialize(builder: IslandBuilder):
 	builder.serialize()
 	update_shapecount(builder)
 
 func do_preview(builder: IslandBuilder):
-	find_mesh_output(builder).mesh = builder.generate_mesh()
+	find_mesh_output(builder).mesh = builder.generate_mesh_preview()
 
 func do_bake(builder: IslandBuilder):
-	var bind = _on_bake_complete.bind(builder)
-	builder.generated_mesh.connect(bind, CONNECT_ONE_SHOT | CONNECT_DEFERRED)
-	
-	builder.generate_mesh() # Perform mesh generation
-	
-	if builder.generated_mesh.is_connected(bind): # Disconnect event
-		builder.generated_mesh.disconnect(bind)
-
-func _on_bake_complete(island_mesh: ArrayMesh, island_pts: PackedVector3Array, builder: IslandBuilder):
-	var mesh = find_mesh_output(builder)
-	mesh.mesh = island_mesh
-	
-	var hulls = builder.generate_collision(builder.get_node(builder.output_to), island_pts)
+	var bake_data = builder.bake()
 	var out = find_output_object(builder)
 	
+	if bake_data.size() <= 0:
+		push_error("IslandBuilder: Bake failed")
+		return
+	print("Got bake data!", bake_data)
+	
+	var mesh: ArrayMesh = bake_data[0]
+	var hulls: Array[ConvexPolygonShape3D] = bake_data[1]
+	var volume: float = bake_data[2]
+	
+	# Update volume label
+	if is_instance_valid(panel):
+		update_volume(volume)
+	builder.set_meta("volume", volume)
+	
+	# Set mesh output to baked mesh
+	find_mesh_output(builder).mesh = mesh
+	
+	# Add collision hulls
 	for idx in range(0,hulls.size()):
 		var item: ConvexPolygonShape3D = hulls[idx]
 		var shape = CollisionShape3D.new()

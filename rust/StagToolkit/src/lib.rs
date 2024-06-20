@@ -1,7 +1,7 @@
 use godot::global::sqrt;
 use godot::prelude::*;
 use godot::engine::mesh::{ArrayType, PrimitiveType};
-use godot::engine::{ArrayMesh, ConvexPolygonShape3D, CsgBox3D, CsgSphere3D, Material, RigidBody3D};
+use godot::engine::{ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, CsgBox3D, CsgSphere3D, Material, RigidBody3D};
 use godot::obj::WithBaseField;
 use godot::engine::Node3D;
 use godot::engine::Resource;
@@ -12,6 +12,7 @@ use fast_surface_nets::ndshape::{ConstShape, ConstShape3u32};
 use fast_surface_nets::{surface_nets, SurfaceNetsBuffer};
 
 use core::fmt;
+use std::array;
 use std::borrow::{Borrow, BorrowMut};
 use std::f64::INFINITY;
 
@@ -74,6 +75,13 @@ pub fn initialize_surface_array() -> Array<Variant> {
     surface_arrays.set(ArrayType::INDEX.ord() as usize, Variant::nil());
 
     return surface_arrays;
+}
+/// Returns vertex data from the buffer at the given index, in Position, Normal format
+fn get_buffer_data(pos: [f32; 3], norm: [f32; 3], cell_size: Vector3, offset: Vector3) -> (Vector3, Vector3) {
+    return (
+        Vector3::new(pos[0], pos[1], pos[2]) * cell_size + offset,
+        Vector3::new(-norm[0], -norm[1], -norm[2]).normalized(),
+    );
 }
 
 // Enums
@@ -313,13 +321,13 @@ impl INode3D for IslandBuilder {
             output_to: NodePath::from("."),
             shapes: Array::new(),
             cell_padding: 8,
-            smoothing_value: 3.0,
+            smoothing_value: 2.5,
             default_edge_radius: 0.2,
-            default_hull_zscore: 2.0,
+            default_hull_zscore: 2.5,
             noise: Perlin::new(0),
             noise_seed: 0,
-            noise_frequency: 1.0,
-            noise_amplitude: 1.0,
+            noise_frequency: 0.75,
+            noise_amplitude: 0.125,
             island_material: None,
             preview_material: None,
             mask_range_dirt: Vector2::new(-0.1, 0.8),
@@ -350,6 +358,7 @@ impl IslandBuilder {
         for child in self.base().get_children().iter_shared() {
             self.serialize_walk(child);
         }
+        self.base_mut().emit_signal("completed_serialize".into(), &[]);
     }
     /// Walks child node trees and performs IslandBuilderShape serialization
     fn serialize_walk(&mut self, node: Gd<Node>) {
@@ -441,6 +450,7 @@ impl IslandBuilder {
         return self.default_hull_zscore;
     }
 
+    /// Generates a surface net and returns important data
     fn do_surface_nets(&self) -> (SurfaceNetsBuffer, Aabb, Vector3, f64) {
         // Figure out how big we're going
         let aabb = self.get_aabb();
@@ -485,28 +495,18 @@ impl IslandBuilder {
         return (buffer, aabb, cell_size, volume);
     }
 
-    /// Generates an island mesh using our IslandBuilderShape list
-    #[func]
-    fn generate_preview(&mut self) -> Gd<ArrayMesh> { //  -> Gd<ArrayMesh>
-        let (buffer, aabb, cell_size, volume) = self.do_surface_nets();
 
-        // Create a new mesh to put data in
-        let mut mesh = ArrayMesh::new_gd();
-
+    /// Generates mesh data from the given SurfaceNetsBuffer.
+    /// Returns in order: Indices, Positions, Normals, Valid
+    fn generate_mesh_data(&self, buffer: SurfaceNetsBuffer, aabb: Aabb, cell_size: Vector3) -> (PackedInt32Array, PackedVector3Array, PackedVector3Array, bool) {
         // If our buffer is empty, do nothing
         if buffer.indices.is_empty() {
-            godot_warn!("Island mesh buffer is empty");
-            return mesh;
-        }
-        // If buffers are out of whack, do nothing
-        if buffer.positions.len() != buffer.normals.len() {
-            godot_warn!("Position buffer length does not match normal buffer length");
-            return mesh;
+            godot_warn!("IslandBuilder: Island mesh buffer is empty!");
+            return (PackedInt32Array::new(), PackedVector3Array::new(), PackedVector3Array::new(), false);
         }
 
-        // Process and pipe data into Godot mesh
+        // Initialize array indices and unwrap our buffer into them
         let mut array_indices = PackedInt32Array::new();
-
         array_indices.resize(buffer.indices.len());
         for idx in 0..buffer.indices.len() {
             array_indices[idx] = buffer.indices[idx] as i32;
@@ -519,22 +519,30 @@ impl IslandBuilder {
         array_positions.resize(buffer.positions.len());
         array_normals.resize(buffer.normals.len());
 
+        // For every vertex position...
+        for idx in 0..buffer.positions.len() {
+            // ...set up mesh data...
+            (array_positions[idx], array_normals[idx]) = get_buffer_data(buffer.positions[idx], buffer.normals[idx], cell_size, aabb.position);
+        }
+
+        return (array_indices, array_positions, array_normals, true);
+    }
+    /// Bakes a mesh from the provided SurfaceNetsBuffer data
+    fn generate_mesh_baked_internal(&self, array_indices: PackedInt32Array, array_positions: PackedVector3Array, array_normals: PackedVector3Array) -> Gd<ArrayMesh> {
         // Initialize arrays for baking shader data
         let mut array_colors = PackedColorArray::new();
         let mut array_uv1 = PackedVector2Array::new();
         let mut array_uv2 = PackedVector2Array::new();
         // ...and pre-allocate array size
-        array_colors.resize(buffer.normals.len());
-        array_uv1.resize(buffer.positions.len());
-        array_uv2.resize(buffer.positions.len());
+        array_colors.resize(array_positions.len());
+        array_uv1.resize(array_positions.len());
+        array_uv2.resize(array_positions.len());
 
         // For every vertex position...
-        for idx in 0..buffer.positions.len() {
-            // ...set up mesh data...
-            let pos = Vector3::new(buffer.positions[idx][0], buffer.positions[idx][1], buffer.positions[idx][2]) * cell_size + aabb.position;
-            let normal = Vector3::new(-buffer.normals[idx][0], -buffer.normals[idx][1], -buffer.normals[idx][2]).normalized();
-            array_positions[idx] = pos;
-            array_normals[idx] = normal;
+        for idx in 0..array_positions.len() {
+            // ...fetch up mesh data...
+            let pos = array_positions[idx];
+            let normal = array_normals[idx];
 
             // ...and bake shader data
             array_uv1[idx] = Vector2::new(pos.x + pos.z, pos.y);
@@ -558,25 +566,21 @@ impl IslandBuilder {
             array_colors[idx] = Color::from_rgb(mask_ao as f32, mask_sand as f32, mask_dirt as f32);
         }
 
-        // Initialize mesh surface arrays
-        // To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
+        // Initialize mesh surface arrays. To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
         let mut surface_arrays = initialize_surface_array();
-        
         // Bind vertex data
         surface_arrays.set(ArrayType::VERTEX.ord() as usize, array_positions.to_variant());
         surface_arrays.set(ArrayType::NORMAL.ord() as usize, array_normals.to_variant());
-        
         // Bind masking data
         surface_arrays.set(ArrayType::COLOR.ord() as usize, array_colors.to_variant());
-        
         // Bind UV projections
         surface_arrays.set(ArrayType::TEX_UV.ord() as usize, array_uv1.to_variant());
         surface_arrays.set(ArrayType::TEX_UV2.ord() as usize, array_uv2.to_variant());
-        
         // FINALLY, bind indices
         surface_arrays.set(ArrayType::INDEX.ord() as usize, array_indices.to_variant());
 
-        // Add our data to the mesh
+        // Add our data to a mesh
+        let mut mesh = ArrayMesh::new_gd();
         mesh.borrow_mut().add_surface_from_arrays(PrimitiveType::TRIANGLES, surface_arrays);
 
         // Set mesh surface material, if provided
@@ -585,12 +589,44 @@ impl IslandBuilder {
             mesh.surface_set_material(0, self.island_material.clone().expect("No island material specified"));
         }
 
-        // Return mesh through a signal (TODO, how do we unborrow the object)
-        self.base_mut().emit_signal("generated_mesh".into(), &[mesh.borrow().to_variant(), array_positions.to_variant()]);
-
         return mesh;
     }
 
+    /// Generates a preview island mesh using our IslandBuilderShape list
+    #[func]
+    fn generate_mesh_preview(&self) -> Gd<ArrayMesh> {
+        let (buffer, aabb, cell_size, _) = self.do_surface_nets(); // Precompute Surface Nets
+        let (array_indices, array_positions, array_normals, valid) = self.generate_mesh_data(buffer, aabb, cell_size);
+        if !valid { return ArrayMesh::new_gd(); }
+        
+        // Create a new mesh to put data in
+        let mut mesh = ArrayMesh::new_gd();
+        // Initialize mesh surface arrays, and bind vertex data
+        let mut surface_arrays = initialize_surface_array();
+        surface_arrays.set(ArrayType::VERTEX.ord() as usize, array_positions.to_variant());
+        surface_arrays.set(ArrayType::NORMAL.ord() as usize, array_normals.to_variant());        
+        surface_arrays.set(ArrayType::INDEX.ord() as usize, array_indices.to_variant());
+        // Add our data to the mesh
+        mesh.borrow_mut().add_surface_from_arrays(PrimitiveType::TRIANGLES, surface_arrays);
+
+        // Set mesh surface material, if provided
+        if self.island_material.is_some() {
+            mesh.surface_set_name(0, "island".into());
+            mesh.surface_set_material(0, self.preview_material.clone().expect("No island PREVIEW material specified"));
+        }
+
+        return mesh;
+    }
+    /// Generates a baked mesh using our IslandBuilderShape
+    #[func]
+    fn generate_mesh_baked(&self) -> Gd<ArrayMesh> {
+        let (buffer, aabb, cell_size, _) = self.do_surface_nets(); // Precompute Surface Nets
+        let (array_indices, array_positions, array_normals, valid) = self.generate_mesh_data(buffer, aabb, cell_size);
+        if !valid { return ArrayMesh::new_gd(); }
+        return self.generate_mesh_baked_internal(array_indices, array_positions, array_normals);
+    }
+
+    /// Generates ConvexPolygonShape3D based
     #[func]
     fn generate_collision(&self, pts: PackedVector3Array) -> Array::<Gd<ConvexPolygonShape3D>> {
         // Validate that we have usable collision shapes
@@ -631,22 +667,36 @@ impl IslandBuilder {
         // Prune unuseful points
         // TODO: multi-thread this
         for i in 0..hull_pts.len() {
-            hull_pts[i] = self.shapes.get(i).unwrap().bind().simplify_hull_internal(hull_pts[i].clone());
-
-            // To use Godot's quick hull algorithm, first convert points to Godot-usable format
-            let pts_arr = PackedVector3Array::from(hull_pts[i].as_slice());
-            let mut mesh_arr = initialize_surface_array();
-            mesh_arr.set(ArrayType::VERTEX.ord() as usize, pts_arr.to_variant());
-
-            // Initialize an ArrayMesh so Godot can generate a convex shape for us
-            let mut mesh = ArrayMesh::new_gd();
-            mesh.add_surface_from_arrays(PrimitiveType::POINTS, mesh_arr);
-
-            // Store it as a collision hull
-            hulls.push(mesh.create_convex_shape().expect("ArrayMesh failed to create convex hull shape from provided points"));
+            let mut shape = ConvexPolygonShape3D::new_gd();
+            shape.set_points(PackedVector3Array::from(self.shapes.get(i).unwrap().bind().simplify_hull_internal(hull_pts[i].clone()).as_slice()));
+            hulls.push(shape);
         }
 
         return hulls;
+    }
+
+    /// DO IT ALL. Returns an array and emits an event
+    #[func]
+    fn bake(&mut self) -> Array::<Variant> {
+        let (buffer, aabb, cell_size, volume) = self.do_surface_nets(); // Precompute Surface Nets
+        let (array_indices, array_positions, array_normals, valid) = self.generate_mesh_data(buffer, aabb, cell_size);
+
+        if !valid {
+            return Array::<Variant>::new();
+        }
+
+        // Bake mesh and generate collision
+        let mesh = self.generate_mesh_baked_internal(array_indices, array_positions.clone(), array_normals);
+        let collis = self.generate_collision(array_positions);
+        
+        // Once complete, package all data up for sending
+        let output = &[mesh.to_variant(), collis.to_variant(), Variant::from(volume)];
+
+        // Emit as a signal in case we're threaded...
+        self.base_mut().emit_signal("completed_bake".into(),  output);
+
+        // ...and return as an array!
+        return Array::<Variant>::from(output);
     }
 
     /// Samples the IslandBuilder SDF at the given local position
@@ -701,19 +751,12 @@ impl IslandBuilder {
         return Vector3::new(aabb.size.x / grid_size, aabb.size.y / grid_size, aabb.size.z / grid_size);
     }
 
-    /// Performs an SDF smooth union between two distances (a, b) with the given smoothing value (k)
-    #[func]
-    fn smooth_union(a: f64, b: f64, k: f64) -> f64 {
-        return sdf_smooth_min(a, b, k);
-    }
-
     /// Emitted when IslandBuilder has finished serializing builder shapes
     #[signal]
-    fn serialized();
-
+    fn completed_serialize();
     /// Emitted when IslandBuilder has finished generating an island mesh
     #[signal]
-    fn generated_mesh(mesh: Gd<ArrayMesh>, pts: PackedVector3Array);
+    fn completed_bake(mesh: Gd<ArrayMesh>, hulls: Array<Gd<CollisionShape3D>>, volume: f64);
 }
 
 // pub fn add(left: usize, right: usize) -> usize {
