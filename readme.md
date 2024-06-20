@@ -2,6 +2,12 @@
 
 All-purpose toolkit for game creation for Lonesome Stag studios.
 
+## To-Dos
+- Add Ambient Occlusion baking for IslandBuilder
+- QuickHull and Decimation for IslandBuilder collision hulls
+- Multi-thread IslandBuilder
+- If possible, find a faster SurfaceNets algorithm (or at least do better performance testing)
+
 ## Resources
 - [Setting Up](docs/setup.md)
 - [rust book](https://doc.rust-lang.org/stable/book/)

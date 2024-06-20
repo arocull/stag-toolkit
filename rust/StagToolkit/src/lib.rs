@@ -605,11 +605,11 @@ impl IslandBuilder {
             );
             let mask_sand = pow(
                 clampf(
-                    remap(dot, self.mask_range_dirt.x.into(), self.mask_range_dirt.y.into(), 0.0, 1.0)
+                    remap(dot, self.mask_range_sand.x.into(), self.mask_range_sand.y.into(), 0.0, 1.0)
                     , 0.0, 1.0
                 ), self.mask_power_sand.into()
             );
-            array_colors[idx] = Color::from_rgb(mask_ao as f32, mask_sand as f32, mask_dirt as f32);
+            array_colors[idx] = Color::from_rgb(mask_ao as f32, mask_dirt as f32, mask_sand as f32);
         }
 
         // Initialize mesh surface arrays. To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
