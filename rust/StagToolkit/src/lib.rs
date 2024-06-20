@@ -1,3 +1,4 @@
+use godot::global::sqrt;
 use godot::prelude::*;
 use godot::engine::mesh::{ArrayType, PrimitiveType};
 use godot::engine::{ArrayMesh, ConvexPolygonShape3D, CsgBox3D, CsgSphere3D, Material, RigidBody3D};
@@ -94,18 +95,27 @@ impl fmt::Display for BuilderShape {
 #[derive(GodotClass)]
 #[class(base=Resource)]
 struct IslandBuilderShape {
+    /// Type of shape, describes the used SDF function and how transforms are applied
     #[export]
     shape: BuilderShape,
+    /// 3D Position of shape
     #[export]
     position: Vector3,
+    /// Euler rotation of shape, in radians
     #[export]
     rotation: Vector3,
+    /// 3D scale of shape
     #[export]
     scale: Vector3,
+    /// Radius for sphere shapes
     #[export]
     radius: f64,
+    /// Smoothing radius for box shapes
     #[export]
     edge_radius: f32,
+    /// Z-Score threshold for discarding hull points. Discards if point score is over threshold
+    #[export]
+    hull_zscore: f64,
     base: Base<Resource>,
 }
 #[godot_api]
@@ -118,6 +128,7 @@ impl IResource for IslandBuilderShape {
             scale: Vector3::ONE,
             radius: 1.0,
             edge_radius: 0.0,
+            hull_zscore: 2.0,
             base,
         }
     }
@@ -143,7 +154,7 @@ impl IslandBuilderShape {
     }
 
     #[func]
-    fn distance(&mut self, position: Vector3) -> f64 {
+    fn distance(&self, position: Vector3) -> f64 {
         let offset = self.to_local(position);
 
         match self.shape {
@@ -160,11 +171,14 @@ impl IslandBuilderShape {
         }
     }
 
+    /// Gets the bounding-box corners of the given shape. NOT axis-aligned.
     #[func]
     fn get_corners(&self) -> PackedVector3Array {
+        // Pre-allocate array
         let mut pts: PackedVector3Array = PackedVector3Array::new();
         pts.resize(8);
 
+        // Allocate points at each corner 
         let half_scale = self.scale.abs() / 2.0;
         pts[0] = Vector3::new( half_scale.x,   half_scale.y,   half_scale.z); // +X +Y +Z
         pts[1] = Vector3::new(-half_scale.x,   half_scale.y,   half_scale.z); // -X +Y +Z
@@ -182,6 +196,7 @@ impl IslandBuilderShape {
             BuilderShape::Box => scale_factor = 1.0,
         }
 
+        // Perform shape transformations
         for i in 0..=7 {
             pts[i] = self.position + rotate_xyz(pts[i] * scale_factor, -self.rotation);
         }
@@ -189,6 +204,7 @@ impl IslandBuilderShape {
         return pts;
     }
 
+    /// Returns the Axis-Aligned Bounding Box of the given shape
     #[func]
     fn get_aabb(&self) -> Aabb {
         // Create an empty AABB at the shape center, with no volume
@@ -206,13 +222,42 @@ impl IslandBuilderShape {
     }
 
     /// Simplify the given vector of points based on this IslandBuilderShape
+    /// Utilizes zscores
     fn simplify_hull_internal(&self, pts: Vec<Vector3>) -> Vec<Vector3> {
-        match self.shape {
-            BuilderShape::Sphere => return pts,
-            BuilderShape::Box => {
-                return pts;
-            },
+        let mut distances = Vec::<f64>::new();
+        distances.reserve_exact(pts.len());
+
+        // Calculate mean distance and store distances
+        let mut mean: f64 = 0.0;
+        for i in 0..pts.len() {
+            distances.push(self.distance(pts[i]));
+            mean += distances[i] as f64;
         }
+        mean /= pts.len() as f64;
+
+
+        // Now calculate standard deviation of the data set
+        let mut sdeviation: f64 = 0.0;
+        for dist in distances.iter() {
+            sdeviation += pow(dist - mean, 2.0);
+        }
+        let sdeviation = sqrt(sdeviation * (1.0 / (distances.len() as f64)));
+
+        // Allocate new points vector
+        let mut new_pts: Vec<Vector3> = Vec::<Vector3>::new();
+        new_pts.reserve_exact(pts.len()); // Worst-case scenario, we use all this space
+
+        // Calculate z-score of every point...
+        for i in 0..distances.len() {
+            let zscore = (distances[i] - mean) / sdeviation;
+
+            // ...and only include point if it falls within our Z-Score threshold
+            if zscore < self.hull_zscore {
+                new_pts.push(pts[i]);
+            }
+        }
+
+        return new_pts; // Return new hull
     }
 }
 
@@ -224,14 +269,21 @@ type ChunkShape = ConstShape3u32<MAX_VOLUME_GRID_SIZE, MAX_VOLUME_GRID_SIZE, MAX
 #[derive(GodotClass)]
 #[class(base=Node3D,tool)]
 struct IslandBuilder {
+    /// When additional nodes are spawned, they are outputed to this object
+    #[export]
+    output_to: NodePath,
+    /// Serialized list of builder shapes
     #[export]
     shapes: Array<Gd<IslandBuilderShape>>,
+    /// How many extra cells of padding should be added to the bounding box during generation
     #[export(range = (0.0,10.0, or_greater))]
     cell_padding: i32,
     #[export]
     smoothing_value: f32,
     #[export(range = (0.0, 10.0, 0.05, or_greater))]
     default_edge_radius: f32,
+    #[export(range = (0.0, 10.0, 0.01, or_greater))]
+    default_hull_zscore: f64,
 
     noise: Perlin,
     #[var(get = get_noise_seed, set = set_noise_seed, usage_flags = [EDITOR])]
@@ -258,10 +310,12 @@ struct IslandBuilder {
 impl INode3D for IslandBuilder {
     fn init(base: Base<Node3D>) -> Self {
         Self {
+            output_to: NodePath::from("."),
             shapes: Array::new(),
-            cell_padding: 2,
+            cell_padding: 8,
             smoothing_value: 3.0,
             default_edge_radius: 0.2,
+            default_hull_zscore: 2.0,
             noise: Perlin::new(0),
             noise_seed: 0,
             noise_frequency: 1.0,
@@ -319,7 +373,8 @@ impl IslandBuilder {
                 shape.bind_mut().shape = BuilderShape::Box;
                 shape.bind_mut().scale *= csg_box.get_size();
                 // Fetch/update edge_radius metadata from box node
-                shape.bind_mut().edge_radius = self.fetch_edge_radius(csg_box.upcast());
+                shape.bind_mut().edge_radius = self.fetch_edge_radius(csg_box.clone().upcast());
+                shape.bind_mut().hull_zscore = self.fetch_hull_zscore(csg_box.clone().upcast());
 
                 self.shapes.push(shape);
             },
@@ -339,6 +394,7 @@ impl IslandBuilder {
                         let mut shape = self.initialize_shape(csg_sphere.get_global_transform());
                         shape.bind_mut().shape = BuilderShape::Sphere;
                         shape.bind_mut().radius = csg_sphere.get_radius().into();
+                        shape.bind_mut().hull_zscore = self.fetch_hull_zscore(csg_sphere.upcast());
                         self.shapes.push(shape);
                     },
 
@@ -374,10 +430,18 @@ impl IslandBuilder {
         node.set_meta("edge_radius".into(), self.default_edge_radius.to_variant());
         return self.default_edge_radius;
     }
+    /// Fetches the hull ZScore metadata from the given node, or creates a property for it if not
+    fn fetch_hull_zscore(&self, mut node: Gd<Node3D>) -> f64 {
+        if node.has_meta("hull_zscore".into()) {
+            return node.get_meta("hull_zscore".into()).to();
+        }
+        
+        // If no edge radius was set, set a default one
+        node.set_meta("hull_zscore".into(), self.default_hull_zscore.to_variant());
+        return self.default_hull_zscore;
+    }
 
-    /// Generates an island mesh using our IslandBuilderShape list
-    #[func]
-    fn generate_mesh(&mut self) -> Gd<ArrayMesh> { //  -> Gd<ArrayMesh>
+    fn do_surface_nets(&self) -> (SurfaceNetsBuffer, Aabb, Vector3, f64) {
         // Figure out how big we're going
         let aabb = self.get_aabb();
         let cell_size = self.get_cell_size_internal(aabb); // Fetch cell size of mesh
@@ -387,6 +451,10 @@ impl IslandBuilder {
         let mut sdf = [1.0 as f32; ChunkShape::USIZE];
         // Offset cell size by 1 for bounding box, then make sure samples are centered at center of the cell
         let position_offset = aabb.position + cell_size * 0.5;
+        // Get cubic size of a volume chunk
+        let volume_chunk = (cell_size.x * cell_size.y * cell_size.z) as f64;
+        // Prepare to calculate volume
+        let mut volume: f64 = 0.0;
         // Sample every voxel of island chunk buffer
         for i in 0u32..ChunkShape::SIZE {
             // Get corresponding X, Y, Z indices of buffer
@@ -397,13 +465,30 @@ impl IslandBuilder {
                 x as f32 * cell_size.x, y as f32 * cell_size.y, z as f32 * cell_size.z
             );
 
-            // Finally, sample and store value. Note that SurfaceNet library wants negated distance values
-            sdf[i as usize] = -self.sample_at(sample_position) as f32;
+            // Sample the SDF at the given position
+            let sample = self.sample_at(sample_position);
+
+            // If our sample point is inside shape, add it to our volume estimation
+            if sample <= 0.0 {
+                volume += volume_chunk;
+            }
+
+            // Finally, store the value. Note that SurfaceNet library wants negated distance values
+            sdf[i as usize] = -sample as f32;
         }
         
         // Create a SurfaceNet buffer, then create surface net
         let mut buffer = SurfaceNetsBuffer::default();
         surface_nets(&sdf, &ChunkShape {}, [0; 3], [MAX_VOLUME_GRID_SIZE - 1; 3], &mut buffer);
+
+        // Finally, return it all
+        return (buffer, aabb, cell_size, volume);
+    }
+
+    /// Generates an island mesh using our IslandBuilderShape list
+    #[func]
+    fn generate_preview(&mut self) -> Gd<ArrayMesh> { //  -> Gd<ArrayMesh>
+        let (buffer, aabb, cell_size, volume) = self.do_surface_nets();
 
         // Create a new mesh to put data in
         let mut mesh = ArrayMesh::new_gd();
@@ -502,13 +587,12 @@ impl IslandBuilder {
 
         // Return mesh through a signal (TODO, how do we unborrow the object)
         self.base_mut().emit_signal("generated_mesh".into(), &[mesh.borrow().to_variant(), array_positions.to_variant()]);
-        godot_print!("All done!");
 
         return mesh;
     }
 
     #[func]
-    fn generate_collision(&self, _parent: Gd<RigidBody3D>, pts: PackedVector3Array) -> Array::<Gd<ConvexPolygonShape3D>> {
+    fn generate_collision(&self, pts: PackedVector3Array) -> Array::<Gd<ConvexPolygonShape3D>> {
         // Validate that we have usable collision shapes
         let mut hulls = Array::<Gd<ConvexPolygonShape3D>>::new();
         if self.shapes.len() <= 0 {
@@ -545,6 +629,7 @@ impl IslandBuilder {
         }
 
         // Prune unuseful points
+        // TODO: multi-thread this
         for i in 0..hull_pts.len() {
             hull_pts[i] = self.shapes.get(i).unwrap().bind().simplify_hull_internal(hull_pts[i].clone());
 

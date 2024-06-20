@@ -34,6 +34,8 @@ func _ready() -> void:
 func _serialize():
 	island_builder.serialize()
 	$world/aabb_preview.visibility_aabb = island_builder.get_aabb_padded()
+	for shape: IslandBuilderShape in island_builder.shapes:
+		shape.hull_zscore = 2.0
 
 func _generate():
 	var mesh: ArrayMesh = island_builder.generate_mesh()

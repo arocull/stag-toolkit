@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://bbereusu62yv7"]
+
+[node name="list" type="VBoxContainer"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 128.0
+grow_horizontal = 2
+
+[node name="shape_count" type="Label" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+text = "### Shapes"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="btn_serialize" type="Button" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+text = "Serialize"
+
+[node name="btn_preview" type="Button" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+text = "Generate Preview"
+
+[node name="btn_bake" type="Button" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+text = "Generate Bake"
