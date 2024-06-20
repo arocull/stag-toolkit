@@ -4,11 +4,11 @@ compatibility_minimum = 4.2
 reloadable = true
 
 [libraries]
-linux.debug.x86_64 =     "res://../rust/StagToolkit/target/debug/libStagToolkit.so"
-linux.release.x86_64 =   "res://../rust/StagToolkit/target/release/libStagToolkit.so"
-windows.debug.x86_64 =   "res://../rust/StagToolkit/target/release/StagToolkit.dll"
-windows.release.x86_64 = "res://../rust/StagToolkit/target/release/StagToolkit.dll"
-macos.debug =            "res://../rust/StagToolkit/target/debug/libStagToolkit.dylib"
-macos.release =          "res://../rust/StagToolkit/target/release/libStagToolkit.dylib"
-macos.debug.arm64 =      "res://../rust/StagToolkit/target/debug/libStagToolkit.dylib"
-macos.release.arm64 =    "res://../rust/StagToolkit/target/release/libStagToolkit.dylib"
+linux.debug.x86_64 =     "res://addons/stag_toolkit/bin/debug/libStagToolkit.so"
+linux.release.x86_64 =   "res://addons/stag_toolkit/bin/release/libStagToolkit.so"
+windows.debug.x86_64 =   "res://addons/stag_toolkit/bin/release/StagToolkit.dll"
+windows.release.x86_64 = "res://addons/stag_toolkit/bin/release/StagToolkit.dll"
+macos.debug =            "res://addons/stag_toolkit/bin/debug/libStagToolkit.dylib"
+macos.release =          "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
+macos.debug.arm64 =      "res://addons/stag_toolkit/bin/debug/libStagToolkit.dylib"
+macos.release.arm64 =    "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"

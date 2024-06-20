@@ -1,2 +1,8 @@
+## RUST
 rust/StagToolkit/target/
+
+## GODOT
+godot/addons/stag_toolkit/bin/**/*.dll
+godot/addons/stag_toolkit/bin/**/*.so
+godot/addons/stag_toolkit/bin/**/*.dylib
 godot/local_tests/
