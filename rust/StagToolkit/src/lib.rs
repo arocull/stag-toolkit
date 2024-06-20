@@ -1,7 +1,7 @@
 use godot::global::sqrt;
 use godot::prelude::*;
 use godot::engine::mesh::{ArrayType, PrimitiveType};
-use godot::engine::{ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, CsgBox3D, CsgSphere3D, Material, RigidBody3D};
+use godot::engine::{ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, CsgBox3D, CsgSphere3D, ImporterMesh, Material};
 use godot::obj::WithBaseField;
 use godot::engine::Node3D;
 use godot::engine::Resource;
@@ -12,8 +12,7 @@ use fast_surface_nets::ndshape::{ConstShape, ConstShape3u32};
 use fast_surface_nets::{surface_nets, SurfaceNetsBuffer};
 
 use core::fmt;
-use std::array;
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::BorrowMut;
 use std::f64::INFINITY;
 
 struct StagToolkit;
@@ -96,6 +95,32 @@ impl fmt::Display for BuilderShape {
         match self {
             BuilderShape::Box => write!(f, "box"),
             BuilderShape::Sphere => write!(f, "sphere"),
+        }
+    }
+}
+
+#[derive(GodotClass)]
+#[class(base=Resource)]
+struct NavIslandProperties {
+    #[export]
+    aabb: Aabb,
+    #[export]
+    center: Vector3,
+    #[export]
+    radius: f32,
+    #[export]
+    surface_flatness: f32,
+    base: Base<Resource>,
+}
+#[godot_api]
+impl IResource for NavIslandProperties {
+    fn init(base: Base<Resource>) -> Self {
+        Self {
+            aabb: Aabb::new(Vector3::ZERO, Vector3::ZERO),
+            center: Vector3::ZERO,
+            radius: 5.0,
+            surface_flatness: 1.0,
+            base,
         }
     }
 }
@@ -293,12 +318,17 @@ struct IslandBuilder {
     #[export(range = (0.0, 10.0, 0.01, or_greater))]
     default_hull_zscore: f64,
 
+    #[export(range=(10.0,5000.0,1.0,or_greater))]
+    density: f64,
+    #[export(range=(1.0,100.0,0.1))]
+    density_health: f64,
+
     noise: Perlin,
     #[var(get = get_noise_seed, set = set_noise_seed, usage_flags = [EDITOR])]
     noise_seed: i64,
-    #[export]
+    #[export(range=(0.0,1.0,0.001,or_greater))]
     noise_frequency: f32,
-    #[export]
+    #[export(range=(0.0,1.0,0.001,or_greater))]
     noise_amplitude: f64,
 
     #[export]
@@ -311,6 +341,10 @@ struct IslandBuilder {
     mask_range_sand: Vector2,
     #[export(range = (0.0, 10.0, 0.01, or_greater))]
     mask_power_sand: f64,
+    #[export(range = (0.0, 89.9, 0.1))]
+    lod_normal_merge_angle: f32,
+    #[export(range = (0.0, 179.9, 0.1))]
+    lod_normal_split_angle: f32,
 
     base: Base<Node3D>,
 }
@@ -322,8 +356,10 @@ impl INode3D for IslandBuilder {
             shapes: Array::new(),
             cell_padding: 8,
             smoothing_value: 2.5,
-            default_edge_radius: 0.2,
+            default_edge_radius: 0.8,
             default_hull_zscore: 2.5,
+            density: 2323.0,
+            density_health: 20.0,
             noise: Perlin::new(0),
             noise_seed: 0,
             noise_frequency: 0.75,
@@ -333,6 +369,8 @@ impl INode3D for IslandBuilder {
             mask_range_dirt: Vector2::new(-0.1, 0.8),
             mask_range_sand: Vector2::new(0.7, 1.0),
             mask_power_sand: 3.0,
+            lod_normal_merge_angle: 25.0,
+            lod_normal_split_angle: 65.0,
             base,
         }
     }
@@ -354,10 +392,18 @@ impl IslandBuilder {
     fn serialize(&mut self) {
         self.shapes.clear(); // Clear out all existing shapes
 
+        // Make sure we're visible for parsing, if possible
+        let was_visible = self.base().clone().is_visible();
+        self.base().clone().set_visible(true);
+
         // Iterate through children and find
         for child in self.base().get_children().iter_shared() {
             self.serialize_walk(child);
         }
+
+        self.base().clone().set_visible(was_visible); // Return to original visibility
+
+        // Let editor know we've finished serializing
         self.base_mut().emit_signal("completed_serialize".into(), &[]);
     }
     /// Walks child node trees and performs IslandBuilderShape serialization
@@ -580,6 +626,12 @@ impl IslandBuilder {
         surface_arrays.set(ArrayType::INDEX.ord() as usize, array_indices.to_variant());
 
         // Add our data to a mesh
+        // TODO: Currently ImporterMesh isn't implemented: https://github.com/godot-rust/gdext/issues/156
+        // let mut mesh_importer = ImporterMesh::new_gd();
+        // mesh_importer.clear();
+        // mesh_importer.add_surface(PrimitiveType::TRIANGLES, surface_arrays);
+        // mesh_importer.generate_lods(self.lod_normal_merge_angle, self.lod_normal_split_angle, VariantArray::new());
+        // let mut mesh = mesh_importer.get_mesh().expect("IslandBuilder: MeshImporter failed to provide ArrayMesh");
         let mut mesh = ArrayMesh::new_gd();
         mesh.borrow_mut().add_surface_from_arrays(PrimitiveType::TRIANGLES, surface_arrays);
 
@@ -675,7 +727,8 @@ impl IslandBuilder {
         return hulls;
     }
 
-    /// DO IT ALL. Returns an array and emits an event
+    /// DO IT ALL. Returns an array and emits an event for different uses.
+    /// In this order, returns: ArrayMesh, array of ConvexPolygonShape3D, volume of SDF as a float, and NavIslandProperties
     #[func]
     fn bake(&mut self) -> Array::<Variant> {
         let (buffer, aabb, cell_size, volume) = self.do_surface_nets(); // Precompute Surface Nets
@@ -688,9 +741,10 @@ impl IslandBuilder {
         // Bake mesh and generate collision
         let mesh = self.generate_mesh_baked_internal(array_indices, array_positions.clone(), array_normals);
         let collis = self.generate_collision(array_positions);
+        let nav_props = self.get_navigation_properties();
         
         // Once complete, package all data up for sending
-        let output = &[mesh.to_variant(), collis.to_variant(), Variant::from(volume)];
+        let output = &[mesh.to_variant(), collis.to_variant(), Variant::from(volume), nav_props.to_variant()];
 
         // Emit as a signal in case we're threaded...
         self.base_mut().emit_signal("completed_bake".into(),  output);
@@ -751,12 +805,23 @@ impl IslandBuilder {
         return Vector3::new(aabb.size.x / grid_size, aabb.size.y / grid_size, aabb.size.z / grid_size);
     }
 
+    /// Returns the estimated navigation properties of the island
+    #[func]
+    fn get_navigation_properties(&self) -> Gd<NavIslandProperties> {
+        let mut props = NavIslandProperties::new_gd();
+        let aabb = self.get_aabb();
+        props.bind_mut().aabb = aabb;
+        props.bind_mut().radius = (aabb.size * Vector3::new(1.0, 0.0, 1.0)).length() / 2.0;
+        props.bind_mut().center = (aabb.center() * Vector3::new(1.0, 0.0, 1.0)) + (aabb.support(Vector3::UP) * Vector3::UP);
+        return props;
+    }
+
     /// Emitted when IslandBuilder has finished serializing builder shapes
     #[signal]
     fn completed_serialize();
     /// Emitted when IslandBuilder has finished generating an island mesh
     #[signal]
-    fn completed_bake(mesh: Gd<ArrayMesh>, hulls: Array<Gd<CollisionShape3D>>, volume: f64);
+    fn completed_bake(mesh: Gd<ArrayMesh>, hulls: Array<Gd<CollisionShape3D>>, volume: f64, navigation_properties: Gd<NavIslandProperties>);
 }
 
 // pub fn add(left: usize, right: usize) -> usize {

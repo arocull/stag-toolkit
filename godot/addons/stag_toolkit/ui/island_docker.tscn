@@ -1,32 +1,50 @@
 [gd_scene format=3 uid="uid://bbereusu62yv7"]
 
-[node name="list" type="VBoxContainer"]
+[node name="island_docker" type="VBoxContainer"]
 anchors_preset = 10
 anchor_right = 1.0
 offset_bottom = 128.0
 grow_horizontal = 2
 
-[node name="shape_count" type="Label" parent="."]
+[node name="information1" type="HBoxContainer" parent="."]
+layout_mode = 2
+alignment = 1
+
+[node name="shape_count" type="Label" parent="information1"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
+size_flags_horizontal = 3
 text = "### Shapes"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="volume" type="Label" parent="."]
+[node name="volume" type="Label" parent="information1"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
+size_flags_horizontal = 3
 text = "###.## m^3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="btn_serialize" type="Button" parent="."]
+[node name="information2" type="HBoxContainer" parent="."]
+layout_mode = 2
+alignment = 1
+
+[node name="btn_serialize" type="Button" parent="information2"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
+size_flags_horizontal = 3
 text = "Serialize"
+
+[node name="btn_metadata" type="Button" parent="information2"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Clear Metadata"
 
 [node name="btn_preview" type="Button" parent="."]
 unique_name_in_owner = true
@@ -39,3 +57,6 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 text = "Generate Bake"
+
+[node name="HSeparator" type="HSeparator" parent="."]
+layout_mode = 2

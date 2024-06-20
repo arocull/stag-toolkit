@@ -17,6 +17,8 @@ func _parse_begin(object: Object) -> void:
 	
 	var bserialize: Button = panel.get_node("%btn_serialize")
 	bserialize.pressed.connect(do_serialize.bind(builder))
+	var bmetaclear: Button = panel.get_node("%btn_metadata")
+	bmetaclear.pressed.connect(do_metaclear.bind(builder))
 	var bpreview: Button = panel.get_node("%btn_preview")
 	bpreview.pressed.connect(do_preview.bind(builder))
 	var bbake: Button = panel.get_node("%btn_bake")
@@ -33,17 +35,28 @@ func do_serialize(builder: IslandBuilder):
 	builder.serialize()
 	update_shapecount(builder)
 
+func do_metaclear(node: Node):
+	for child in node.get_children():
+		do_metaclear(child)
+	node.remove_meta("edge_radius")
+	node.remove_meta("hull_zscore")
+
 func do_preview(builder: IslandBuilder):
+	var t1 = Time.get_ticks_usec()
 	find_mesh_output(builder).mesh = builder.generate_mesh_preview()
+	var t2 = Time.get_ticks_usec()
+	print("IslandBuilder: Mesh preview took ", float(t2 - t1) * 0.001, " ms")
 
 func do_bake(builder: IslandBuilder):
+	var t1 = Time.get_ticks_usec()
 	var bake_data = builder.bake()
+	var t2 = Time.get_ticks_usec()
+	print("IslandBuilder: Bake took ", float(t2 - t1) * 0.001, " ms")
 	var out = find_output_object(builder)
 	
 	if bake_data.size() <= 0:
 		push_error("IslandBuilder: Bake failed")
 		return
-	print("Got bake data!", bake_data)
 	
 	var mesh: ArrayMesh = bake_data[0]
 	var hulls: Array[ConvexPolygonShape3D] = bake_data[1]
@@ -55,7 +68,16 @@ func do_bake(builder: IslandBuilder):
 	builder.set_meta("volume", volume)
 	
 	# Set mesh output to baked mesh
-	find_mesh_output(builder).mesh = mesh
+	# TODO: Right now, this has to be baked inside of Godot due to lack of Rust support
+	var importer = ImporterMesh.new()
+	importer.clear()
+	importer.add_surface(Mesh.PRIMITIVE_TRIANGLES, mesh.surface_get_arrays(0), [], {}, builder.island_material, "island")
+	importer.generate_lods(builder.lod_normal_merge_angle, builder.lod_normal_split_angle, [])
+	find_mesh_output(builder).mesh = importer.get_mesh(mesh)
+	
+	for child in out.get_children():
+		if child is CollisionShape3D:
+			child.free()
 	
 	# Add collision hulls
 	for idx in range(0,hulls.size()):
@@ -65,6 +87,9 @@ func do_bake(builder: IslandBuilder):
 		shape.name = "collis{0}".format([idx])
 		out.add_child(shape)
 		shape.owner = out.get_tree().edited_scene_root
+	
+	if out is RigidBody3D:
+		out.mass = volume * builder.density
 
 func find_output_object(builder: IslandBuilder) -> Node:
 	var out = builder.get_node(builder.output_to)
