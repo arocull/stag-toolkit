@@ -61,6 +61,7 @@ func do_bake(builder: IslandBuilder):
 	var mesh: ArrayMesh = bake_data[0]
 	var hulls: Array[ConvexPolygonShape3D] = bake_data[1]
 	var volume: float = bake_data[2]
+	var nav_props: NavIslandProperties = bake_data[3]
 	
 	# Update volume label
 	if is_instance_valid(panel):
@@ -90,6 +91,10 @@ func do_bake(builder: IslandBuilder):
 	
 	if out is RigidBody3D:
 		out.mass = volume * builder.density
+	if out.has_method("set_nav_properties"):
+		out.set_nav_properties(nav_props)
+	if out.get_parent().has_method("set_max_health"):
+		out.get_parent().set_max_health(volume * builder.density_health)
 
 func find_output_object(builder: IslandBuilder) -> Node:
 	var out = builder.get_node(builder.output_to)

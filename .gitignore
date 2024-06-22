@@ -7,3 +7,4 @@ godot/addons/stag_toolkit/bin/**/*.so
 godot/addons/stag_toolkit/bin/**/*.dylib
 godot/local_tests/
 *.TMP
+~*

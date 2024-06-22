@@ -318,7 +318,7 @@ struct IslandBuilder {
     #[export(range = (0.0, 10.0, 0.01, or_greater))]
     default_hull_zscore: f64,
 
-    #[export(range=(10.0,5000.0,1.0,or_greater))]
+    #[export(range=(1.0,5000.0,0.01,or_greater))]
     density: f64,
     #[export(range=(1.0,100.0,0.1))]
     density_health: f64,
@@ -341,6 +341,8 @@ struct IslandBuilder {
     mask_range_sand: Vector2,
     #[export(range = (0.0, 10.0, 0.01, or_greater))]
     mask_power_sand: f64,
+    #[export]
+    mask_perlin_scale: Vector3,
     #[export(range = (0.0, 89.9, 0.1))]
     lod_normal_merge_angle: f32,
     #[export(range = (0.0, 179.9, 0.1))]
@@ -355,11 +357,11 @@ impl INode3D for IslandBuilder {
             output_to: NodePath::from("."),
             shapes: Array::new(),
             cell_padding: 8,
-            smoothing_value: 2.5,
-            default_edge_radius: 0.8,
-            default_hull_zscore: 2.5,
-            density: 2323.0,
-            density_health: 20.0,
+            smoothing_value: 1.5,
+            default_edge_radius: 1.0,
+            default_hull_zscore: 3.0,
+            density: 23.23, // Normally is 100x this
+            density_health: 2.0,
             noise: Perlin::new(0),
             noise_seed: 0,
             noise_frequency: 0.75,
@@ -369,8 +371,9 @@ impl INode3D for IslandBuilder {
             mask_range_dirt: Vector2::new(-0.1, 0.8),
             mask_range_sand: Vector2::new(0.7, 1.0),
             mask_power_sand: 3.0,
-            lod_normal_merge_angle: 25.0,
-            lod_normal_split_angle: 65.0,
+            mask_perlin_scale: Vector3::new(0.75,0.33,0.75),
+            lod_normal_merge_angle: 27.0,
+            lod_normal_split_angle: 70.0,
             base,
         }
     }
@@ -584,6 +587,8 @@ impl IslandBuilder {
         array_uv1.resize(array_positions.len());
         array_uv2.resize(array_positions.len());
 
+        let cell_size = self.get_cell_size_internal(self.get_aabb_padded());
+
         // For every vertex position...
         for idx in 0..array_positions.len() {
             // ...fetch up mesh data...
@@ -595,7 +600,9 @@ impl IslandBuilder {
             array_uv2[idx] = Vector2::new(pos.x, pos.z);
 
             // Get ambient occlusion mask, must calculate AO
-            let mask_ao = 1.0;
+            // let normal_ao = self.sample_normal_at(pos);
+            // let mask_ao = self.sample_occlusion_at(pos - normal * Vector3::splat(cell_size.length()), normal_ao);
+            let mask_ao: f64 = 1.0;
 
             // Do dot product with up vector for masking, then build dirt and sand masks
             let dot = normal.dot(Vector3::UP) as f64;
@@ -609,7 +616,11 @@ impl IslandBuilder {
                     , 0.0, 1.0
                 ), self.mask_power_sand.into()
             );
-            array_colors[idx] = Color::from_rgb(mask_ao as f32, mask_dirt as f32, mask_sand as f32);
+
+            let noise_pos = pos * self.mask_perlin_scale;
+            let mask_perlin = remap(self.noise.get([noise_pos.x as f64, noise_pos.y as f64, noise_pos.z as f64]), -1.0, 1.0, 0.0, 1.0);
+            
+            array_colors[idx] = Color::from_rgba(mask_ao as f32, mask_dirt as f32, mask_sand as f32, mask_perlin as f32);
         }
 
         // Initialize mesh surface arrays. To properly use vertex indices, we have to pass *ALL* of the arrays :skull:
@@ -768,6 +779,37 @@ impl IslandBuilder {
         let noise = self.noise.get([noise_pos.x as f64, noise_pos.y as f64, noise_pos.z as f64]) * self.noise_amplitude;
 
         return d + noise;
+    }
+
+    /// Samples an internal normal from the IslandBuilder SDF at the given local position
+    // #[func]
+    fn sample_normal_at(&self, sample_position: Vector3) -> Vector3 {
+        const SMALL_STEP_X: Vector3 = Vector3::new(0.001, 0.0, 0.0);
+        const SMALL_STEP_Y: Vector3 = Vector3::new(0.001, 0.0, 0.0);
+        const SMALL_STEP_Z: Vector3 = Vector3::new(0.001, 0.0, 0.0);
+
+        let gradient_x = self.sample_at(sample_position + SMALL_STEP_X) - self.sample_at(sample_position - SMALL_STEP_X);
+        let gradient_y = self.sample_at(sample_position + SMALL_STEP_Y) - self.sample_at(sample_position - SMALL_STEP_Y);
+        let gradient_z = self.sample_at(sample_position + SMALL_STEP_Z) - self.sample_at(sample_position - SMALL_STEP_Z);
+
+        return Vector3::new(gradient_x as f32, gradient_y as f32, gradient_z as f32).normalized();
+    }
+
+    /// Samples an Ambient Occlusion from the IslandBuilder SDF at the given local position
+    #[func]
+    fn sample_occlusion_at(&self, sample_position: Vector3, sample_normal: Vector3) -> f64 {
+        let mut occlusion: f64 = 0.0;
+        let mut scale: f64 = 1.0;
+
+        for i in 0..5 {
+            let hr = 0.01 + 0.12 * f64::from(i) / 4.0;
+            let ao_pos = sample_normal * Vector3::splat(hr as f32) + sample_position;
+            let dd = self.sample_at(ao_pos);
+            occlusion += -(dd - hr) * scale;
+            scale *= 0.95;
+        }
+
+        return clampf(1.0 - 3.0 * occlusion, 0.0, 1.0);
     }
 
     /// Calculates the Axis-Aligned Bounding Box for the IslandBuilder given our shape list

@@ -3,6 +3,7 @@
 All-purpose toolkit for game creation for Lonesome Stag studios.
 
 ## To-Dos
+- Add Perlin noise output to vertex color alpha
 - Add Ambient Occlusion baking for IslandBuilder
 - QuickHull and Decimation for IslandBuilder collision hulls
 - Multi-thread IslandBuilder

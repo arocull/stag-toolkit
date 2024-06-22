@@ -4,6 +4,9 @@ void fragment() {
 	#ifdef DEBUG_COLOR
 	ALBEDO = COLOR.rgb;
 	#endif
+	#ifdef DEBUG_COLORALPHA
+	ALBEDO = vec3(COLOR.a);
+	#endif
 	#ifdef DEBUG_UV
 	ALBEDO = vec3(fract(UV), 0);
 	#endif
