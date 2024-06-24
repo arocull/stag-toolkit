@@ -74,6 +74,7 @@ func do_bake(builder: IslandBuilder):
 	importer.clear()
 	importer.add_surface(Mesh.PRIMITIVE_TRIANGLES, mesh.surface_get_arrays(0), [], {}, builder.island_material, "island")
 	importer.generate_lods(builder.lod_normal_merge_angle, builder.lod_normal_split_angle, [])
+	mesh.clear_surfaces()
 	find_mesh_output(builder).mesh = importer.get_mesh(mesh)
 	
 	for child in out.get_children():

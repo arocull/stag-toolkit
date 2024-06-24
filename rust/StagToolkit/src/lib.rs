@@ -644,12 +644,13 @@ impl IslandBuilder {
         // mesh_importer.generate_lods(self.lod_normal_merge_angle, self.lod_normal_split_angle, VariantArray::new());
         // let mut mesh = mesh_importer.get_mesh().expect("IslandBuilder: MeshImporter failed to provide ArrayMesh");
         let mut mesh = ArrayMesh::new_gd();
-        mesh.borrow_mut().add_surface_from_arrays(PrimitiveType::TRIANGLES, surface_arrays);
+        mesh.clear_surfaces();
+        mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, surface_arrays);
 
         // Set mesh surface material, if provided
         if self.island_material.is_some() {
             mesh.surface_set_name(0, "island".into());
-            mesh.surface_set_material(0, self.island_material.clone().expect("No island material specified"));
+            mesh.surface_set_material(0, self.island_material.clone().expect("Island material should be specified"));
         }
 
         return mesh;
