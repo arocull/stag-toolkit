@@ -15,7 +15,7 @@ var dockers = [
 	#}
 ]
 
-var island_builder = preload("res://addons/stag_toolkit/plugins/island_builder.gd").new()
+var island_builder = preload("res://addons/stag_toolkit/plugin/island_builder.gd").new()
 
 func _enter_tree() -> void:
 	for item: Dictionary in dockers:

@@ -12,3 +12,8 @@ macos.debug =            "res://addons/stag_toolkit/bin/debug/libStagToolkit.dyl
 macos.release =          "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
 macos.debug.arm64 =      "res://addons/stag_toolkit/bin/debug/libStagToolkit.dylib"
 macos.release.arm64 =    "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
+
+[icons]
+IslandBuilder = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
+IslandBuilderShape = "res://addons/stag_toolkit/icons/icon_islandbuildershape.svg"
+NavIslandProperties = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"

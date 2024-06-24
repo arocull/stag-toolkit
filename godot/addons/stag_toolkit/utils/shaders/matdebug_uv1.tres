@@ -1,0 +1,10 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://c7l1f5w38vdjp"]
+
+[sub_resource type="Shader" id="Shader_tgthj"]
+code = "shader_type spatial;
+#define DEBUG_UV
+#include \"res://addons/stag_toolkit/utils/shader_includes/shaderbase_debug.gdshaderinc\""
+
+[resource]
+render_priority = 0
+shader = SubResource("Shader_tgthj")

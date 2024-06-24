@@ -1,7 +1,0 @@
-[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://dtbo67c1s686i"]
-
-[ext_resource type="Shader" path="res://art/materials/debug_shaders/debug_uv.gdshader" id="2_13t2y"]
-
-[resource]
-render_priority = 0
-shader = ExtResource("2_13t2y")

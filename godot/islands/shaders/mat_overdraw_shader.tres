@@ -1,9 +1,0 @@
-[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://bpygtyqofubf7"]
-
-[ext_resource type="Shader" path="res://art/materials/debug_shaders/overdraw.gdshader" id="1_7xx65"]
-
-[resource]
-render_priority = 0
-shader = ExtResource("1_7xx65")
-shader_parameter/alpha = 0.2
-shader_parameter/color = Color(1, 1, 1, 1)

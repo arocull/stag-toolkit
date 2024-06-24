@@ -1,6 +1,6 @@
 extends EditorInspectorPlugin
 
-var docker = preload("res://addons/stag_toolkit/ui/island_docker.tscn")
+var docker = preload("res://addons/stag_toolkit/plugin/ui/island_docker.tscn")
 var panel: Control = null
 
 func _can_handle(object: Object) -> bool:
@@ -91,10 +91,10 @@ func do_bake(builder: IslandBuilder):
 	
 	if out is RigidBody3D:
 		out.mass = volume * builder.density
-	if out.has_method("set_nav_properties"):
-		out.set_nav_properties(nav_props)
-	if out.get_parent().has_method("set_max_health"):
-		out.get_parent().set_max_health(volume * builder.density_health)
+	if out.has_method("set_navigation_properties"):
+		out.set_navigation_properties(nav_props)
+	if out.get_parent().has_method("set_maximum_health"):
+		out.get_parent().set_maximum_health(volume * builder.density_health)
 
 func find_output_object(builder: IslandBuilder) -> Node:
 	var out = builder.get_node(builder.output_to)
