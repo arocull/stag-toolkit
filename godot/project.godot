@@ -11,7 +11,8 @@ config_version=5
 [application]
 
 config/name="StagToolkit"
-run/main_scene="res://local_tests/island_builder.tscn"
+config/tags=PackedStringArray("abyss", "plugin", "prototype")
+run/main_scene="res://local_tests/clover/clover.tscn"
 config/features=PackedStringArray("4.2", "Forward Plus")
 config/icon="res://icon.svg"
 
