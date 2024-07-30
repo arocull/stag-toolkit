@@ -1,4 +1,5 @@
 ## RUST
+target/
 rust/StagToolkit/target/
 
 ## GODOT

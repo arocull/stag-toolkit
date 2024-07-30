@@ -1,13 +1,10 @@
-use godot::global::sqrt;
 use godot::prelude::*;
-use godot::engine::mesh::{ArrayType, PrimitiveType};
-use godot::engine::{ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, CsgBox3D, CsgSphere3D, ImporterMesh, Material};
 use godot::obj::WithBaseField;
-use godot::engine::Node3D;
-use godot::engine::Resource;
+use godot::global::{clampf, pow, remap, exp, log, maxf, sqrt};
+use godot::classes::{ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, CsgBox3D, CsgSphere3D, Material, Node3D, Resource};
+use godot::classes::mesh::{ArrayType, PrimitiveType};
 use json::object;
 use noise::{NoiseFn, Perlin, Seedable};
-use godot::engine::utilities::{clampf, pow, remap, exp, log, maxf};
 use fast_surface_nets::ndshape::{ConstShape, ConstShape3u32};
 use fast_surface_nets::{surface_nets, SurfaceNetsBuffer};
 
@@ -46,6 +43,7 @@ pub fn max_vector(a: Vector3) -> f32 {
 /// Initializes Surface Arrays of a Godot vector
 pub fn initialize_surface_array() -> Array<Variant> {
     let mut surface_arrays = Array::new();
+
     surface_arrays.resize(ArrayType::MAX.ord() as usize, &Array::<Variant>::new().to_variant());
     
     // Bind vertex data

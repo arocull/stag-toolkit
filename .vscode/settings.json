@@ -1,9 +1,9 @@
 {
     "godotTools.editorPath.godot4": "d:\\Software\\Godot_v4.2.1-stable_win64\\Godot_v4.2.1-stable_win64.exe",
-    "rust-analyzer.linkedProjects": [
-        "./rust/StagToolkit/Cargo.toml",
-        ".\\rust\\StagToolkit\\Cargo.toml"
-    ],
+    // "rust-analyzer.linkedProjects": [
+        // "./rust/StagToolkit/Cargo.toml,
+        // ".\\rust\\StagToolkit",
+    // ],
     "spellchecker.documentTypes": [
         "markdown",
         "latex",
