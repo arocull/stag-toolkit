@@ -4,7 +4,7 @@ compatibility_minimum = 4.2
 reloadable = true
 
 [libraries]
-linux.debug.x86_64 =     "res://addons/stag_toolkit/bin/release/libStagToolkit.so"
+linux.debug.x86_64 =     "res://addons/stag_toolkit/bin/debug/libStagToolkit.so"
 linux.release.x86_64 =   "res://addons/stag_toolkit/bin/release/libStagToolkit.so"
 windows.debug.x86_64 =   "res://addons/stag_toolkit/bin/release/StagToolkit.dll"
 windows.release.x86_64 = "res://addons/stag_toolkit/bin/release/StagToolkit.dll"

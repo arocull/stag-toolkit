@@ -3,17 +3,17 @@
 all: clean debug build
 
 clean:
-	@rm -rf rust/StagToolkit/target/
+	@cargo clean
 	@rm -rf godot/addons/stag_toolkit/bin/
 	@mkdir -p godot/addons/stag_toolkit/bin/
 	@touch godot/addons/stag_toolkit/bin/.gdignore
 
 build:
-	@cd rust/StagToolkit && cargo build --release
+	@cargo build --release
 	@mkdir -p godot/addons/stag_toolkit/bin/release/
-	@cp rust/StagToolkit/target/release/libStagToolkit.so godot/addons/stag_toolkit/bin/release/libStagToolkit.so
+	@cp target/release/libStagToolkit.so godot/addons/stag_toolkit/bin/release/libStagToolkit.so
 
 debug:
-	@cd rust/StagToolkit && cargo build
+	@cargo build
 	@mkdir -p godot/addons/stag_toolkit/bin/debug/
-	@cp rust/StagToolkit/target/debug/libStagToolkit.so godot/addons/stag_toolkit/bin/debug/libStagToolkit.so
+	@cp target/debug/libStagToolkit.so godot/addons/stag_toolkit/bin/debug/libStagToolkit.so
