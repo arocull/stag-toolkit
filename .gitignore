@@ -9,3 +9,7 @@ godot/addons/stag_toolkit/bin/**/*.dylib
 godot/local_tests/
 *.TMP
 ~*
+
+## GODOT CUSTOM BUILD
+build/
+*.gdkey

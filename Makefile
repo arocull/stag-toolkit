@@ -1,4 +1,4 @@
-.PHONY: all clean debug build
+.PHONY: all clean debug build godot-abyss-release godot-abyss-debug
 
 all: clean debug build
 
@@ -17,3 +17,9 @@ debug:
 	@cargo build
 	@mkdir -p godot/addons/stag_toolkit/bin/debug/
 	@cp target/debug/libStagToolkit.so godot/addons/stag_toolkit/bin/debug/libStagToolkit.so
+
+# Builds Godot Linux export template with encryption for Abyss
+godot-abyss-release:
+	@./godot-build/build.sh abyss release
+godot-abyss-debug:
+	@./godot-build/build.sh abyss debug

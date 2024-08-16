@@ -1,0 +1,10 @@
+{
+	"disabled_build_options": {
+		"disable_2d_physics": true,
+		"openxr": false
+	},
+	"disabled_classes": [
+		"World2D"
+	],
+	"type": "build_profile"
+}
