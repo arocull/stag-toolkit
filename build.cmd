@@ -1,3 +1,5 @@
+@REM BUILDS RUST BINARY FOR StagToolit Plugin
+
 @REM Build binaries
 cargo build
 cargo build --release

@@ -23,4 +23,13 @@ All-purpose toolkit for game creation for Lonesome Stag studios.
 - [Optimizing Build Size](https://docs.godotengine.org/en/stable/contributing/development/compiling/optimizing_for_size.html)
 - [Extra Build Options](https://docs.godotengine.org/en/stable/contributing/development/compiling/introduction_to_the_buildsystem.html#doc-overriding-build-options)
 
+### For Linux
 Needed packages: `scons strip`
+
+### For Windows
+Install...
+- [LLVM-MinGW](https://github.com/mstorsjo/llvm-mingw/releases) for compilation
+- Python + pip module
+- ...and Python SCons: `$ python -m pip install scons` (may need `--user` flag if missing privileges, ensure the executable is added to the path
+- OpenSSL for encryption ([comes with your `git` install](https://stackoverflow.com/questions/50625283/how-to-install-openssl-in-windows-10))
+
