@@ -21,23 +21,23 @@ unsafe impl ExtensionLibrary for StagToolkit {}
 /// Rotates a Godot vector using the provided Euler Angles, in radians
 pub fn rotate_xyz(v: Vector3, euler: Vector3) -> Vector3 {
     // Rotation Order: YXZ
-    return v.rotated(
+    v.rotated(
         Vector3::FORWARD, -euler.z
     ).rotated(
         Vector3::RIGHT, euler.x
     ).rotated(
         Vector3::UP, euler.y
-    );
+    )
 }
 
 /// Smooth unions two SDF shapes, k = 32.0 was original suggestion
 pub fn sdf_smooth_min(a: f64, b: f64, k: f64) -> f64 {
     let res = exp(-k * a) + exp(-k * b);
-    return -log(maxf(0.0001, res)) / k;
+    -log(maxf(0.0001, res)) / k
 }
 /// Returns the maximum value of a given Godot vector
 pub fn max_vector(a: Vector3) -> f32 {
-    return f32::max(f32::max(a.x, a.y), a.z);
+    f32::max(f32::max(a.x, a.y), a.z)
 }
 
 /// Initializes Surface Arrays of a Godot vector
@@ -71,14 +71,14 @@ pub fn initialize_surface_array() -> Array<Variant> {
     // FINALLY, bind indices
     surface_arrays.set(ArrayType::INDEX.ord() as usize, Variant::nil());
 
-    return surface_arrays;
+    surface_arrays
 }
 /// Returns vertex data from the buffer at the given index, in Position, Normal format
 fn get_buffer_data(pos: [f32; 3], norm: [f32; 3], cell_size: Vector3, offset: Vector3) -> (Vector3, Vector3) {
-    return (
+    (
         Vector3::new(pos[0], pos[1], pos[2]) * cell_size + offset,
         Vector3::new(-norm[0], -norm[1], -norm[2]).normalized(),
-    );
+    )
 }
 
 // Enums
@@ -91,8 +91,8 @@ pub enum BuilderShape {
 impl fmt::Display for BuilderShape {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BuilderShape::Box => write!(f, "box"),
-            BuilderShape::Sphere => write!(f, "sphere"),
+            Self::Box => write!(f, "box"),
+            Self::Sphere => write!(f, "sphere"),
         }
     }
 }
@@ -164,7 +164,7 @@ impl IResource for IslandBuilderShape {
         }
     }
     fn to_string(&self) -> GString {
-        let Self { shape, position, rotation, scale,  .. } = &self;
+        let Self {  position, rotation, scale,  .. } = &self;
 
         let obj = object! {
             "shape": stringify!(shape),
@@ -174,14 +174,14 @@ impl IResource for IslandBuilderShape {
             "radius": stringify!(radius),
         };
 
-        return json::stringify(obj).into();
+        json::stringify(obj).into()
     }
 }
 #[godot_api]
 impl IslandBuilderShape {
     #[func]
     fn to_local(&self, position: Vector3) -> Vector3 {
-        return rotate_xyz(position - self.position, -self.rotation);
+        rotate_xyz(position - self.position, -self.rotation)
     }
 
     #[func]
@@ -190,12 +190,12 @@ impl IslandBuilderShape {
 
         match self.shape {
             BuilderShape::Sphere => {
-                return (offset / self.scale).length() as f64 - self.radius; // distance minus radius
+                (offset / self.scale).length() as f64 - self.radius// distance minus radius
             },
             BuilderShape::Box => { // SDF rounded box
                 let q = offset.abs() - (self.scale / 2.0) + Vector3::splat(self.edge_radius);
                 let m = q.coord_max(Vector3::ZERO);
-                return (m.length() + f32::min(max_vector(q), 0.0) - self.edge_radius) as f64;
+                (m.length() + f32::min(max_vector(q), 0.0) - self.edge_radius) as f64
                 // https://github.com/jasmcole/Blog/blob/master/CSG/src/fragment.ts#L13
                 // https://github.com/fogleman/sdf/blob/main/sdf/d3.py#L140
             },
@@ -232,7 +232,7 @@ impl IslandBuilderShape {
             pts[i] = self.position + rotate_xyz(pts[i] * scale_factor, -self.rotation);
         }
 
-        return pts;
+        pts
     }
 
     /// Returns the Axis-Aligned Bounding Box of the given shape
@@ -249,7 +249,7 @@ impl IslandBuilderShape {
             aabb = aabb.expand(corners[i]);
         }
         
-        return aabb;
+        aabb
     }
 
     /// Simplify the given vector of points based on this IslandBuilderShape
@@ -262,7 +262,7 @@ impl IslandBuilderShape {
         let mut mean: f64 = 0.0;
         for i in 0..pts.len() {
             distances.push(self.distance(pts[i]));
-            mean += distances[i] as f64;
+            mean += distances[i];
         }
         mean /= pts.len() as f64;
 
@@ -288,7 +288,7 @@ impl IslandBuilderShape {
             }
         }
 
-        return new_pts; // Return new hull
+        new_pts// Return new hull
     }
 }
 
@@ -381,7 +381,7 @@ impl IslandBuilder {
     /// Re-Initializes the Perlin noise generator on the IslandBuilder
     #[func]
     pub fn get_noise_seed(&self) -> i64 {
-        return self.noise.seed() as i64;
+        self.noise.seed() as i64
     }
     #[func]
     pub fn set_noise_seed(&mut self, new_seed: i64) {
@@ -474,7 +474,7 @@ impl IslandBuilder {
         // Fetch node's scale
         shape.bind_mut().scale = t.basis.scale();
 
-        return shape;
+        shape
     }
     /// Fetches the edge radius metadata from the given node, or creates a property for it if not
     fn fetch_edge_radius(&self, mut node: Gd<Node3D>) -> f32 {
@@ -484,7 +484,7 @@ impl IslandBuilder {
         
         // If no edge radius was set, set a default one
         node.set_meta("edge_radius".into(), self.default_edge_radius.to_variant());
-        return self.default_edge_radius;
+        self.default_edge_radius
     }
     /// Fetches the hull ZScore metadata from the given node, or creates a property for it if not
     fn fetch_hull_zscore(&self, mut node: Gd<Node3D>) -> f64 {
@@ -494,7 +494,7 @@ impl IslandBuilder {
         
         // If no edge radius was set, set a default one
         node.set_meta("hull_zscore".into(), self.default_hull_zscore.to_variant());
-        return self.default_hull_zscore;
+        self.default_hull_zscore
     }
 
     /// Generates a surface net and returns important data
@@ -505,7 +505,7 @@ impl IslandBuilder {
         let aabb = self.get_aabb_padded_internal(aabb, cell_size);
 
         // Generate an island chunk buffer of max size 
-        let mut sdf = [1.0 as f32; ChunkShape::USIZE];
+        let mut sdf = [1.0_f32; ChunkShape::USIZE];
         // Offset cell size by 1 for bounding box, then make sure samples are centered at center of the cell
         let position_offset = aabb.position + cell_size * 0.5;
         // Get cubic size of a volume chunk
@@ -539,7 +539,7 @@ impl IslandBuilder {
         surface_nets(&sdf, &ChunkShape {}, [0; 3], [MAX_VOLUME_GRID_SIZE - 1; 3], &mut buffer);
 
         // Finally, return it all
-        return (buffer, aabb, cell_size, volume);
+        (buffer, aabb, cell_size, volume)
     }
 
 
@@ -572,7 +572,7 @@ impl IslandBuilder {
             (array_positions[idx], array_normals[idx]) = get_buffer_data(buffer.positions[idx], buffer.normals[idx], cell_size, aabb.position);
         }
 
-        return (array_indices, array_positions, array_normals, true);
+        (array_indices, array_positions, array_normals, true)
     }
     /// Bakes a mesh from the provided SurfaceNetsBuffer data
     fn generate_mesh_baked_internal(&self, array_indices: PackedInt32Array, array_positions: PackedVector3Array, array_normals: PackedVector3Array) -> Gd<ArrayMesh> {
@@ -612,7 +612,7 @@ impl IslandBuilder {
                 clampf(
                     remap(dot, self.mask_range_sand.x.into(), self.mask_range_sand.y.into(), 0.0, 1.0)
                     , 0.0, 1.0
-                ), self.mask_power_sand.into()
+                ), self.mask_power_sand
             );
 
             let noise_pos = pos * self.mask_perlin_scale;
@@ -651,7 +651,7 @@ impl IslandBuilder {
             mesh.surface_set_material(0, self.island_material.clone().expect("Island material should be specified"));
         }
 
-        return mesh;
+        mesh
     }
 
     /// Generates a preview island mesh using our IslandBuilderShape list
@@ -677,7 +677,7 @@ impl IslandBuilder {
             mesh.surface_set_material(0, self.preview_material.clone().expect("No island PREVIEW material specified"));
         }
 
-        return mesh;
+        mesh
     }
     /// Generates a baked mesh using our IslandBuilderShape
     #[func]
@@ -685,7 +685,7 @@ impl IslandBuilder {
         let (buffer, aabb, cell_size, _) = self.do_surface_nets(); // Precompute Surface Nets
         let (array_indices, array_positions, array_normals, valid) = self.generate_mesh_data(buffer, aabb, cell_size);
         if !valid { return ArrayMesh::new_gd(); }
-        return self.generate_mesh_baked_internal(array_indices, array_positions, array_normals);
+        self.generate_mesh_baked_internal(array_indices, array_positions, array_normals)
     }
 
     /// Generates ConvexPolygonShape3D based
@@ -734,7 +734,7 @@ impl IslandBuilder {
             hulls.push(shape);
         }
 
-        return hulls;
+        hulls
     }
 
     /// DO IT ALL. Returns an array and emits an event for different uses.
@@ -760,7 +760,7 @@ impl IslandBuilder {
         self.base_mut().emit_signal("completed_bake".into(),  output);
 
         // ...and return as an array!
-        return Array::<Variant>::from(output);
+        Array::<Variant>::from(output)
     }
 
     /// Samples the IslandBuilder SDF at the given local position
@@ -777,7 +777,7 @@ impl IslandBuilder {
         let noise_pos = sample_position * self.noise_frequency;
         let noise = self.noise.get([noise_pos.x as f64, noise_pos.y as f64, noise_pos.z as f64]) * self.noise_amplitude;
 
-        return d + noise;
+        d + noise
     }
 
     /// Samples an internal normal from the IslandBuilder SDF at the given local position
@@ -791,7 +791,7 @@ impl IslandBuilder {
         let gradient_y = self.sample_at(sample_position + SMALL_STEP_Y) - self.sample_at(sample_position - SMALL_STEP_Y);
         let gradient_z = self.sample_at(sample_position + SMALL_STEP_Z) - self.sample_at(sample_position - SMALL_STEP_Z);
 
-        return Vector3::new(gradient_x as f32, gradient_y as f32, gradient_z as f32).normalized();
+        Vector3::new(gradient_x as f32, gradient_y as f32, gradient_z as f32).normalized()
     }
 
     /// Samples an Ambient Occlusion from the IslandBuilder SDF at the given local position
@@ -808,7 +808,7 @@ impl IslandBuilder {
             scale *= 0.95;
         }
 
-        return clampf(1.0 - 3.0 * occlusion, 0.0, 1.0);
+        clampf(1.0 - 3.0 * occlusion, 0.0, 1.0)
     }
 
     /// Calculates the Axis-Aligned Bounding Box for the IslandBuilder given our shape list
@@ -820,30 +820,30 @@ impl IslandBuilder {
             aabb = aabb.merge(shape.bind().get_aabb());
         }
 
-        return aabb;
+        aabb
     }
     /// Calculates the Axis-Aligned Bounding Box for the IslandBuilder, with some extra padding
     #[func]
     fn get_aabb_padded(&self) -> Aabb {
         let aabb = self.get_aabb();
-        return self.get_aabb_padded_internal(aabb, self.get_cell_size_internal(aabb));
+        self.get_aabb_padded_internal(aabb, self.get_cell_size_internal(aabb))
     }
     /// Calculates the Axis-Aligned Bounding Box for the IslandBuilder, with some extra padding, using pre-calculated values
     fn get_aabb_padded_internal(&self, mut aabb: Aabb, cell_size: Vector3) -> Aabb {
         aabb.position -= cell_size * (self.cell_padding as f32 * 0.5);
         aabb.size += cell_size * (self.cell_padding as f32);
-        return aabb;
+        aabb
     }
 
     /// Returns the anticipated cell size of the IslandBuilder volume
     #[func]
     fn get_cell_size(&self) -> Vector3 {
-        return self.get_cell_size_internal(self.get_aabb());
+        self.get_cell_size_internal(self.get_aabb())
     }
     /// Returns the anticipated cell size of the IslandBuilder volume, using a pre-made AABB
     fn get_cell_size_internal(&self, aabb: Aabb) -> Vector3 {
         let grid_size = (MAX_VOLUME_GRID_SIZE - (self.cell_padding as u32)) as f32;
-        return Vector3::new(aabb.size.x / grid_size, aabb.size.y / grid_size, aabb.size.z / grid_size);
+        Vector3::new(aabb.size.x / grid_size, aabb.size.y / grid_size, aabb.size.z / grid_size)
     }
 
     /// Returns the estimated navigation properties of the island
@@ -854,7 +854,7 @@ impl IslandBuilder {
         props.bind_mut().aabb = aabb;
         props.bind_mut().radius = (aabb.size * Vector3::new(1.0, 0.0, 1.0)).length() / 2.0;
         props.bind_mut().center = (aabb.center() * Vector3::new(1.0, 0.0, 1.0)) + (aabb.support(Vector3::UP) * Vector3::UP);
-        return props;
+        props
     }
 
     /// Emitted when IslandBuilder has finished serializing builder shapes

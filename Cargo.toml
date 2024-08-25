@@ -3,3 +3,5 @@
 members = [
     "rust/StagToolkit",
 ]
+
+# MOCULL STATIC

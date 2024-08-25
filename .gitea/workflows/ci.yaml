@@ -1,0 +1,157 @@
+#checkov:skip:CKV2_GHA_1:Comment
+name: Rust CI Workflow
+run-name: CI - ${{ gitea.event.repository.name }}
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  super-linter:
+    runs-on: ubuntu-latest
+    name: super-linter
+    permissions:
+      id-token: write
+      contents: read
+      actions: write
+      statuses: write
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ gitea.head_ref }}
+          fetch-depth: 0
+
+      - name: Super-Linter
+        uses: super-linter/super-linter@v6.8.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPPRESS_POSSUM: true
+          LINTER_RULES_PATH: .
+          DISABLE_ERRORS: true
+          VALIDATE_RUST_2015: false
+          VALIDATE_RUST_2018: false
+          VALIDATE_RUST_2021: false
+          VALIDATE_RUST_CLIPPY: false
+          VALIDATE_JSCPD: false # takes forever
+          # These seem to be broken
+          VALIDATE_GROOVY: false
+          FIX_GROOVY: false
+
+  build:
+    runs-on: ubuntu-latest
+    name: Build and Push
+    permissions:
+      id-token: write
+      contents: read
+      actions: write
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ gitea.head_ref }}
+          fetch-depth: 0
+
+      #- name: Restore cached Cargo dependencies
+      #id: cache-cargo-restore
+      #uses: actions/cache/restore@v4
+      #with:
+      #path: |
+      #~/.cargo
+      #**/target
+      #key: stag-toolkit-cargo
+
+      - name: Install Rust toolchain
+        uses: crusty-pie/toolchain@v1
+        with:
+          toolchain: 1.80.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Rust fmt
+        id: rust-fmt
+        run: |
+          cargo fmt --check --verbose
+
+      - name: Machete
+        id: rust-machete
+        uses: bnjbvr/cargo-machete@v0.6.2
+
+      - name: Clippy
+        id: rust-clippy
+        run: |
+          cargo clippy -- -D warnings
+
+      - name: Unit Tests and Code Coverage
+        id: tarpaulin
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --out Html
+
+      - name: Archive Code Coverage Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-report
+          path: tarpaulin-report.html
+
+      - name: Hadolint
+        id: hadolint
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: "*Dockerfile*"
+          no-fail: false
+          failure-threshold: warning
+          verbose: true
+          output-file: hadolint.out
+          format: tty
+          recursive: true
+
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          skipicon=s
+          failicon=-
+          passicon=+
+
+          function generate_outcome_icon {
+            local icon=${passicon}
+            if test "${1}" == "true"; then
+              export icon="${skipicon} (skipped)"
+            else
+              if test "${2}" == "failure"; then
+                export icon=${failicon}
+              fi
+            fi
+            echo "${icon}"
+          }
+
+          {
+            echo "$(generate_outcome_icon false ${{ steps.rust-fmt.outcome }})    cargo fmt check"
+            echo ""
+            echo "$(generate_outcome_icon false ${{ steps.rust-machete.outcome }})    machete check"
+            echo ""
+            echo "$(generate_outcome_icon false ${{ steps.rust-clippy.outcome }})    clippy check"
+            echo ""
+            echo "$(generate_outcome_icon false ${{ steps.hadolint.outcome }})    hadolint check"
+            cat hadolint.out || true
+            echo ""
+            echo "$(generate_outcome_icon false ${{ steps.tarpaulin.outcome }})    unit tests and coverage"
+            echo ""
+          } >> "$GITEA_STEP_SUMMARY"
+
+      - name: Rust Build
+        id: rust-build
+        run: |
+          cargo build --release
+
+      #- name: Save Cargo Dependencies
+      #id: cache-cargo-save
+      #uses: actions/cache/save@v4
+      #with:
+      #path: |
+      #~/.cargo
+      #**/target
+      #key: ${{ steps.cache-cargo-restore.outputs.cache-primary-key }}
