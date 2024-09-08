@@ -1,3 +1,16 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:93f48a9ec6550bafba7c935ce7dc812d2ef8904a45a4132b3c81da8800d1b5de
-size 429
+{
+    "godotTools.editorPath.godot4": "d:\\Software\\Godot_v4.2.2-stable_win64\\Godot_v4.2.2-stable_win64.exe",
+    // "rust-analyzer.linkedProjects": [
+        // "./rust/StagToolkit/Cargo.toml,
+        // ".\\rust\\StagToolkit",
+    // ],
+    "spellchecker.documentTypes": [
+        "markdown",
+        "latex",
+        "plaintext"
+    ],
+    "spellchecker.ignoreFileExtensions": [
+        "toml",
+    ]
+    // "rust-analyz"
+}
