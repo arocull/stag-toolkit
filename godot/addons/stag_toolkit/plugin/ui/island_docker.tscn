@@ -28,35 +28,73 @@ text = "###.## m^3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="information2" type="HBoxContainer" parent="."]
+[node name="precomp" type="HBoxContainer" parent="."]
 layout_mode = 2
 alignment = 1
 
-[node name="btn_serialize" type="Button" parent="information2"]
+[node name="btn_serialize" type="Button" parent="precomp"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Serialize"
 
-[node name="btn_metadata" type="Button" parent="information2"]
+[node name="btn_precompute" type="Button" parent="precomp"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Precompute"
+
+[node name="btn_metadata" type="Button" parent="precomp"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Clear Metadata"
 
-[node name="btn_preview" type="Button" parent="."]
+[node name="workflow" type="HBoxContainer" parent="."]
+layout_mode = 2
+alignment = 1
+
+[node name="btn_mesh_preview" type="Button" parent="workflow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-text = "Generate Preview"
+size_flags_horizontal = 3
+text = "Mesh Preview"
 
-[node name="btn_bake" type="Button" parent="."]
+[node name="btn_finalize" type="Button" parent="workflow"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-text = "Generate Bake"
+size_flags_horizontal = 3
+text = "Finalize"
 
-[node name="HSeparator" type="HSeparator" parent="."]
+[node name="separator" type="HSeparator" parent="."]
 layout_mode = 2
+
+[node name="baking" type="HBoxContainer" parent="."]
+layout_mode = 2
+alignment = 1
+
+[node name="btn_mesh_bake" type="Button" parent="baking"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Mesh Bake"
+
+[node name="btn_collision" type="Button" parent="baking"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Gen Collision Hulls"
+
+[node name="btn_navigation" type="Button" parent="baking"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Calc Navigation"

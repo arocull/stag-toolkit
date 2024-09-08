@@ -12,7 +12,7 @@ config_version=5
 
 config/name="StagToolkit"
 config/tags=PackedStringArray("abyss", "plugin", "prototype")
-run/main_scene="res://local_tests/clover/clover.tscn"
+run/main_scene="res://3d/startup.tscn"
 config/features=PackedStringArray("4.2", "Forward Plus")
 config/icon="res://icon.svg"
 

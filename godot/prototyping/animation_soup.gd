@@ -38,10 +38,10 @@ func _ready() -> void:
 	skeleton = $rig/armature_clover/Skeleton3D
 	skeleton.reset_bone_poses()
 	build_hashmap()
-	
+
 	print(anim1)
 	print(anim2)
-	
+
 	if not active:
 		set_process(false)
 
@@ -51,15 +51,15 @@ func get_node_path(base: NodePath) -> NodePath:
 @onready var hashmap: Dictionary
 func build_hashmap():
 	hashmap = {}
-	
+
 	for animation_name in anim_lib.get_animation_list():
 		var anim = anim_lib.get_animation(animation_name)
 		for i in anim.get_track_count():
 			if hashmap.has(anim.track_get_path(i)): # Ignore track paths if we already have 'em
 				continue
-			
+
 			var t = anim.track_get_type(i)
-			
+
 			var node = get_node_or_null(get_node_path(anim.track_get_path(i)))
 			if is_instance_valid(node):
 				if node is Skeleton3D:
@@ -87,7 +87,7 @@ func sample_pose(animation: Animation, time: float) -> Pose:
 	for i in animation.get_track_count():
 		if animation.track_is_enabled(i):
 			var ref = animation.track_get_path(i).hash()
-			
+
 			match animation.track_get_type(i):
 				Animation.TYPE_POSITION_3D:
 					pose.positions[ref] = animation.position_track_interpolate(i, sample_time)
@@ -119,7 +119,7 @@ func apply_pose(pose: Pose):
 
 func update_pose(time: float):
 	#skeleton.reset_bone_poses()
-	
+
 	var poseA = sample_pose(anim1, time)
 	var poseB = sample_pose(anim2, time)
 	var blended = blend_poses(poseA, poseB, blend_alpha)

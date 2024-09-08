@@ -1,0 +1,37 @@
+[gd_scene load_steps=3 format=3 uid="uid://t3qlgeb877ia"]
+
+[ext_resource type="Script" path="res://3d/islandbuilder/meshgen_test.gd" id="1_ytp1n"]
+[ext_resource type="Material" uid="uid://cjt87y5xfjfh4" path="res://addons/stag_toolkit/utils/shaders/matdebug_vertex_rgb.tres" id="2_78h21"]
+
+[node name="MeshgenTest" type="Node3D"]
+script = ExtResource("1_ytp1n")
+
+[node name="IslandBuilder" type="IslandBuilder" parent="."]
+output_to = NodePath("../RigidBody3D")
+default_edge_radius = 0.0
+noise_amplitude = 0.0773
+island_material = ExtResource("2_78h21")
+preview_material = ExtResource("2_78h21")
+metadata/volume = 4.75614
+
+[node name="CSGBox3D" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(1.1044, 0, 0.406895, -0.137357, 0.96636, 0.704854, -0.262115, -0.506404, 1.34506, 0, 0.202138, 1.11794)
+size = Vector3(0.5, 0.5, 0.5)
+
+[node name="CSGBox3D2" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(1.1044, -7.19995e-09, 0.406895, -0.185765, 0.84926, 0.953264, -0.230352, -0.684875, 1.18207, 0.122241, 0.526429, 1.58773)
+size = Vector3(0.5, 0.5, 0.5)
+
+[node name="CSGSphere3D" type="CSGSphere3D" parent="IslandBuilder"]
+radius = 1.0
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+
+[node name="RigidBody3D" type="RigidBody3D" parent="."]
+mass = 110.485
+
+[node name="aabb_checker" type="GPUParticles3D" parent="."]
+emitting = false
+visibility_aabb = AABB(-1, -1, -1, 2, 2.0235, 3.11205)
+
+[connection signal="completed_serialize" from="IslandBuilder" to="." method="_on_island_builder_completed_serialize"]

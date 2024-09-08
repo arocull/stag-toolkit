@@ -1,6 +1,7 @@
 ## RUST
 target/
 rust/StagToolkit/target/
+rust/StagToolkit/rust/
 
 ## GODOT
 godot/addons/stag_toolkit/bin/**/*.dll
