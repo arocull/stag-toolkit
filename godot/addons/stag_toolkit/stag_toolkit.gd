@@ -30,8 +30,10 @@ func _enter_tree() -> void:
 		add_control_to_bottom_panel(inst, item.get("title", "StagToolkit Panel"))
 
 	add_inspector_plugin(island_builder)
+	island_builder.thread_init()
 
 func _exit_tree() -> void:
+	island_builder.thread_deinit()
 	remove_inspector_plugin(island_builder)
 
 	for item: Dictionary in dockers:

@@ -268,7 +268,9 @@ impl IResource for NavIslandProperties {
     }
 }
 
-// VOXEL RANGES
+/// The `IslandBuilder` is used to convert whitebox geometry into game-ready islands using procedural geometry.
+/// To create a mesh, add CSGBox and CSGSphere nodes as descendants to the IslandBuilder,
+/// then `serialize()`, `net()` and fetch your related data.
 #[derive(GodotClass)]
 #[class(base=Node3D,tool)]
 pub struct IslandBuilder {
@@ -396,10 +398,18 @@ impl IslandBuilder {
 
     /// Returns a simple triangle mesh for previewing, without baking any data.
     /// Returns an empty mesh if not pre-computed.
-    /// TODO: Accept and use a pre-existing mesh as an option.
     #[func]
-    pub fn mesh_preview(&self) -> Gd<ArrayMesh> {
-        let mut mesh = ArrayMesh::new_gd();
+    pub fn mesh_preview(&self, recycle_mesh: Option<Gd<ArrayMesh>>) -> Gd<ArrayMesh> {
+        let mut mesh: Gd<ArrayMesh>;
+        match recycle_mesh {
+            Some(recycle) => {
+                mesh = recycle;
+                mesh.clear_surfaces();
+            }
+            None => {
+                mesh = ArrayMesh::new_gd();
+            }
+        }
         let arrs_opt = self.data.get_mesh();
 
         match arrs_opt {
@@ -417,7 +427,6 @@ impl IslandBuilder {
     }
     /// Bakes and returns a triangle mesh with vertex colors, UVs, (TODO: and LODs).
     /// Returns an empty mesh if not pre-computed.
-    /// TODO: Accept and use a pre-existing mesh as an option.
     #[func]
     pub fn mesh_baked(&self) -> Gd<ArrayMesh> {
         let mut mesh = ArrayMesh::new_gd();

@@ -9,10 +9,13 @@ pub type Edge = [usize; 2];
 pub struct TriangleMesh {
     /// Primary mesh buffer, listing the index of corresponding vertex positions and normals, in counter-clockwise face winding.
     pub indices: Vec<usize>,
+    /// Individual vertices of the mesh.
     pub positions: Vec<Vec3>,
+    /// Normals of the mesh, assigned to vertices of corresponding index.
     pub normals: Vec<Vec3>,
 }
 impl TriangleMesh {
+    /// Creates a new TriangleMesh from the given mesh data.
     pub fn new(indices: Vec<usize>, positions: Vec<Vec3>, normals: Vec<Vec3>) -> Self {
         Self {
             indices,

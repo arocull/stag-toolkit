@@ -3,6 +3,11 @@ extends EditorInspectorPlugin
 var docker = preload("res://addons/stag_toolkit/plugin/ui/island_docker.tscn")
 var panel: Control = null
 var last_builder: IslandBuilder = null
+var realtime_enabled: bool = false
+var transforms: Dictionary
+
+const TWEAK_TIMER_THRESHOLD = 1000 # After 1 second idle time, update preview
+const TWEAK_TIMEOUT_THRESHOLD = 10000 # After 10 seconds, reset the queue
 
 const PRECOMPUTE_REQUIRED_BUTTONS = [
 	"btn_mesh_preview",
@@ -15,26 +20,42 @@ const PRECOMPUTE_REQUIRED_BUTTONS = [
 func _can_handle(object: Object) -> bool:
 	if object is Node:
 		var builder = fetch_builder_ancestor(object)
-		return is_instance_valid(builder)
+		if is_instance_valid(builder):
+			return true
+	realtime_enabled = false
 	return false
 
 func _parse_begin(object: Object) -> void:
 	panel = docker.instantiate()
 
-	if is_instance_valid(last_builder):
-		if last_builder.completed_serialize.is_connected(_on_serialize):
-			last_builder.completed_serialize.disconnect(_on_serialize)
-		if last_builder.completed_nets.is_connected(_on_precompute):
-			last_builder.completed_nets.disconnect(_on_precompute)
-
 	var builder: IslandBuilder = fetch_builder_ancestor(object)
 	update_shapecount(builder)
 	update_volume(builder)
 	update_button_availability(builder)
-	last_builder = builder
 
-	builder.completed_serialize.connect(_on_serialize.bind(builder))
-	builder.completed_nets.connect(_on_precompute.bind(builder))
+	var this_is_previous: bool = last_builder == builder
+	if not this_is_previous:
+		realtime_enabled = false # Disable realtime meshing when re-entering an island builder
+		transforms.clear()
+
+		if is_instance_valid(last_builder):
+			unbind_realtime(last_builder)
+			if last_builder.completed_serialize.is_connected(_on_serialize):
+				last_builder.completed_serialize.disconnect(_on_serialize)
+			if last_builder.completed_nets.is_connected(_on_precompute):
+				last_builder.completed_nets.disconnect(_on_precompute)
+			if last_builder.get_tree().process_frame.is_connected(_check_transforms):
+				last_builder.get_tree().process_frame.disconnect(_check_transforms)
+		
+		builder.completed_serialize.connect(_on_serialize.bind(builder), CONNECT_DEFERRED)
+		builder.completed_nets.connect(_on_precompute.bind(builder), CONNECT_DEFERRED)
+		
+		bind_realtime(builder)
+		
+		if not builder.get_tree().process_frame.is_connected(_check_transforms):
+			builder.get_tree().process_frame.connect(_check_transforms)
+
+	last_builder = builder
 
 	var bserialize: Button = panel.get_node("%btn_serialize")
 	bserialize.pressed.connect(do_serialize.bind(builder))
@@ -54,6 +75,13 @@ func _parse_begin(object: Object) -> void:
 
 	var bfinalize: Button = panel.get_node("%btn_finalize")
 	bfinalize.pressed.connect(do_finalize.bind(builder))
+
+	var trealtime: CheckBox = panel.get_node("%toggle_realtime")
+	trealtime.button_pressed = realtime_enabled
+	trealtime.toggled.connect(_realtime_toggled)
+	
+	if not EditorInterface.get_inspector().property_edited.is_connected(on_property_change):
+		EditorInterface.get_inspector().property_edited.connect(on_property_change)
 
 	add_custom_control(panel)
 
@@ -179,3 +207,111 @@ func find_mesh_output(builder: IslandBuilder) -> MeshInstance3D:
 	mesh.owner = out.get_tree().edited_scene_root
 
 	return mesh
+
+# REALTIME PREVIEW
+var realtime_thread: Thread
+var realtime_queued: bool = false
+var realtime_last_update: int = -1
+var realtime_dirty: bool = false
+
+# Initializes the realtime thread
+func thread_init() -> void:
+	realtime_thread = Thread.new()
+	EditorInterface.get_inspector().property_edited.connect(on_property_change)
+# Deinitializes the realtime thread
+func thread_deinit() -> void:
+	if realtime_thread.is_started():
+		realtime_thread.wait_to_finish()
+	realtime_thread = null
+
+func _realtime_toggled(new_state: bool) -> void:
+	realtime_enabled = new_state
+	if realtime_thread.is_started():
+		realtime_thread.wait_to_finish()
+
+# Unbind tree and property updates from mesh generation
+func unbind_realtime(node: Node) -> void:
+	if node.child_entered_tree.is_connected(on_child_added):
+		node.child_entered_tree.disconnect(on_child_added)
+	if node.child_exiting_tree.is_connected(on_child_removed):
+		node.child_exiting_tree.disconnect(on_child_removed)
+	if node.child_order_changed.is_connected(update_realtime_preview):
+		node.child_order_changed.disconnect(update_realtime_preview)
+	if node.has_signal("visibility_changed"):
+		if node.visibility_changed.is_connected(update_realtime_preview):
+			node.visibility_changed.disconnect(update_realtime_preview)
+	for child in node.get_children():
+		unbind_realtime(child)
+# Bind tree and property updates to mesh regeneration
+func bind_realtime(node: Node, top_level: bool = false) -> void:
+	if top_level:
+		node.child_order_changed.connect(update_realtime_preview)
+		node.child_entered_tree.connect(on_child_added)
+		node.child_exiting_tree.connect(on_child_removed)
+	if node.has_signal("visibility_changed"):
+		node.visibility_changed.connect(update_realtime_preview)
+
+	for child in node.get_children():
+		bind_realtime(child, false)
+
+func on_property_change(property: String):
+	if realtime_enabled and is_instance_valid(last_builder):
+		update_realtime_preview()
+func on_child_added(new_child: Node):
+	bind_realtime(new_child, false)
+func on_child_removed(new_child: Node):
+	unbind_realtime(new_child)
+
+func _check_transforms() -> void:
+	if realtime_enabled and is_instance_valid(last_builder):
+		_check_transforms_internal(last_builder)
+		
+		var t = Time.get_ticks_msec()
+		# If we have new changes, but haven't updated our generation in a while, do a clean pass to ensure we're at final 
+		if realtime_dirty and not realtime_queued:
+			if t > realtime_last_update + TWEAK_TIMER_THRESHOLD:
+				update_realtime_preview(false)
+		# If somehow our thread failed, reset our queue status
+		if realtime_queued and t > realtime_last_update + TWEAK_TIMEOUT_THRESHOLD:
+			realtime_queued = false
+func _check_transforms_internal(node: Node) -> void:
+	if node is Node3D:
+		var old_transform: Transform3D = transforms.get(node.get_instance_id(), node.transform)
+		if not old_transform.is_equal_approx(node.transform):
+			update_realtime_preview()
+			print("transform updated, requesting realtime preview")
+			#return # We don't need to check the rest of the transforms!
+		transforms[node.get_instance_id()] = node.transform
+	
+	for child in node.get_children():
+		_check_transforms_internal(child)
+
+# Called if the IslandBuilder tree changed somehow
+func update_realtime_preview(dirty: bool = true):
+	if not realtime_enabled: return
+	
+	realtime_dirty = dirty
+	
+	if realtime_queued: return
+	realtime_queued = true
+	_update_realtime_preview_deferred.call_deferred()
+
+func _update_realtime_preview_deferred():
+	print("update realtime preview event")
+	last_builder.serialize()
+	if realtime_thread.is_started():
+		print("Awaiting thread")
+		realtime_thread.wait_to_finish()
+	realtime_thread.start(_realtime_preview.bind(last_builder, _realtime_preview_finish.bind(last_builder)))
+
+func _realtime_preview(builder: IslandBuilder, on_finish: Callable) -> void:
+	Thread.set_thread_safety_checks_enabled(false)
+	print("doing nets")
+	if builder.net(): return # Buffer was empty
+	print("doing mesh preview")
+	on_finish.call_deferred(builder.mesh_preview())
+func _realtime_preview_finish(new_mesh: ArrayMesh, builder: IslandBuilder) -> void:
+	print("applying realtime")
+	find_mesh_output(builder).mesh = new_mesh
+	realtime_queued = false
+	realtime_last_update = Time.get_ticks_msec()
