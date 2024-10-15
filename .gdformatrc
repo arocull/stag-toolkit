@@ -1,0 +1,4 @@
+excluded_directories: !!set
+  .git: null
+  .vscode: null
+  rust: null

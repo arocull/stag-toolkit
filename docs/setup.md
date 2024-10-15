@@ -16,3 +16,12 @@ You'll want to clone these repositories:
 - [IronPress](https://github.com/arocull/IronPress) - in-house texture management/optimization
 
 For Blender, you'll at least want the [listed addons on my website](https://alanocull.com/workspace.html).
+
+## Tool Chains
+You'll want to have these languages installed:
+- `Rust`
+- `NodeJS`
+- `Python`
+
+## Godot
+- Use the [GDScript Toolit Wiki](https://github.com/Scony/godot-gdscript-toolkit/wiki) for linter/formatter installation

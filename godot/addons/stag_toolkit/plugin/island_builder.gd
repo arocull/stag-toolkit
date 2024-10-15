@@ -1,11 +1,5 @@
 extends EditorInspectorPlugin
 
-var docker = preload("res://addons/stag_toolkit/plugin/ui/island_docker.tscn")
-var panel: Control = null
-var last_builder: IslandBuilder = null
-var realtime_enabled: bool = false
-var transforms: Dictionary
-
 const TWEAK_TIMER_THRESHOLD = 1000 # After 1 second idle time, update preview
 const TWEAK_TIMEOUT_THRESHOLD = 10000 # After 10 seconds, reset the queue
 
@@ -16,6 +10,12 @@ const PRECOMPUTE_REQUIRED_BUTTONS = [
 	"btn_collision",
 	"btn_navigation",
 ]
+
+var docker = preload("res://addons/stag_toolkit/plugin/ui/island_docker.tscn")
+var panel: Control = null
+var last_builder: IslandBuilder = null
+var realtime_enabled: bool = false
+var transforms: Dictionary
 
 func _can_handle(object: Object) -> bool:
 	if object is Node:
@@ -46,12 +46,12 @@ func _parse_begin(object: Object) -> void:
 				last_builder.completed_nets.disconnect(_on_precompute)
 			if last_builder.get_tree().process_frame.is_connected(_check_transforms):
 				last_builder.get_tree().process_frame.disconnect(_check_transforms)
-		
+
 		builder.completed_serialize.connect(_on_serialize.bind(builder), CONNECT_DEFERRED)
 		builder.completed_nets.connect(_on_precompute.bind(builder), CONNECT_DEFERRED)
-		
+
 		bind_realtime(builder)
-		
+
 		if not builder.get_tree().process_frame.is_connected(_check_transforms):
 			builder.get_tree().process_frame.connect(_check_transforms)
 
@@ -79,7 +79,7 @@ func _parse_begin(object: Object) -> void:
 	var trealtime: CheckBox = panel.get_node("%toggle_realtime")
 	trealtime.button_pressed = realtime_enabled
 	trealtime.toggled.connect(_realtime_toggled)
-	
+
 	if not EditorInterface.get_inspector().property_edited.is_connected(on_property_change):
 		EditorInterface.get_inspector().property_edited.connect(on_property_change)
 
@@ -128,7 +128,7 @@ func do_metaclear(node: Node):
 
 func do_mesh_preview(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
-	find_mesh_output(builder).mesh = builder.mesh_preview()
+	find_mesh_output(builder).mesh = builder.mesh_preview(null)
 	var t2 = Time.get_ticks_usec()
 	print("IslandBuilder: Mesh preview took ", float(t2 - t1) * 0.001, " ms")
 
@@ -254,7 +254,7 @@ func bind_realtime(node: Node, top_level: bool = false) -> void:
 	for child in node.get_children():
 		bind_realtime(child, false)
 
-func on_property_change(property: String):
+func on_property_change(_property: String):
 	if realtime_enabled and is_instance_valid(last_builder):
 		update_realtime_preview()
 func on_child_added(new_child: Node):
@@ -265,9 +265,9 @@ func on_child_removed(new_child: Node):
 func _check_transforms() -> void:
 	if realtime_enabled and is_instance_valid(last_builder):
 		_check_transforms_internal(last_builder)
-		
+
 		var t = Time.get_ticks_msec()
-		# If we have new changes, but haven't updated our generation in a while, do a clean pass to ensure we're at final 
+		# If we have new changes, but haven't updated our generation in a while, do a clean pass to ensure we're at final
 		if realtime_dirty and not realtime_queued:
 			if t > realtime_last_update + TWEAK_TIMER_THRESHOLD:
 				update_realtime_preview(false)
@@ -282,16 +282,16 @@ func _check_transforms_internal(node: Node) -> void:
 			print("transform updated, requesting realtime preview")
 			#return # We don't need to check the rest of the transforms!
 		transforms[node.get_instance_id()] = node.transform
-	
+
 	for child in node.get_children():
 		_check_transforms_internal(child)
 
 # Called if the IslandBuilder tree changed somehow
 func update_realtime_preview(dirty: bool = true):
 	if not realtime_enabled: return
-	
+
 	realtime_dirty = dirty
-	
+
 	if realtime_queued: return
 	realtime_queued = true
 	_update_realtime_preview_deferred.call_deferred()
@@ -309,7 +309,7 @@ func _realtime_preview(builder: IslandBuilder, on_finish: Callable) -> void:
 	print("doing nets")
 	if builder.net(): return # Buffer was empty
 	print("doing mesh preview")
-	on_finish.call_deferred(builder.mesh_preview())
+	on_finish.call_deferred(builder.mesh_preview(null))
 func _realtime_preview_finish(new_mesh: ArrayMesh, builder: IslandBuilder) -> void:
 	print("applying realtime")
 	find_mesh_output(builder).mesh = new_mesh

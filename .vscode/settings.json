@@ -11,6 +11,8 @@
     ],
     "spellchecker.ignoreFileExtensions": [
         "toml",
-    ]
+    ],
+    "godotFormatterAndLinter.lineLength": 128,
+    "godotFormatterAndLinter.lintSeverityLevel": "Warning"
     // "rust-analyz"
 }
