@@ -9,6 +9,8 @@
 
 /// General math utilities and conversions.
 pub mod math {
+    /// Ray, plane and point projections.
+    pub mod projection;
     /// Signed Distance Field math and shape sampling.
     pub mod sdf;
     /// Type conversions for ineroperability between libraries.
@@ -16,13 +18,15 @@ pub mod math {
     /// Volumetric data handling and 3D noise.
     pub mod volumetric;
 }
-/// Mesh data handling and inoperating with Godot.
+/// Mesh data handling and operating with Godot.
 pub mod mesh {
-    /// Module for making mesh data ineroperable with Godot Engine.
+    /// Ineroperable mesh data with Godot Engine.
     pub mod godot;
-    /// Module for handling net algorithms like Surface Nets.
+    /// Convex Hull algorithms like Quick Hull and related functions.
+    pub mod hull;
+    /// Net algorithms like Naive Surface Nets.
     pub mod nets;
-    /// Module for handling trimesh data.
+    /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
 }
 

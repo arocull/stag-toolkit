@@ -31,9 +31,9 @@ repos:
     hooks:
       - id: shellcheck
 
-  # GDScript Toolkit
-  - repo: https://github.com/Scony/godot-gdscript-toolkit
-    rev: 4.2.2
+  # GDScript Toolkit - https://github.com/Scony/godot-gdscript-toolkit
+  - repo: local
+    # rev: 4.2.2
     hooks:
       - id: gdlint
         name: gdlint

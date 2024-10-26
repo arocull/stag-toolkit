@@ -2,6 +2,7 @@
   "recommendations": [
     "alfish.godot-files",
     "geequlim.godot-tools",
+    "1yib.rust-bundle",
     "eddiedover.gdscript-formatter-linter",
     "gruntfuggly.todo-tree",
     "rust-lang.rust-analyzer",
@@ -9,6 +10,7 @@
     "1yib.rust-bundle",
     "usernamehw.errorlens",
     "znck.grammarly",
-    "mads-hartmann.bash-ide-vscode"
+    "mads-hartmann.bash-ide-vscode",
+    "tamasfe.even-better-toml"
   ]
 }

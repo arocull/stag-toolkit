@@ -169,9 +169,12 @@ func do_collision(builder: IslandBuilder):
 		shape.owner = out.get_tree().edited_scene_root
 
 	if out is RigidBody3D:
-		out.mass = builder.volume * builder.density
+		out.mass = builder.get_volume() * builder.gameplay_density
+		out.axis_lock_angular_x = true
+		out.axis_lock_angular_z = true
+		out.axis_lock_linear_y = true
 	if out.get_parent().has_method("set_maximum_health"):
-		out.get_parent().set_maximum_health(builder.volume * builder.density_health)
+		out.get_parent().set_maximum_health(builder.get_volume() * builder.gameplay_health_density)
 
 func do_navigation(builder: IslandBuilder):
 	var out = find_output_object(builder)

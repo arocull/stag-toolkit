@@ -14,6 +14,7 @@ All-purpose toolkit for game creation for Lonesome Stag studios.
 - [rust book](https://doc.rust-lang.org/stable/book/)
 - [godot-rust book](https://godot-rust.github.io/book/)
 - [Dieter Rams 10 Principles for Good Design](https://www.vitsoe.com/us/about/good-design)
+- [Cross-Compiling Rust for Windows](https://stackoverflow.com/questions/31492799/cross-compile-a-rust-application-from-linux-to-windows)
 
 ### Speculative Crates
 - [glam](https://docs.rs/glam/0.29.0/glam/) for 3D linear algebra

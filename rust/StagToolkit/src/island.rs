@@ -2,10 +2,16 @@ use core::f32;
 use std::ops::Index;
 
 use crate::{
-    math::types::{ToColor, ToVector2, ToVector3},
-    math::{sdf::sample_shape_list, types::Vec3Godot, volumetric::PerlinField},
-    mesh::godot::{GodotSurfaceArrays, GodotWhitebox},
-    mesh::{nets::mesh_from_nets, trimesh::TriangleMesh},
+    math::{
+        sdf::sample_shape_list,
+        types::{ToColor, ToVector2, ToVector3, Vec3Godot},
+        volumetric::PerlinField,
+    },
+    mesh::{
+        godot::{GodotSurfaceArrays, GodotWhitebox},
+        nets::mesh_from_nets,
+        trimesh::TriangleMesh,
+    },
 };
 use fast_surface_nets::{
     ndshape::{ConstShape, ConstShape3u32},
@@ -140,6 +146,12 @@ impl IslandBuildData {
     /// Returns a SurfaceArrays object containing preview mesh data.
     /// Returns `None` if no mesh is currently stored.
     fn get_mesh(&self) -> Option<GodotSurfaceArrays> {
+        // let positions = &self.mesh.as_ref().unwrap().positions;
+        // let tris = convex_hull(positions);
+        // let m = TriangleMesh::from_triangles(tris, positions.to_vec());
+
+        // return Some(GodotSurfaceArrays::from_trimesh(&m));
+
         self.mesh.as_ref().map(GodotSurfaceArrays::from_trimesh)
     }
     /// Fetches the preview mesh and bakes additional data for shading into it.
@@ -406,7 +418,7 @@ impl IslandBuilder {
                 mesh = recycle;
                 mesh.clear_surfaces();
             }
-            None => {
+            _ => {
                 mesh = ArrayMesh::new_gd();
             }
         }
@@ -414,7 +426,7 @@ impl IslandBuilder {
 
         match arrs_opt {
             Some(arrs) => {
-                mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, arrs.get_surface_arrays());
+                mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
                 mesh.surface_set_name(0, "island".into());
                 // Add a material, if valid
                 if self.material_preview.is_some() {
@@ -422,7 +434,7 @@ impl IslandBuilder {
                 }
                 mesh
             }
-            None => mesh,
+            _ => mesh,
         }
     }
     /// Bakes and returns a triangle mesh with vertex colors, UVs, (TODO: and LODs).
@@ -433,14 +445,14 @@ impl IslandBuilder {
         let arrs_opt = self.data.get_mesh_baked();
         match arrs_opt {
             Some(arrs) => {
-                mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, arrs.get_surface_arrays());
+                mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
                 mesh.surface_set_name(0, "island".into());
                 if self.material_baked.is_some() {
                     mesh.surface_set_material(0, self.material_baked.clone());
                 }
                 mesh
             }
-            None => mesh,
+            _ => mesh,
         }
     }
     /// Computes and returns a list of collision hulls for the IslandBuilder shape.
@@ -452,7 +464,7 @@ impl IslandBuilder {
         let mut hulls = Array::<Gd<ConvexPolygonShape3D>>::new();
         for hull in hull_pts.iter() {
             let mut shape = ConvexPolygonShape3D::new_gd();
-            shape.set_points(hull.clone().to_vector3());
+            shape.set_points(&hull.clone().to_vector3());
             hulls.push(shape);
         }
 

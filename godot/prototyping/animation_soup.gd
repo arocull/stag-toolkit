@@ -82,7 +82,7 @@ func blend_poses(a: Pose, b: Pose, alpha: float) -> Pose:
 	blend_dictionary(a.rotations, b.rotations, alpha)
 	return a
 
-func sample_pose(animation: Animation, time: float) -> Pose:
+func sample_pose(animation: Animation, _time: float) -> Pose:
 	var pose: Pose = Pose.new()
 	for i in animation.get_track_count():
 		if animation.track_is_enabled(i):
