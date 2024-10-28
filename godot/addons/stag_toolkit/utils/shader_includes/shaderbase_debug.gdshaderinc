@@ -1,6 +1,6 @@
 #ifdef OVERDRAW
 render_mode blend_add, shadows_disabled, cull_back, depth_test_disabled, fog_disabled;
-uniform float alpha : hint_range(0.0, 1.0, 0.05) = 0.15;
+uniform float alpha : hint_range(0.0, 1.0, 0.01) = 0.15;
 uniform vec3 color: source_color = vec3(1,1,1);
 #else
 render_mode fog_disabled, unshaded, shadows_disabled;

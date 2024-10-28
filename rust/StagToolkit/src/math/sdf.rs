@@ -7,15 +7,20 @@ pub fn smooth_union(a: f32, b: f32, k: f32) -> f32 {
     res.max(0.0001).log10() * (-1.0) / k
 }
 
-// /// Returns the union of two distance functions.
-// pub fn union(a: f32, b: f32) -> f32 {
-//     a.max(b)
-// }
+/// Returns the union of two distance functions: A + B.
+pub fn union(a: f32, b: f32) -> f32 {
+    a.min(b)
+}
 
-// /// Returns the intersection of two distance functions.
-// pub fn intersection(a: f32, b: f32) -> f32 {
-//     a.min(b)
-// }
+/// Returns the intersection of two distance functions: A intersect B.
+pub fn intersection(a: f32, b: f32) -> f32 {
+    a.max(b)
+}
+
+/// Returns the subtraction of two distance functions: A - B.
+pub fn subtraction(a: f32, b: f32) -> f32 {
+    intersection(a, -b)
+}
 
 /// Distance function for a sphere.
 pub fn sample_sphere(sample_position: Vec3, shape_radius: f32) -> f32 {
@@ -32,8 +37,8 @@ pub fn sample_box_rounded(sample_position: Vec3, shape_dim: Vec3, radius_edge: f
     m + q.max_element().min(0.0) - radius_edge
 }
 
-/// Describes an SDF primitive shape
-#[derive(Copy, Clone)]
+/// Describes an SDF primitive shape.
+#[derive(Copy, Clone, PartialEq)]
 pub enum ShapeType {
     /// A sphere primitive.
     Sphere,
@@ -41,11 +46,24 @@ pub enum ShapeType {
     RoundedBox,
 }
 
+/// Describes an SDF primitive operation.
+#[derive(Copy, Clone, PartialEq)]
+pub enum ShapeOperation {
+    /// A joining between two shapes.
+    Union,
+    /// An intersection between two shapes.
+    Intersection,
+    /// A subtraction between two shapes.
+    Subtraction,
+}
+
 /// Collection of data describing a Signed Distance Field primitive.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Shape {
     /// Informs which SDF formula to use when calculating.
     shape: ShapeType,
+    /// Informs which operation to use when combining SDFs.
+    pub operation: ShapeOperation,
     /// Describes a sphere or cylinder's radius.
     radius: f32,
     /// Describes the edge rounding on the given shape, if available.
@@ -62,9 +80,10 @@ pub struct Shape {
 
 impl Shape {
     /// Creates a sphere primitive with the given parameters.
-    pub fn sphere(transform: Mat4, radius: f32) -> Self {
+    pub fn sphere(transform: Mat4, radius: f32, operation: ShapeOperation) -> Self {
         Self {
             shape: ShapeType::Sphere,
+            operation,
             transform,
             transform_inv: transform.inverse(),
             radius,
@@ -74,9 +93,15 @@ impl Shape {
         }
     }
     /// Creates a rounded box primitive with the given parameters.
-    pub fn rounded_box(transform: Mat4, dimensions: Vec3, radius_edge: f32) -> Self {
+    pub fn rounded_box(
+        transform: Mat4,
+        dimensions: Vec3,
+        radius_edge: f32,
+        operation: ShapeOperation,
+    ) -> Self {
         Self {
             shape: ShapeType::RoundedBox,
+            operation,
             transform,
             transform_inv: transform.inverse(),
             radius: 0.0,
@@ -86,6 +111,8 @@ impl Shape {
         }
     }
     /// Samples the SDF shape at the given point.
+    /// Returned value is the point's distance to the surface of the shape,
+    /// with negative being inside the shape, positive being outside.
     pub fn sample(&self, at: Vec3) -> f32 {
         let position_local = self
             .transform_inv
@@ -153,11 +180,23 @@ impl Shape {
 
 /// Iterates through a shape list, sampling each shape at the given point
 /// and smooth unioning the shapes together, returning a distance.
-pub fn sample_shape_list(list: &Vec<Shape>, point: Vec3, smoothing_value: f32) -> f32 {
+pub fn sample_shape_list(list: &Vec<Shape>, point: Vec3) -> f32 {
     let mut d: f32 = 1.0;
 
     for shape in list.iter() {
-        d = smooth_union(d, shape.sample(point), smoothing_value)
+        let j = shape.sample(point);
+
+        match shape.operation {
+            ShapeOperation::Union => {
+                d = union(d, j);
+            }
+            ShapeOperation::Intersection => {
+                d = intersection(d, j);
+            }
+            ShapeOperation::Subtraction => {
+                d = subtraction(d, j);
+            }
+        }
     }
 
     d
@@ -234,7 +273,7 @@ mod tests {
 
         // Test as sampled from a shape
         for case in sample_points.iter() {
-            let sphere = Shape::sphere(Mat4::IDENTITY, case.1);
+            let sphere = Shape::sphere(Mat4::IDENTITY, case.1, ShapeOperation::Union);
             let dist = sphere.sample(case.0);
             assert_eq!(
                 dist, case.2,
@@ -304,7 +343,7 @@ mod tests {
         ];
 
         for case in sample_cases.iter() {
-            let sphere = Shape::sphere(case.transform, case.radius);
+            let sphere = Shape::sphere(case.transform, case.radius, ShapeOperation::Union);
             let dist = sphere.sample(case.sample);
             let (scale, rot, loc) = case.transform.to_scale_rotation_translation();
             assert_eq!(

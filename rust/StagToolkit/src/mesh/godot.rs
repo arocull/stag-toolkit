@@ -1,7 +1,9 @@
 use crate::math::sdf;
+use crate::math::sdf::ShapeOperation;
 use crate::math::types::*;
 // use super::trimesh::TriangleMesh;
 use godot::builtin::Array;
+use godot::classes::csg_shape_3d::Operation;
 use godot::classes::mesh::ArrayType;
 use godot::classes::{CsgBox3D, CsgSphere3D};
 use godot::prelude::*;
@@ -136,8 +138,8 @@ impl GodotWhitebox {
     }
 
     /// Samples the whitebox shape list at the given position, returning the distance to its surface.
-    pub fn sample_at(&self, point: Vec3Godot, smoothing_value: f32) -> f32 {
-        sdf::sample_shape_list(&self.shapes, point.to_vector3(), smoothing_value)
+    pub fn sample_at(&self, point: Vec3Godot) -> f32 {
+        sdf::sample_shape_list(&self.shapes, point.to_vector3())
     }
 
     /// Clears the shape list.
@@ -163,6 +165,11 @@ impl GodotWhitebox {
 
         // Create an iterator
         for shape in self.shapes.iter() {
+            // Only include Unions in AABB, as all other operations take away
+            if shape.operation != ShapeOperation::Union {
+                continue;
+            }
+
             let (min_bound, max_bound) = shape.relative_bounds();
             let shape_aabb = shape.transform().to_transform3d()
                 * Aabb::new(min_bound.to_vector3(), (max_bound - min_bound).to_vector3());
@@ -204,11 +211,15 @@ impl GodotWhitebox {
                 let transform = transform.scaled_local(Vec3Godot::ONE / scale);
                 // Also, don't forget to factor in the original CSG box scale on top
                 scale *= csg.get_size();
+
+                let op = csg_operation(csg.get_operation());
+
                 // Finally, store shape
                 self.shapes.push(sdf::Shape::rounded_box(
                     transform.to_transform3d(),
                     scale.to_vector3(),
                     self.fetch_edge_radius(csg.upcast::<Node>()),
+                    op,
                 ));
             }
 
@@ -222,6 +233,8 @@ impl GodotWhitebox {
                             return;
                         }
 
+                        let op = csg_operation(csg.get_operation());
+
                         // Get relative transform
                         let transform = parent.get_global_transform().affine_inverse()
                             * csg.get_global_transform();
@@ -229,6 +242,7 @@ impl GodotWhitebox {
                         self.shapes.push(sdf::Shape::sphere(
                             transform.to_transform3d(),
                             csg.get_radius(),
+                            op,
                         ));
                     }
 
@@ -252,5 +266,15 @@ impl GodotWhitebox {
     /// Fetches the hull ZScore of a whitebox node
     fn fetch_hull_zscore(&self, node: Gd<Node>) -> f32 {
         Self::fetch_meta(node, "hull_zscore".into(), self.default_edge_radius)
+    }
+}
+
+// HELPER FUNCTIONS
+
+fn csg_operation(gd_op: Operation) -> ShapeOperation {
+    match gd_op {
+        Operation::INTERSECTION => ShapeOperation::Intersection,
+        Operation::SUBTRACTION => ShapeOperation::Subtraction,
+        _ => ShapeOperation::Union,
     }
 }

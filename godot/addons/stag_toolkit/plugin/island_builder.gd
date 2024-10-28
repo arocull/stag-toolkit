@@ -15,6 +15,7 @@ var docker = preload("res://addons/stag_toolkit/plugin/ui/island_docker.tscn")
 var panel: Control = null
 var last_builder: IslandBuilder = null
 var realtime_enabled: bool = false
+var csg_linting: bool = false
 var transforms: Dictionary
 
 func _can_handle(object: Object) -> bool:
@@ -79,6 +80,13 @@ func _parse_begin(object: Object) -> void:
 	var trealtime: CheckBox = panel.get_node("%toggle_realtime")
 	trealtime.button_pressed = realtime_enabled
 	trealtime.toggled.connect(_realtime_toggled)
+
+	var tcsglint: CheckBox = panel.get_node("%toggle_csg_linter")
+	tcsglint.button_pressed = csg_linting
+	tcsglint.toggled.connect(_csg_linter)
+
+	if csg_linting:
+		lint_node(object)
 
 	if not EditorInterface.get_inspector().property_edited.is_connected(on_property_change):
 		EditorInterface.get_inspector().property_edited.connect(on_property_change)
@@ -183,6 +191,8 @@ func do_navigation(builder: IslandBuilder):
 		out.set_navigation_properties(nav_props)
 
 func do_finalize(builder: IslandBuilder):
+	realtime_enabled = false
+	panel.get_node("%toggle_realtime").button_pressed = false
 	var t1 = Time.get_ticks_usec()
 	do_mesh_bake(builder)
 	do_collision(builder)
@@ -210,6 +220,63 @@ func find_mesh_output(builder: IslandBuilder) -> MeshInstance3D:
 	mesh.owner = out.get_tree().edited_scene_root
 
 	return mesh
+
+
+# CSG LINTING
+const LINT_PREFIXES = [
+	"UNION_",
+	"INTERSECT_",
+	"SUBTRACT_",
+]
+
+func _csg_linter(new_state: bool):
+	csg_linting = new_state
+
+# Lints the given string with the according suffix
+func lint_name(name: String, operation: int, suffix: String):
+	# Generic names should always be replaced
+	var tailor: bool = name.begins_with("CSG")
+
+	# If the item has a prefix
+	for item in LINT_PREFIXES:
+		if name.begins_with(item):
+			tailor = true
+			suffix = name.replace(item, "") # Strip prefix and retain name
+			break
+
+	if not tailor:
+		return
+
+	match operation:
+		0: #OPERATION_UNION:
+			name = "UNION_"
+		1: #OPERATION_INTERSECTION:
+			name = "INTERSECT_"
+		2: #OPERATION_SUBTRACT:
+			name = "SUBTRACT_"
+	return name + suffix
+
+# Returns a material to represent the given CSG operation
+func lint_material(operation: int):
+	match operation:
+		0: #OPERATION_UNION:
+			return load("res://addons/stag_toolkit/utils/shaders/matdebug_csg_union.tres")
+		1: #OPERATION_INTERSECTION:
+			return load("res://addons/stag_toolkit/utils/shaders/matdebug_csg_intersect.tres")
+		2: #OPERATION_SUBTRACT:
+			return load("res://addons/stag_toolkit/utils/shaders/matdebug_csg_subtract.tres")
+		_:
+			return load("res://addons/stag_toolkit/utils/shaders/matdebug_overdraw.tres")
+
+# Performs CSG linting on the given node for better readability
+func lint_node(node: Node):
+	if is_instance_valid(last_builder) and last_builder.is_ancestor_of(node):
+		if node is CSGBox3D:
+			node.name = lint_name(node.name, node.operation, "box")
+			node.material_override = lint_material(node.operation)
+		if node is CSGSphere3D:
+			node.name = lint_name(node.name, node.operation, "sphere")
+			node.material_override = lint_material(node.operation)
 
 # REALTIME PREVIEW
 var realtime_thread: Thread
@@ -257,11 +324,19 @@ func bind_realtime(node: Node, top_level: bool = false) -> void:
 	for child in node.get_children():
 		bind_realtime(child, false)
 
-func on_property_change(_property: String):
+func on_property_change(property: String):
+	if csg_linting and property == "operation":
+		var obj = EditorInterface.get_inspector().get_edited_object()
+		if is_instance_valid(obj) and obj is Node:
+			lint_node(obj)
+
 	if realtime_enabled and is_instance_valid(last_builder):
 		update_realtime_preview()
 func on_child_added(new_child: Node):
 	bind_realtime(new_child, false)
+
+	if csg_linting:
+		lint_node(new_child)
 func on_child_removed(new_child: Node):
 	unbind_realtime(new_child)
 
@@ -282,7 +357,7 @@ func _check_transforms_internal(node: Node) -> void:
 		var old_transform: Transform3D = transforms.get(node.get_instance_id(), node.transform)
 		if not old_transform.is_equal_approx(node.transform):
 			update_realtime_preview()
-			print("transform updated, requesting realtime preview")
+			# print("transform updated, requesting realtime preview")
 			#return # We don't need to check the rest of the transforms!
 		transforms[node.get_instance_id()] = node.transform
 
@@ -300,21 +375,21 @@ func update_realtime_preview(dirty: bool = true):
 	_update_realtime_preview_deferred.call_deferred()
 
 func _update_realtime_preview_deferred():
-	print("update realtime preview event")
+	# print("update realtime preview event")
 	last_builder.serialize()
 	if realtime_thread.is_started():
-		print("Awaiting thread")
+		# print("Awaiting thread")
 		realtime_thread.wait_to_finish()
 	realtime_thread.start(_realtime_preview.bind(last_builder, _realtime_preview_finish.bind(last_builder)))
 
 func _realtime_preview(builder: IslandBuilder, on_finish: Callable) -> void:
 	Thread.set_thread_safety_checks_enabled(false)
-	print("doing nets")
+	# print("doing nets")
 	if builder.net(): return # Buffer was empty
-	print("doing mesh preview")
+	# print("doing mesh preview")
 	on_finish.call_deferred(builder.mesh_preview(null))
 func _realtime_preview_finish(new_mesh: ArrayMesh, builder: IslandBuilder) -> void:
-	print("applying realtime")
+	# print("applying realtime")
 	find_mesh_output(builder).mesh = new_mesh
 	realtime_queued = false
 	realtime_last_update = Time.get_ticks_msec()

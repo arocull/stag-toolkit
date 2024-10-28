@@ -1,6 +1,6 @@
 .PHONY: all clean debug build test godot-abyss-release godot-abyss-debug
 
-all: clean test debug build
+all: test debug build
 
 clean:
 	@cargo clean

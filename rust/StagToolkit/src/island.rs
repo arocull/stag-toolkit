@@ -3,9 +3,9 @@ use std::ops::Index;
 
 use crate::{
     math::{
-        sdf::sample_shape_list,
+        sdf::{sample_shape_list, ShapeOperation},
         types::{ToColor, ToVector2, ToVector3, Vec3Godot},
-        volumetric::PerlinField,
+        volumetric::{PerlinField, VolumeData},
     },
     mesh::{
         godot::{GodotSurfaceArrays, GodotWhitebox},
@@ -17,7 +17,7 @@ use fast_surface_nets::{
     ndshape::{ConstShape, ConstShape3u32},
     surface_nets, SurfaceNetsBuffer,
 };
-use glam::{FloatExt, Vec2, Vec3, Vec4};
+use glam::{FloatExt, Mat4, Vec2, Vec3, Vec4};
 use godot::{
     classes::{mesh::PrimitiveType, ArrayMesh, ConvexPolygonShape3D, Material},
     prelude::*,
@@ -33,15 +33,14 @@ pub struct IslandBuildData {
 
     // CONFIGURATION //
     noise_amplitude: f32,
-    smoothing_value: f32,
+    smoothing_repetitions: u32,
+    smoothing_radius_voxels: u32,
+    smoothing_weight: f32,
     mask_range_dirt: Vec2,
     mask_range_sand: Vec2,
     mask_power_sand: f32,
     mask_perlin_scale: Vec3,
 
-    /// Signed Distance Field data in a voxel grid.
-    /// Stored as option to not clutter RAM when unused.
-    voxels: Option<[f32; IslandChunkSize::USIZE]>,
     /// Mesh generated via surface nets.
     /// Stored as option in case it was not already generated.
     mesh: Option<TriangleMesh>,
@@ -64,13 +63,14 @@ impl IslandBuildData {
             noise: PerlinField::new(0, 1, 2, 1.0),
 
             noise_amplitude: 0.1,
-            smoothing_value: 20.0,
+            smoothing_repetitions: 1,
+            smoothing_radius_voxels: 2,
+            smoothing_weight: 0.5,
             mask_range_dirt: Vec2::new(-0.1, 0.8),
             mask_range_sand: Vec2::new(0.7, 1.0),
             mask_power_sand: 3.0,
             mask_perlin_scale: Vec3::new(0.75, 0.33, 0.75),
 
-            voxels: None,
             mesh: None,
 
             volume: 0.0,
@@ -81,11 +81,10 @@ impl IslandBuildData {
     /// TODO: Utilize chunking to break up task.
     fn nets(&mut self) {
         // If voxel data was not already initialized, initialize it
-        let mut voxels;
-        match self.voxels {
-            Some(x) => voxels = x,
-            None => voxels = [1.0f32; IslandChunkSize::USIZE],
-        }
+        let mut voxels = VolumeData::new(
+            1.0f32,
+            [VOLUME_MAX_CELLS, VOLUME_MAX_CELLS, VOLUME_MAX_CELLS],
+        );
 
         let aabb: Aabb = self.whitebox.get_aabb().grow(self.noise_amplitude);
         let minimum_bound: Vec3 = aabb.position.to_vector3();
@@ -102,41 +101,54 @@ impl IslandBuildData {
         let mut volume: f32 = 0.0;
         let volume_per_voxel = cell_size.x * cell_size.y * cell_size.z;
 
-        let noise_amplitude = Vec3::splat(self.noise_amplitude);
-
         let shapes = self.whitebox.get_shapes();
 
+        // Transformation matrix for quickly moving points
+        let trans: Mat4 = Mat4::from_translation(minimum_bound) * Mat4::from_scale(cell_size);
+
+        // Sample
         for i in 0u32..IslandChunkSize::SIZE {
             let [x, y, z] = IslandChunkSize::delinearize(i);
 
-            let sample_position: Vec3 = minimum_bound
-                + Vec3::new(
-                    x as f32 * cell_size.x,
-                    y as f32 * cell_size.y,
-                    z as f32 * cell_size.z,
-                );
-            let noise = self.noise.sample(sample_position, 1.0) * noise_amplitude;
-            let sample = sample_shape_list(shapes, sample_position + noise, self.smoothing_value);
+            let sample_pos: Vec3 = trans.transform_point3(Vec3::new(x as f32, y as f32, z as f32));
+
+            // let noise = self.noise.sample(sample_position, 1.0) * noise_amplitude;
+            let sample = sample_shape_list(shapes, sample_pos);
+
+            voxels.set_linear(i as usize, sample);
+        }
+
+        // Factor noise in
+        voxels.noise_add(&self.noise, trans, 1.0, self.noise_amplitude);
+
+        // Perform smoothing blurs
+        for _i in 0u32..self.smoothing_repetitions {
+            voxels = voxels.blur(self.smoothing_radius_voxels, self.smoothing_weight);
+        }
+
+        // Convert voxel data to buffer for surface-nets
+        let mut snbuffer = [1.0f32; IslandChunkSize::USIZE];
+        for i in 0usize..IslandChunkSize::USIZE {
+            let sample = voxels.get_linear(i);
+            snbuffer[i] = -sample;
 
             if sample < 0.0 {
                 volume += volume_per_voxel;
             }
-
-            voxels[i as usize] = -sample;
         }
 
         self.volume = volume;
 
+        // Perform surface nets algorithm
         let mut buffer = SurfaceNetsBuffer::default();
         surface_nets(
-            &voxels,
+            &snbuffer,
             &IslandChunkSize {},
             [0; 3],
             [VOLUME_MAX_CELLS - 1; 3],
             &mut buffer,
         );
 
-        self.voxels = Some(voxels);
         self.mesh = mesh_from_nets(buffer, cell_size, minimum_bound);
         if self.mesh.is_none() {
             godot_warn!("IslandBuilder: Generated mesh buffer was empty.");
@@ -233,6 +245,15 @@ impl IslandBuildData {
 
             for shape_idx in 0..shapes.len() {
                 let shape = shapes.index(shape_idx);
+
+                // Ignore non-union shapes
+                if shape.operation != ShapeOperation::Union {
+                    continue;
+                }
+
+                // TODO: somehow take intersection steps into account,
+                // so collision shapes that are cut off via intersections,
+                // do not include shapes added after said intersection.
                 let d = shape.sample(*pt);
                 if d < min_dist {
                     min_dist = d;
@@ -241,6 +262,13 @@ impl IslandBuildData {
             }
 
             hulls[min_shape_idx].push(*pt);
+        }
+
+        // Remove unused hulls. Iterate over array backwards so we hit the end ones first
+        for (idx, hull) in hulls.clone().iter().enumerate().rev() {
+            if hull.is_empty() {
+                hulls.remove(idx);
+            }
         }
 
         // TODO: run decimate?
@@ -292,7 +320,11 @@ pub struct IslandBuilder {
     output_to: NodePath,
 
     #[export]
-    generation_smoothing_value: f32,
+    generation_smoothing_iterations: u32,
+    #[export]
+    generation_smoothing_radius_voxels: u32,
+    #[export]
+    generation_smoothing_weight: f32,
     #[export]
     generation_edge_radius: f32,
     #[export]
@@ -323,7 +355,9 @@ impl INode3D for IslandBuilder {
         Self {
             data: IslandBuildData::new(),
             output_to: NodePath::from("."),
-            generation_smoothing_value: 20.0,
+            generation_smoothing_iterations: 1,
+            generation_smoothing_radius_voxels: 2,
+            generation_smoothing_weight: 0.5,
             generation_edge_radius: 0.75,
             generation_hull_zscore: 2.0,
             noise_seed: 0,
@@ -370,9 +404,12 @@ impl IslandBuilder {
 
     // Build Steps //
 
+    /// Applies Godot settings to corresponding whitebox and mesh data.
     fn apply_settings(&mut self) {
         // Apply whitebox settings
-        self.data.smoothing_value = self.generation_smoothing_value;
+        self.data.smoothing_repetitions = self.generation_smoothing_iterations;
+        self.data.smoothing_radius_voxels = self.generation_smoothing_radius_voxels;
+        self.data.smoothing_weight = self.generation_smoothing_weight;
         self.data.whitebox.default_edge_radius = self.generation_edge_radius;
         self.data.whitebox.default_hull_zscore = self.generation_hull_zscore;
 
