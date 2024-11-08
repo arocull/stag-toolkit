@@ -4,6 +4,8 @@
 		"openxr": false
 	},
 	"disabled_classes": [
+		"OccluderPolygon2D",
+		"Shape2D",
 		"World2D"
 	],
 	"type": "build_profile"

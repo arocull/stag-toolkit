@@ -23,6 +23,6 @@ test:
 
 # Builds Godot Linux export template with encryption for Abyss
 godot-abyss-release:
-	@./godot-build/build.sh abyss release
+	@./godot-build/build.sh abyss release 4.2.2-stable
 godot-abyss-debug:
-	@./godot-build/build.sh abyss debug
+	@./godot-build/build.sh abyss debug 4.2.2-stable

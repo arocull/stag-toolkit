@@ -1,6 +1,6 @@
 # Stag Toolkit
 
-All-purpose toolkit for game creation for Lonesome Stag studios.
+All-purpose toolkit for game creation for Lonesome Stag Studios.
 
 ## To-Dos
 - Add Perlin noise output to vertex color alpha

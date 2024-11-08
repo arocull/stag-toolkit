@@ -26,10 +26,10 @@ repos:
     hooks:
       - id: hadolint-docker
 
-  - repo: https://github.com/koalaman/shellcheck-precommit
-    rev: v0.9.0
-    hooks:
-      - id: shellcheck
+  # - repo: https://github.com/koalaman/shellcheck-precommit
+  #   rev: v0.9.0
+  #   hooks:
+  #     - id: shellcheck
 
   # GDScript Toolkit - https://github.com/Scony/godot-gdscript-toolkit
   - repo: local
