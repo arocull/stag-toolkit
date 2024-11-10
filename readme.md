@@ -27,16 +27,20 @@ If making a contribution, please follow the [Conventional Commits](https://www.c
 
 ### General Setup
 
+1. Ensure [Rust](https://www.rust-lang.org/) (I'm using Version 1.82.0) and [Godot](https://godotengine.org/download/archive/) (using version as specified above) are installed
+2. Clone this repository
+3. `cd` into this repository and run `cargo fetch`
+
 #### Windows
 
-1. Run `build.cmd`
+1. Run `$ build.cmd` to build the addon
 2. Open the addon project (in `godot/` subdirectory) inside Godot to verify that it works
 3. Copy the `godot/addons/stag_toolkit/` directory into your project as `addons/stag_toolkit/`
 4. Done!
 
 #### Linux
 
-1. `make all`
+1. `$ make all` to build the addon
 2. Open the addon project in Godot to verify that it works: `cd godot/ && godot project.godot`
 3. Copy the `godot/addons/stag_toolkit/` directory into your project as `addons/stag_toolkit/`
 4. Done!
