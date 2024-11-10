@@ -71,6 +71,13 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Finalize"
 
+[node name="btn_destroy" type="Button" parent="workflow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Destroy Bakes"
+
 [node name="separator" type="HSeparator" parent="."]
 layout_mode = 2
 

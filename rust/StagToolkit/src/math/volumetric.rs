@@ -106,6 +106,15 @@ impl VolumeData<f32> {
         x_clamp + self.strides[1].wrapping_mul(y_clamp) + self.strides[2].wrapping_mul(z_clamp)
     }
 
+    /// Returns true if the given coordinates are within the cell padding margin.
+    /// False otherwise.
+    /// Zero padding will always return false.
+    pub fn is_margin(&self, x: u32, y: u32, z: u32, cell_padding: u32) -> bool {
+        (x < cell_padding || x >= self.dim[0] - cell_padding)
+            || (y < cell_padding || y >= self.dim[1] - cell_padding)
+            || (z < cell_padding || z >= self.dim[2] - cell_padding)
+    }
+
     /// Returns the delinearized coordinates of the given index.
     pub fn delinearize(&self, mut i: u32) -> [u32; 3] {
         let z = i / self.strides[2];
@@ -139,6 +148,17 @@ impl VolumeData<f32> {
         }
 
         out
+    }
+
+    /// Sets the minimum SDF distance at the bordering cell margin to +10.0.
+    pub fn trim_padding(&mut self, cell_padding: u32) {
+        for i in 0usize..self.size {
+            let [x, y, z] = self.delinearize(i as u32);
+
+            if self.is_margin(x, y, z, cell_padding) {
+                self.set_linear(i, 10.0);
+            }
+        }
     }
 
     /// In-place adds noise to the volumetric.

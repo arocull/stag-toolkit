@@ -67,15 +67,17 @@ func _parse_begin(object: Object) -> void:
 
 	var bmeshpreview: Button = panel.get_node("%btn_mesh_preview")
 	bmeshpreview.pressed.connect(do_mesh_preview.bind(builder))
+	var bfinalize: Button = panel.get_node("%btn_finalize")
+	bfinalize.pressed.connect(do_finalize.bind(builder))
+	var bdestroy: Button = panel.get_node("%btn_destroy")
+	bdestroy.pressed.connect(do_destroy.bind(builder))
+
 	var bmeshbake: Button = panel.get_node("%btn_mesh_bake")
 	bmeshbake.pressed.connect(do_mesh_bake.bind(builder))
 	var bcollision: Button = panel.get_node("%btn_collision")
 	bcollision.pressed.connect(do_collision.bind(builder))
 	var bnavigation: Button = panel.get_node("%btn_navigation")
 	bnavigation.pressed.connect(do_navigation.bind(builder))
-
-	var bfinalize: Button = panel.get_node("%btn_finalize")
-	bfinalize.pressed.connect(do_finalize.bind(builder))
 
 	var trealtime: CheckBox = panel.get_node("%toggle_realtime")
 	trealtime.button_pressed = realtime_enabled
@@ -133,6 +135,14 @@ func do_metaclear(node: Node):
 		do_metaclear(child)
 	node.remove_meta("edge_radius")
 	node.remove_meta("hull_zscore")
+
+# Destroys any binary IslandBuilder data for safe git saving
+func do_destroy(node: IslandBuilder):
+	for child in find_output_object(node).get_children():
+		if child is CollisionShape3D:
+			child.queue_free() # Remove collision shapes
+		elif child is MeshInstance3D:
+			child.mesh = null # Unlinks the mesh data
 
 func do_mesh_preview(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
@@ -215,7 +225,8 @@ func find_mesh_output(builder: IslandBuilder) -> MeshInstance3D:
 	var mesh = MeshInstance3D.new()
 	mesh.name = 'mesh_island'
 	mesh.set_layer_mask_value(1, true)
-	mesh.set_layer_mask_value(2, true)
+	mesh.set_layer_mask_value(2, false)
+	mesh.set_layer_mask_value(3, true)
 	out.add_child(mesh)
 	mesh.owner = out.get_tree().edited_scene_root
 
@@ -231,6 +242,8 @@ const LINT_PREFIXES = [
 
 func _csg_linter(new_state: bool):
 	csg_linting = new_state
+	if csg_linting and is_instance_valid(last_builder):
+		lint_node_recursive(last_builder)
 
 # Lints the given string with the according suffix
 func lint_name(name: String, operation: int, suffix: String):
@@ -277,6 +290,11 @@ func lint_node(node: Node):
 		if node is CSGSphere3D:
 			node.name = lint_name(node.name, node.operation, "sphere")
 			node.material_override = lint_material(node.operation)
+
+func lint_node_recursive(node: Node):
+	for child in node.get_children():
+		lint_node_recursive(child)
+	lint_node(node)
 
 # REALTIME PREVIEW
 var realtime_thread: Thread

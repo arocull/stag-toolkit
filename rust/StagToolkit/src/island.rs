@@ -32,10 +32,12 @@ pub struct IslandBuildData {
     noise: PerlinField,
 
     // CONFIGURATION //
-    noise_amplitude: f32,
+    cell_padding: u32,
     smoothing_repetitions: u32,
     smoothing_radius_voxels: u32,
     smoothing_weight: f32,
+    noise_amplitude: f32,
+    noise_w: f64,
     mask_range_dirt: Vec2,
     mask_range_sand: Vec2,
     mask_power_sand: f32,
@@ -62,10 +64,12 @@ impl IslandBuildData {
             whitebox: GodotWhitebox::new(),
             noise: PerlinField::new(0, 1, 2, 1.0),
 
-            noise_amplitude: 0.1,
-            smoothing_repetitions: 1,
+            cell_padding: 2,
+            smoothing_repetitions: 3,
             smoothing_radius_voxels: 2,
             smoothing_weight: 0.5,
+            noise_amplitude: 0.4,
+            noise_w: 1.0,
             mask_range_dirt: Vec2::new(-0.1, 0.8),
             mask_range_sand: Vec2::new(0.7, 1.0),
             mask_power_sand: 3.0,
@@ -86,16 +90,18 @@ impl IslandBuildData {
             [VOLUME_MAX_CELLS, VOLUME_MAX_CELLS, VOLUME_MAX_CELLS],
         );
 
-        let aabb: Aabb = self.whitebox.get_aabb().grow(self.noise_amplitude);
+        let aabb: Aabb = self.whitebox.get_aabb().grow(self.noise_amplitude.abs());
         let minimum_bound: Vec3 = aabb.position.to_vector3();
         let bound_size: Vec3 = aabb.size.to_vector3();
 
-        let grid_size: f32 = VOLUME_MAX_CELLS as f32;
+        let grid_size: f32 = (VOLUME_MAX_CELLS - (self.cell_padding * 2)) as f32;
         let cell_size: Vec3 = Vec3::new(
             bound_size.x / grid_size,
             bound_size.y / grid_size,
             bound_size.z / grid_size,
         );
+
+        let minimum_bound = minimum_bound - cell_size * Vec3::splat(self.cell_padding as f32);
 
         // Estimate volume
         let mut volume: f32 = 0.0;
@@ -119,12 +125,15 @@ impl IslandBuildData {
         }
 
         // Factor noise in
-        voxels.noise_add(&self.noise, trans, 1.0, self.noise_amplitude);
+        voxels.noise_add(&self.noise, trans, self.noise_w, self.noise_amplitude);
 
         // Perform smoothing blurs
         for _i in 0u32..self.smoothing_repetitions {
             voxels = voxels.blur(self.smoothing_radius_voxels, self.smoothing_weight);
         }
+
+        // Perform padding
+        voxels.trim_padding(self.cell_padding);
 
         // Convert voxel data to buffer for surface-nets
         let mut snbuffer = [1.0f32; IslandChunkSize::USIZE];
@@ -316,33 +325,57 @@ impl IResource for NavIslandProperties {
 pub struct IslandBuilder {
     data: IslandBuildData,
 
+    /// Node to output the result on.
+    /// This may affect how data is stored and applied via the plugin.
     #[export]
     output_to: NodePath,
 
-    #[export]
+    /// Number of cells to pad on each side of the IslandBuilder volume.
+    #[export(range = (0.0, 6.0, or_greater))]
+    generation_cell_padding: u32,
+    /// Number of times box-blur should be applied to the volume.
+    #[export(range = (0.0, 20.0, or_greater))]
     generation_smoothing_iterations: u32,
-    #[export]
+    /// Radius (in cells) that box-blur smoothing should utilize.
+    #[export(range = (1.0, 4.0, or_greater))]
     generation_smoothing_radius_voxels: u32,
-    #[export]
+    /// What proportion of the smoothing should be used.
+    #[export(range = (0.0, 1.0))]
     generation_smoothing_weight: f32,
-    #[export]
+    /// Corner radius, in meters, to use around boxes.
+    #[export(range = (0.0, 2.0))]
     generation_edge_radius: f32,
+    /// Z-Score to use for culling collision hull points.
     #[export]
     generation_hull_zscore: f32,
-    #[export]
-    noise_seed: i32,
+    /// Noise seed to use for generation.
+    #[export(range = (0.0, 1000.0, or_greater))]
+    noise_seed: u32,
+    /// Noise frequency.
     #[export]
     noise_frequency: f32,
-    #[export]
+    /// Noise amplitude, in meters.
+    /// This value is directly added to the SDF result in the volume pass.
+    /// Advized to keep below 1.0 meter.
+    #[export(range = (0.0, 1.0, or_greater))]
     noise_amplitude: f32,
+    /// W position for sampling noise.
+    #[export]
+    noise_w: f64,
 
+    /// Approximate physical density of material to use when calculating mass.
+    /// Kilograms per meter cubed.
     #[export]
     gameplay_density: f32,
+    /// Approximate health density of material to use when calculating island health.
+    /// Hit Points per meter cubed.
     #[export]
     gameplay_health_density: f32,
 
+    /// Material to use in final product.
     #[export]
     material_baked: Option<Gd<Material>>,
+    /// Material to use in preview modes.
     #[export]
     material_preview: Option<Gd<Material>>,
 
@@ -355,14 +388,16 @@ impl INode3D for IslandBuilder {
         Self {
             data: IslandBuildData::new(),
             output_to: NodePath::from("."),
-            generation_smoothing_iterations: 1,
+            generation_cell_padding: 2,
+            generation_smoothing_iterations: 3,
             generation_smoothing_radius_voxels: 2,
             generation_smoothing_weight: 0.5,
-            generation_edge_radius: 0.75,
+            generation_edge_radius: 1.0,
             generation_hull_zscore: 2.0,
             noise_seed: 0,
-            noise_frequency: 0.2,
-            noise_amplitude: 0.1,
+            noise_frequency: 0.335,
+            noise_amplitude: 0.4,
+            noise_w: 1.0,
             gameplay_density: 23.23,
             gameplay_health_density: 2.0,
             material_baked: None,
@@ -407,11 +442,22 @@ impl IslandBuilder {
     /// Applies Godot settings to corresponding whitebox and mesh data.
     fn apply_settings(&mut self) {
         // Apply whitebox settings
+        self.data.cell_padding = self.generation_cell_padding;
         self.data.smoothing_repetitions = self.generation_smoothing_iterations;
         self.data.smoothing_radius_voxels = self.generation_smoothing_radius_voxels;
         self.data.smoothing_weight = self.generation_smoothing_weight;
         self.data.whitebox.default_edge_radius = self.generation_edge_radius;
         self.data.whitebox.default_hull_zscore = self.generation_hull_zscore;
+
+        // Check if random seeds have changed
+        // Don't bother setting seed if they haven't changed
+        let (seed_x, seed_y, seed_z) = self.data.noise.get_seed();
+        let nseed_x: u32 = self.noise_seed;
+        let nseed_y: u32 = self.noise_seed + 1;
+        let nseed_z: u32 = self.noise_seed + 2;
+        if seed_x != nseed_x || seed_y != nseed_y || seed_z != nseed_z {
+            self.data.noise.set_seed(nseed_x, nseed_y, nseed_z);
+        }
 
         // Apply noise settings
         self.data.noise.frequency = [
@@ -421,6 +467,7 @@ impl IslandBuilder {
             self.noise_frequency as f64,
         ];
         self.data.noise_amplitude = self.noise_amplitude;
+        self.data.noise_w = self.noise_w;
     }
 
     /// Reads and stores children CSG shapes as whitebox geometry for processing.
