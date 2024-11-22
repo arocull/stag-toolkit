@@ -8,7 +8,8 @@ Currently equipped for Godot **4.2.2**
 
 ## Feature List
 
-- [IslandBuilder](https://alanocull.com/island_builder.html) tool and corresponding Rust backend
+- **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend
+- **[StagTest](docs/tools/stagtest.md)** testing harness for simulating gameplay for regression tests
 - Shader includes and debug shaders
 
 ### Included, but Not Maintained

@@ -29,10 +29,11 @@ excluded_directories: !!set
   rust: null
   target: null
   docs: null
+  godot-build: null
 expression-not-assigned: null
 function-argument-name: _?[a-z][a-z0-9]*(_[a-z0-9]+)*
 function-arguments-number: 10
-function-name: (_on_([A-Z][a-z0-9]*)+(_[a-z0-9]+)*|_?[a-z][a-z0-9]*(_[a-z0-9]+)*)
+function-name: (_on_([A-Z][a-z0-9]*)+(_[a-z0-9]+)*|_*?[a-z][a-z0-9]*(_[a-z0-9]+)*)
 function-preload-variable-name: ([A-Z][a-z0-9]*)+
 # Camel case is disabled by default, but I think it is an easy way to remember what's locally scoped
 function-variable-name: '[a-z][A-Za-z0-9]*(_[a-z0-9]+)*'

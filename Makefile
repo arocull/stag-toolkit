@@ -1,6 +1,6 @@
-.PHONY: all clean debug build test godot-abyss-release godot-abyss-debug
+.PHONY: all clean debug build test test-rust test-godot godot-abyss-release godot-abyss-debug
 
-all: test debug build
+all: debug build
 
 clean:
 	@cargo clean
@@ -18,8 +18,13 @@ debug:
 	@mkdir -p godot/addons/stag_toolkit/bin/debug/
 	@cp target/debug/libStagToolkit.so godot/addons/stag_toolkit/bin/debug/libStagToolkit.so
 
-test:
+test: test-rust test-godot
+
+test-rust:
 	@cargo test
+
+test-godot:
+	@cd godot/ && godot --headless --stagtest --timeout=5
 
 # Builds Godot Linux export template with encryption for Abyss
 godot-abyss-release:

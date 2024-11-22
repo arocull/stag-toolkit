@@ -16,6 +16,10 @@ run/main_scene="res://3d/startup.tscn"
 config/features=PackedStringArray("4.2", "Forward Plus")
 config/icon="res://icon.svg"
 
+[autoload]
+
+StagTest="*res://addons/stag_toolkit/plugin/stagtest.gd"
+
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/stag_toolkit/plugin.cfg")
