@@ -6,6 +6,7 @@ use godot::builtin::Array;
 use godot::classes::csg_shape_3d::Operation;
 use godot::classes::mesh::ArrayType;
 use godot::classes::{CsgBox3D, CsgSphere3D};
+use godot::obj::IndexEnum;
 use godot::prelude::*;
 
 use super::trimesh::TriangleMesh;
@@ -29,34 +30,34 @@ impl GodotSurfaceArrays {
         let mut sa = Array::new();
 
         sa.resize(
-            ArrayType::MAX.ord() as usize,
+            ArrayType::MAX.to_index(),
             &Array::<Variant>::new().to_variant(),
         );
 
         // Bind vertex data
-        // sa.set(ArrayType::VERTEX.ord() as usize, Variant::nil()); // Overridden anyway
-        sa.set(ArrayType::NORMAL.ord() as usize, Variant::nil());
-        sa.set(ArrayType::TANGENT.ord() as usize, Variant::nil());
+        // sa.set(ArrayType::VERTEX.to_index(), Variant::nil()); // Overridden anyway
+        sa.set(ArrayType::NORMAL.to_index(), Variant::nil());
+        sa.set(ArrayType::TANGENT.to_index(), Variant::nil());
 
         // Bind masking data
-        sa.set(ArrayType::COLOR.ord() as usize, Variant::nil());
+        sa.set(ArrayType::COLOR.to_index(), Variant::nil());
 
         // Bind UV projections
-        sa.set(ArrayType::TEX_UV.ord() as usize, Variant::nil());
-        sa.set(ArrayType::TEX_UV2.ord() as usize, Variant::nil());
+        sa.set(ArrayType::TEX_UV.to_index(), Variant::nil());
+        sa.set(ArrayType::TEX_UV2.to_index(), Variant::nil());
 
         // Bind custom arrays
-        sa.set(ArrayType::CUSTOM0.ord() as usize, Variant::nil());
-        sa.set(ArrayType::CUSTOM1.ord() as usize, Variant::nil());
-        sa.set(ArrayType::CUSTOM2.ord() as usize, Variant::nil());
-        sa.set(ArrayType::CUSTOM3.ord() as usize, Variant::nil());
+        sa.set(ArrayType::CUSTOM0.to_index(), Variant::nil());
+        sa.set(ArrayType::CUSTOM1.to_index(), Variant::nil());
+        sa.set(ArrayType::CUSTOM2.to_index(), Variant::nil());
+        sa.set(ArrayType::CUSTOM3.to_index(), Variant::nil());
 
         // Bind skeleton
-        sa.set(ArrayType::BONES.ord() as usize, Variant::nil());
-        sa.set(ArrayType::WEIGHTS.ord() as usize, Variant::nil());
+        sa.set(ArrayType::BONES.to_index(), Variant::nil());
+        sa.set(ArrayType::WEIGHTS.to_index(), Variant::nil());
 
         // FINALLY, bind indices (actually don't bother since we'll be overriding them anyway)
-        // sa.set(ArrayType::INDEX.ord() as usize, Variant::nil()); // Overridden anyway
+        // sa.set(ArrayType::INDEX.to_index(), Variant::nil()); // Overridden anyway
 
         Self { surface_arrays: sa }
     }
@@ -74,7 +75,7 @@ impl GodotSurfaceArrays {
 
     /// Internally sets a SurfaceArray value to the given variant.
     fn set_internal(&mut self, arrtype: ArrayType, value: Variant) {
-        self.surface_arrays.set(arrtype.ord() as usize, value);
+        self.surface_arrays.set(arrtype.to_index(), value);
     }
 
     /// Sets the indices buffer
