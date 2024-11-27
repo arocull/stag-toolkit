@@ -2,6 +2,7 @@ extends Node
 
 const DEFAULT_TEST_PATH: String = "res://test/scenarios/"
 const DEFAULT_TIMEOUT: float = 30.0
+const DEFAULT_TIME_SCALE: float = 1.0
 
 # Singleton for handling tests.
 
@@ -30,6 +31,7 @@ var __quit_function: Callable = __quit_default
 	"assertions": 0,
 }
 @onready var test_data: Dictionary = test_data_default.duplicate(true)
+@onready var _time_scale_base: float = DEFAULT_TIME_SCALE
 
 @onready var tests: Array[String] = []
 @onready var test_failures: Array[String] = []
@@ -70,6 +72,8 @@ func _ready():
 		print("\t\tFILEPATH=\"{0}\" by default (quotes optional)".format([DEFAULT_TEST_PATH]))
 		print("\t--timeout=SECONDS - forcibly ends all tests after the given amount of time, returning any collected results")
 		print("\t\tSECONDS={0} by default, floating-point times are valid".format([DEFAULT_TIMEOUT]))
+		print("\t--timescale=SCALE - sets the default engine time scale when not overidden by tests")
+		print("\t\tSCALE={0} by default, floating-point scales are valid".format([DEFAULT_TIME_SCALE]))
 		print("")
 		__exit()
 
@@ -86,6 +90,8 @@ func _ready():
 
 	# Forcibly exit the given scene
 	get_tree().unload_current_scene.call_deferred()
+
+	_time_scale_base = float(args.get("timescale", "{0}".format([DEFAULT_TIME_SCALE])))
 
 	# Begin timeout countdown
 	var timeout: float = float(args.get("timeout", "{0}".format([DEFAULT_TIMEOUT])))
@@ -159,7 +165,7 @@ func __run_test(filepath: String) -> void:
 	in_test = true
 	test_data = test_data_default.duplicate(true)
 	pause(false) # Unpause the tree before test begins
-	time_scale(1.0) # Reset time scale
+	time_scale(_time_scale_base) # Reset time scale
 	var status = get_tree().change_scene_to_packed(packed_scene)
 	if status != OK:
 		fail("failed to initialize scene with error {0}".format([status]))
@@ -171,7 +177,7 @@ func __cleanup_test():
 		return
 	in_test = false
 	pause(true) # Halt all processing
-	time_scale(1.0) # Reset time scale
+	time_scale(_time_scale_base) # Reset time scale
 	get_tree().unload_current_scene.call_deferred()
 
 	# After unloading test, pass it if it didn't fail during teardown either
@@ -294,7 +300,7 @@ func pause(paused: bool) -> void:
 	get_tree().paused = paused
 
 # Sets the engine time scale.
-func time_scale(new_scale: float = 1.0) -> void:
+func time_scale(new_scale: float = _time_scale_base) -> void:
 	Engine.time_scale = new_scale
 
 # Puts the test into Teardown mode.
