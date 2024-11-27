@@ -159,6 +159,7 @@ func __run_test(filepath: String) -> void:
 	in_test = true
 	test_data = test_data_default.duplicate(true)
 	pause(false) # Unpause the tree before test begins
+	time_scale(1.0) # Reset time scale
 	var status = get_tree().change_scene_to_packed(packed_scene)
 	if status != OK:
 		fail("failed to initialize scene with error {0}".format([status]))
@@ -169,7 +170,8 @@ func __cleanup_test():
 	if not in_test:
 		return
 	in_test = false
-	pause(true)
+	pause(true) # Halt all processing
+	time_scale(1.0) # Reset time scale
 	get_tree().unload_current_scene.call_deferred()
 
 	# After unloading test, pass it if it didn't fail during teardown either
@@ -283,13 +285,17 @@ func is_active() -> bool:
 
 ### TEST CALLABLES ###
 
-# Returns the path of the active test
+# Returns the path of the active test.
 func path() -> String:
 	return tests[test_idx]
 
-# Sets the pause of the scene tree
+# Sets the pause of the scene tree.
 func pause(paused: bool) -> void:
 	get_tree().paused = paused
+
+# Sets the engine time scale.
+func time_scale(new_scale: float = 1.0) -> void:
+	Engine.time_scale = new_scale
 
 # Puts the test into Teardown mode.
 # If the test is not skipped or failed during Teardown, it passes.
@@ -340,6 +346,24 @@ func assert_valid(a: Object, message: String = "") -> void:
 	test_data["assertions"] += 1
 	if not is_instance_valid(a):
 		fail("assert {0} was not a valid instance{1}".format([a, __format_assertion_message(message)]))
+
+# Assert that two values are equal, within a threshold amount.
+func assert_approx_equal(a: Variant, b: Variant, threshold: float = 1e-5, message: String = "") -> void:
+	test_data["assertions"] += 1
+
+	# Ensure types match
+	if typeof(a) != typeof(b):
+		fail("assert {0} ~= {1} had mismatch types".format([a, b, __format_assertion_message(message)]))
+
+	var approximately_equal: bool = is_equal_approx(a, b)
+	if not approximately_equal:
+		if (a is float and b is float) || (a is int and b is int):
+			approximately_equal = abs(a - b) <= threshold
+
+	# Return if failed
+	if not approximately_equal:
+		fail("assert {0} ~= {1} wasn't equal{2}".format([a, b, __format_assertion_message(message)]))
+
 
 # Pass: the signal, a function with as many arguments as the signal takes, plus a callable, that is invoked.
 # Message may be any additional error context you want on failure.

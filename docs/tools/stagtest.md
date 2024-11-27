@@ -73,7 +73,8 @@ As tests do not run inside a testing class, you must instead reference the StagT
 
 ### Test Environemnt
 - `StagTest.teardown()` - **This must be called to finish any test**. Puts the test in Teardown mode, removing the scene from the tree at the end of the frame, before freeing it and passing the test. Assertions can still be during Teardown.
-- `StagTest.pause(pause: bool)` - Pauses the SceneTree during a test. The SceneTree is unpaused at the start of each test, and paused while transitioning tests.
+- `StagTest.pause(pause: bool)` - Pauses the SceneTree during a test. The SceneTree is unpaused immediately before each test, and paused while transitioning tests.
+- `StagTest.time_scale(new_scale: float = 1.0)` - Sets the Engine time scale during a test. The time scale is reset immediately before each test and when transitioning tests.
 - `StagTest.skip(reason: String)` - Skips the active test, ignoring further assertions and entering Teardown mode.
 - `StagTest.fail(reason: String)` - Fails the active test, ignoring further assertions and entering Teardown mode.
 - `StagTest.override_exit_function(new_quit: Callable)` - Overrides the runtime exit function, in case the game needs additional teardown steps.
@@ -86,6 +87,7 @@ Optional messages can be included for additional context.
 - `StagTest.assert_equal(a: Variant, b: Variant, message: String = "")` - Assert that two values are equal.
 - `StagTest.assert_unequal(a: Variant, b: Variant, message: String = "")` - Assert that two values are NOT equal.
 - `StagTest.assert_valid(a: Object, message: String = "")` - Assert that the given Object is valid.
+- `StagTest.assert_approx_equal(a: Variant, b: Variant, threshold: float = 1e-5, message: String = "")` - Asserts that two variants of the same type are approximately equal. Threshold is currently only implemented for scalar values.
 
 <br/>
 
