@@ -264,10 +264,10 @@ impl GodotWhitebox {
     fn fetch_edge_radius(&self, node: Gd<Node>) -> f32 {
         Self::fetch_meta(node, "edge_radius".into(), self.default_edge_radius)
     }
-    /// Fetches the hull ZScore of a whitebox node
-    fn fetch_hull_zscore(&self, node: Gd<Node>) -> f32 {
-        Self::fetch_meta(node, "hull_zscore".into(), self.default_edge_radius)
-    }
+    // Fetches the hull ZScore of a whitebox node
+    // fn fetch_hull_zscore(&self, node: Gd<Node>) -> f32 {
+    //     Self::fetch_meta(node, "hull_zscore".into(), self.default_edge_radius)
+    // }
 }
 
 // HELPER FUNCTIONS

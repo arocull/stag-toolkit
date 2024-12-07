@@ -1,5 +1,5 @@
 use crate::math::{
-    projection::{distance_to_plane, intersect_plane_ray, plane},
+    projection::{plane, Plane},
     types::*,
 };
 
@@ -15,6 +15,8 @@ pub trait TriangleOperations {
     fn orientation(&self, positions: &Vec<Vec3>) -> f32;
     /// Returns the calculated normal of the given face using a counter-clockwise wound triangle.
     fn normal(&self, positions: &Vec<Vec3>) -> Vec3;
+    /// Returns the face plane.
+    fn plane(&self, positions: &Vec<Vec3>) -> Vec4;
     /// Projects the given point onto the triangle.
     fn project(&self, positions: &Vec<Vec3>, point: Vec3) -> Vec3;
     /// Calculates the projected barycentric coordinates of a point `p` relative to this triangle.
@@ -25,6 +27,8 @@ pub trait TriangleOperations {
     fn is_point_behind(&self, positions: &Vec<Vec3>, project: Vec3) -> bool;
     /// Returns true if two triangles are the same.
     fn equals(&self, other: &Triangle) -> bool;
+    /// Returns a new, flipped triangle by changing vertex order.
+    fn flip(&self) -> Self;
 }
 
 impl TriangleOperations for Triangle {
@@ -40,6 +44,10 @@ impl TriangleOperations for Triangle {
         u.cross(v).normalize()
     }
 
+    fn plane(&self, positions: &Vec<Vec3>) -> Vec4 {
+        plane(positions[self[0]], self.normal(positions))
+    }
+
     fn project(&self, positions: &Vec<Vec3>, point: Vec3) -> Vec3 {
         // Get plane normal
         let norm = self.normal(positions);
@@ -47,7 +55,7 @@ impl TriangleOperations for Triangle {
         let pl = plane(positions[self[0]], norm);
         // Project point onto plane, using opposite of plane's normal.
         // Projection should never fail as ray is always antiparallel to the normal.
-        intersect_plane_ray(pl, point, -norm).0
+        pl.ray_intersection(point, -norm).0
     }
 
     fn barycentric(&self, positions: &Vec<Vec3>, project: Vec3) -> Vec3 {
@@ -84,8 +92,9 @@ impl TriangleOperations for Triangle {
     }
 
     fn is_point_behind(&self, positions: &Vec<Vec3>, project: Vec3) -> bool {
+        let p = self.plane(positions);
         // If our point is above the plane or parallel to it, it is not in front of us
-        let d = distance_to_plane(project, self.normal(positions), positions[self[0]]);
+        let d = p.signed_distance(project);
         if d >= 0.0 {
             return false;
         }
@@ -96,6 +105,10 @@ impl TriangleOperations for Triangle {
 
     fn equals(&self, other: &Triangle) -> bool {
         self[0] == other[0] && self[1] == other[1] && self[2] == other[2]
+    }
+
+    fn flip(&self) -> Self {
+        [self[1], self[0], self[2]]
     }
 }
 

@@ -3,6 +3,7 @@
 //!
 //! Contains these features:
 //! - IslandBuilder
+//! - StagTest (GDScript-only)
 //! - (WIP) AnimationSoup
 
 // MODULE DECLARATION //
@@ -23,9 +24,11 @@ pub mod mesh {
     /// Ineroperable mesh data with Godot Engine.
     pub mod godot;
     /// Convex Hull algorithms like Quick Hull and related functions.
-    pub mod hull;
+    // pub mod hull;
     /// Net algorithms like Naive Surface Nets.
     pub mod nets;
+    /// Point Cloud trait and associated functions for managing large sets of point data.
+    pub mod pointcloud;
     /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
 }

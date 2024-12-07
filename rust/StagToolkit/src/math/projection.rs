@@ -1,38 +1,58 @@
 use glam::{Vec3, Vec4, Vec4Swizzles};
 
-/// Constructs a 3D plane using the given origin and normal values,
-/// describing the plane as a 4D vector.
+/// Constructs a 3D plane using the given origin and normal values, describing the plane as a 4D vector.
+/// To produce a normalized plane, `normal` is expected to be a normalized vector.
 pub fn plane(origin: Vec3, normal: Vec3) -> Vec4 {
     Vec4::new(normal.x, normal.y, normal.z, -normal.dot(origin))
 }
-/// Computes the distance from a point to a plane
-pub fn distance_to_plane(point: Vec3, plane_normal: Vec3, plane_point: Vec3) -> f32 {
-    (point - plane_point).dot(plane_normal)
+
+/// A 3D plane for performing projections.
+pub trait Plane {
+    /// Returns a new plane with a flipped normal.
+    fn flip(self) -> Self;
+    /// Returns the signed distance from the given point to this plane.
+    fn signed_distance(self, point: Vec3) -> f32;
+    /// Intersects the given plane with the given ray, and returns a position and whether it sucessfully collided.
+    /// If the ray is parallel with the plane, returns the ray origin instead.
+    fn ray_intersection(self, ray_origin: Vec3, ray_direction: Vec3) -> (Vec3, bool);
 }
-/// Intersects the given plane with the given ray, and returns a position and whether it sucessfully collided.
-/// If the ray is parallel with the plane, returns the ray origin instead.
-pub fn intersect_plane_ray(plane: Vec4, ray_origin: Vec3, ray_direction: Vec3) -> (Vec3, bool) {
-    // Test if ray direction is perpendicular to plane normal (parallel)
-    if plane.xyz().dot(ray_direction) == 0.0 {
-        return (ray_origin, false); // Cast never collides
+
+impl Plane for Vec4 {
+    fn flip(self) -> Self {
+        self * Self::splat(-1.0)
     }
 
-    (
-        ray_origin // Return projected point
-            - Vec3::splat(
-                plane.dot(Vec4::new(ray_origin.x, ray_origin.y, ray_origin.z, 1.0))
-                    / plane.xyz().dot(ray_direction),
-            ) * ray_direction,
-        true, // Cast successfully collided
-    )
+    fn signed_distance(self, point: Vec3) -> f32 {
+        self.dot(Self::new(point.x, point.y, point.z, 0.0))
+    }
+
+    fn ray_intersection(self, ray_origin: Vec3, ray_direction: Vec3) -> (Vec3, bool) {
+        let dt = self.xyz().dot(ray_direction);
+
+        // Test if ray direction is perpendicular to plane normal (parallel)
+        if dt == 0.0 {
+            return (ray_origin, false); // Cast never collides
+        }
+
+        (
+            ray_origin // Return projected point
+                - Vec3::splat(
+                    self.dot(Self::new(ray_origin.x, ray_origin.y, ray_origin.z, 1.0))
+                        / dt,
+                ) * ray_direction,
+            true, // Cast successfully collided
+        )
+    }
 }
+
 /// Finds the index of the point furthest in a given direction from a set of points.
 pub fn furthest_point(points: &Vec<Vec3>, plane_normal: Vec3, plane_point: Vec3) -> usize {
     let mut max_distance = f32::NEG_INFINITY;
     let mut furthest_index = 0;
 
     for (i, point) in points.iter().enumerate() {
-        let distance = distance_to_plane(*point, plane_normal, plane_point).abs();
+        let p = plane(plane_point, plane_normal);
+        let distance = p.signed_distance(*point).abs();
         if distance > max_distance {
             max_distance = distance;
             furthest_index = i;
@@ -46,12 +66,10 @@ pub fn furthest_point(points: &Vec<Vec3>, plane_normal: Vec3, plane_point: Vec3)
 mod tests {
     use glam::Vec3;
 
-    use crate::math::projection::{intersect_plane_ray, plane};
-
-    use super::distance_to_plane;
+    use super::*;
 
     #[test]
-    fn test_distance_to_plane() {
+    fn plane_signed_distance() {
         struct TestPlanePointProject {
             /// Origin point of plane
             origin: Vec3,
@@ -118,7 +136,8 @@ mod tests {
         let max_diff: f32 = 1e-5;
         let mut idx = 0;
         for case in cases.iter() {
-            let dist = distance_to_plane(case.point, case.normal, case.origin);
+            let p = plane(case.origin, case.normal);
+            let dist = p.signed_distance(case.point);
             let diff = (case.distance - dist).abs();
             assert!(
                 (case.distance - dist) < max_diff,
@@ -225,7 +244,7 @@ mod tests {
         let mut idx = 0;
         for case in test_cases.iter() {
             let pl = plane(case.o, case.n);
-            let (projected, hit) = intersect_plane_ray(pl, case.ro, case.rd);
+            let (projected, hit) = pl.ray_intersection(case.ro, case.rd);
 
             assert_eq!(
                 hit, case.collided,
