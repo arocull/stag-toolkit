@@ -1,0 +1,36 @@
+[gd_scene load_steps=6 format=3 uid="uid://bhw6vjnxsv2b7"]
+
+[ext_resource type="Script" path="res://test/scenarios/test_island_builder.gd" id="1_bdgar"]
+[ext_resource type="Material" uid="uid://d64jtoqgwdle" path="res://3d/islandbuilder/materials/mat_island_sandy.tres" id="2_ehd04"]
+[ext_resource type="Material" uid="uid://dofsy83ofsdua" path="res://3d/islandbuilder/materials/mat_island_sandy_nobake.tres" id="3_1lqiu"]
+[ext_resource type="Material" uid="uid://cm8v2ufi8wc32" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_union.tres" id="4_jo25n"]
+[ext_resource type="Material" uid="uid://c64nj8mhjbl43" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_subtract.tres" id="5_7gndr"]
+
+[node name="IslandBuilder" type="Node3D"]
+script = ExtResource("1_bdgar")
+
+[node name="IslandBuilder" type="IslandBuilder" parent="."]
+output_to = NodePath("")
+material_baked = ExtResource("2_ehd04")
+material_preview = ExtResource("3_1lqiu")
+
+[node name="UNION_box" type="CSGBox3D" parent="IslandBuilder"]
+material_override = ExtResource("4_jo25n")
+size = Vector3(4, 1, 4)
+
+[node name="SUBTRACT_box2" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 0)
+material_override = ExtResource("5_7gndr")
+operation = 2
+size = Vector3(2, 2, 6)
+
+[node name="UNION_sphere" type="CSGSphere3D" parent="IslandBuilder"]
+visible = false
+material_override = ExtResource("4_jo25n")
+radius = 2.0
+
+[node name="SUBTRACT_box3" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, 0)
+material_override = ExtResource("5_7gndr")
+operation = 2
+size = Vector3(2, 2, 6)

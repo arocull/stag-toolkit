@@ -14,9 +14,11 @@ script = ExtResource("1_ytp1n")
 output_to = NodePath("../RigidBody3D")
 material_baked = ExtResource("2_lyvhm")
 material_preview = ExtResource("3_0xy63")
+visible = false
 metadata/volume = 4.75614
 
 [node name="UNION_BASE" type="CSGSphere3D" parent="IslandBuilder"]
+visible = false
 material_override = ExtResource("4_lkpm7")
 radius = 4.0
 radial_segments = 24
@@ -25,6 +27,7 @@ material = ExtResource("4_lkpm7")
 
 [node name="INTERSECT_BOX" type="CSGBox3D" parent="IslandBuilder"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -4.5, 0)
+visible = false
 material_override = ExtResource("5_j6ril")
 operation = 1
 size = Vector3(9, 9, 9)
@@ -67,6 +70,7 @@ radius = 1.28584
 material = ExtResource("4_lkpm7")
 
 [node name="INTERSECT_SPHERE" type="CSGSphere3D" parent="IslandBuilder"]
+visible = false
 operation = 1
 radius = 4.0
 radial_segments = 24
@@ -125,11 +129,14 @@ material = ExtResource("6_mqddq")
 axis_lock_linear_y = true
 axis_lock_angular_x = true
 axis_lock_angular_z = true
-mass = 4186.95
+mass = 3707.2
 freeze = true
+
+[node name="mesh_island" type="MeshInstance3D" parent="RigidBody3D"]
+layers = 5
 
 [node name="aabb_checker" type="GPUParticles3D" parent="."]
 emitting = false
-visibility_aabb = AABB(-4.30869, -7.40014, -5.58029, 9.45502, 11.4001, 10.7182)
+visibility_aabb = AABB(-4.30869, -7.40014, -5.58029, 9.45502, 8.70274, 10.7182)
 
 [connection signal="completed_serialize" from="IslandBuilder" to="." method="_on_island_builder_completed_serialize"]

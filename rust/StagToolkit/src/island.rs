@@ -10,7 +10,7 @@ use crate::{
     mesh::{
         godot::{GodotSurfaceArrays, GodotWhitebox},
         nets::mesh_from_nets,
-        trimesh::TriangleMesh,
+        trimesh::{TriangleMesh, TriangleOperations},
     },
 };
 use fast_surface_nets::{
@@ -46,6 +46,8 @@ pub struct IslandBuildData {
     /// Mesh generated via surface nets.
     /// Stored as option in case it was not already generated.
     mesh: Option<TriangleMesh>,
+    /// Whether this mesh has been optimized since generation.
+    optimized: bool,
 
     // OUTPUTS //
     /// Estimated volume of island.
@@ -76,6 +78,7 @@ impl IslandBuildData {
             mask_perlin_scale: Vec3::new(0.75, 0.33, 0.75),
 
             mesh: None,
+            optimized: false,
 
             volume: 0.0,
         }
@@ -158,10 +161,27 @@ impl IslandBuildData {
             &mut buffer,
         );
 
+        self.optimized = false; // This new mesh has not been optimized yet
         self.mesh = mesh_from_nets(buffer, cell_size, minimum_bound);
+
         if self.mesh.is_none() {
             godot_warn!("IslandBuilder: Generated mesh buffer was empty.");
         }
+    }
+
+    /// Optimizes the mesh, if it exists and has not been optimized already.
+    fn optimize_mesh(&mut self) {
+        // Mesh has already been optimized, or does not exist. No-op.
+        if self.optimized || self.mesh.is_none() {
+            return;
+        }
+
+        let mesh = self.mesh.as_mut().unwrap();
+
+        // TODO: merge by distance
+        mesh.remove_unused();
+
+        self.optimized = true;
     }
 
     /// Returns a SurfaceArrays object containing preview mesh data.
@@ -233,24 +253,28 @@ impl IslandBuildData {
 
     /// Iterates through all positions on the mesh, assigning them to nearby collision hulls.
     /// Returns an empty vector if no hulls were generated.
-    fn get_hulls(&self) -> Vec<Vec<Vec3>> {
-        let mut hulls: Vec<Vec<Vec3>> = vec![];
-        if self.mesh.is_none() {
-            return hulls;
-        }
+    fn get_hulls(&self) -> Vec<TriangleMesh> {
+        let mesh: &TriangleMesh = match &self.mesh {
+            Some(trimesh) => trimesh,
+            None => return vec![],
+        };
+
+        let mut hulls: Vec<TriangleMesh> = vec![];
 
         // Fetch the shape list, and allocate an equal amount of collision hulls
         let shapes = self.whitebox.get_shapes();
         hulls.reserve_exact(shapes.len());
         for _ in shapes.iter() {
-            hulls.push(vec![]);
+            hulls.push(TriangleMesh::new(vec![], mesh.positions.clone(), None));
         }
 
-        // Assign each point to the nearest collision hull
-        let points = self.mesh.as_ref().unwrap().positions.clone();
-        for pt in points.iter() {
+        // Assign each triangle to the nearest collision hull
+        for tri in mesh.triangles.iter() {
             let mut min_dist = f32::INFINITY;
             let mut min_shape_idx = 0;
+
+            // Fetch centerpoint of triangle to use for comparison
+            let center = tri.centerpoint(&mesh.positions);
 
             for shape_idx in 0..shapes.len() {
                 let shape = shapes.index(shape_idx);
@@ -260,27 +284,29 @@ impl IslandBuildData {
                     continue;
                 }
 
-                // TODO: somehow take intersection steps into account,
+                // TODO: somehow take Intersection CSG into account when sampling shapes,
                 // so collision shapes that are cut off via intersections,
                 // do not include shapes added after said intersection.
-                let d = shape.sample(*pt);
+
+                let d = shape.sample(center);
                 if d < min_dist {
                     min_dist = d;
                     min_shape_idx = shape_idx;
                 }
             }
 
-            hulls[min_shape_idx].push(*pt);
+            hulls[min_shape_idx].triangles.push(*tri);
         }
 
-        // Remove unused hulls. Iterate over array backwards so we hit the end ones first
-        for (idx, hull) in hulls.clone().iter().enumerate().rev() {
-            if hull.is_empty() {
-                hulls.remove(idx);
-            }
-        }
+        // Remove hulls with an insignificant amount of triangles.
+        hulls.retain(|hull| hull.triangles.len() >= 3);
 
-        // TODO: run decimate?
+        // TODO: decimate
+
+        // Remove unused vertices
+        for mesh in hulls.iter_mut() {
+            mesh.remove_unused();
+        }
 
         hulls
     }
@@ -384,6 +410,7 @@ pub struct IslandBuilder {
 
 #[godot_api]
 impl INode3D for IslandBuilder {
+    /// Initializes the IslandBuilder.
     fn init(base: Base<Node3D>) -> Self {
         Self {
             data: IslandBuildData::new(),
@@ -492,6 +519,12 @@ impl IslandBuilder {
         self.data.mesh.is_none()
     }
 
+    /// Optimizes the mesh, if it has not been optimized already, for baking and gameplay.
+    #[func]
+    pub fn optimize(&mut self) {
+        self.data.optimize_mesh();
+    }
+
     /// Returns a simple triangle mesh for previewing, without baking any data.
     /// Returns an empty mesh if not pre-computed.
     #[func]
@@ -523,8 +556,11 @@ impl IslandBuilder {
     }
     /// Bakes and returns a triangle mesh with vertex colors, UVs, (TODO: and LODs).
     /// Returns an empty mesh if not pre-computed.
+    /// Optimizes the mesh data beforehand, if not already optimized.
     #[func]
-    pub fn mesh_baked(&self) -> Gd<ArrayMesh> {
+    pub fn mesh_baked(&mut self) -> Gd<ArrayMesh> {
+        self.optimize();
+
         let mut mesh = ArrayMesh::new_gd();
         let arrs_opt = self.data.get_mesh_baked();
         match arrs_opt {
@@ -541,14 +577,21 @@ impl IslandBuilder {
     }
     /// Computes and returns a list of collision hulls for the IslandBuilder shape.
     /// Returns an empty array if not pre-computed.
+    /// Optimizes the mesh data beforehand, if not already optimized.
     #[func]
-    pub fn collision_hulls(&self) -> Array<Gd<ConvexPolygonShape3D>> {
+    pub fn collision_hulls(&mut self) -> Array<Gd<ConvexPolygonShape3D>> {
+        self.optimize();
+
         let hull_pts = self.data.get_hulls();
 
         let mut hulls = Array::<Gd<ConvexPolygonShape3D>>::new();
         for hull in hull_pts.iter() {
             let mut shape = ConvexPolygonShape3D::new_gd();
-            shape.set_points(&hull.clone().to_vector3());
+
+            // Fetch remaining positions from the hull
+            let pos: PackedVector3Array = hull.positions.clone().to_vector3();
+
+            shape.set_points(&pos);
             hulls.push(shape);
         }
 
@@ -570,6 +613,16 @@ impl IslandBuilder {
             (aabb.center() * Vec3Godot::new(1.0, 0.0, 1.0)) + (aabb.support(Vec3Godot::UP));
 
         props
+    }
+
+    /// Returns an estimation of the AABB for the island based off the serialized whitebox,
+    /// factoring noise into account.
+    #[func]
+    fn estimate_aabb(&self) -> Aabb {
+        self.data
+            .whitebox
+            .get_aabb()
+            .expand(Vec3Godot::splat(self.noise_amplitude))
     }
 
     /// Emitted upon completing serialization.

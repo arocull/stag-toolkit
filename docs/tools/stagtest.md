@@ -23,7 +23,7 @@ Breakdown of command-line arguments:
 
 ### Test Format
 
-Example tests reside [here](godot/test).
+Example tests reside [here](godot/test/scenarios/example).
 
 StagTest runs scene files instead of scripts, and makes full use of the SceneTree.
 This means that SceneTree-related node functions/events like `_init()`, `_ready()`, `_process()` and even `_enter_tree()` and `_exit_tree()` will be executed.
@@ -97,7 +97,7 @@ Signal Expectors are a unique form of assertion that can be to test signals:
     - `to_connect` should be a function with as many arguments as the signal emits, plus a callable argument that is called within the function.
     - Must be created before the signal is called.
     - To run the assertion, call the returned callable, passing `true` (signal SHOULD have been emitted) or `false` (signal should NOT have been emitted) depending on desired outcome.
-    - See [`res://test/scenarios/signals_test.gd`](../../godot/test/scenarios/signals_test.gd) for example.
+    - See [`res://test/scenarios/signals_test.gd`](../../godot/test/scenarios/example/signals_test.gd) for example.
 
 
 ### Informational

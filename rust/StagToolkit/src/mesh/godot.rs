@@ -68,7 +68,7 @@ impl GodotSurfaceArrays {
 
         surface.set_vertices(mesh.positions.clone().to_vector3());
         surface.set_normals(mesh.normals.clone().to_vector3());
-        surface.set_indices(packed_index_array_usize(mesh.indices.clone()));
+        surface.set_indices(packed_index_array_usize(mesh.indices()));
 
         surface
     }

@@ -3,12 +3,35 @@ use crate::math::{
     types::*,
 };
 
-/// A mesh triangle of vertex indices. In counter-clockwise face winding order.
-pub type Triangle = [usize; 3];
+// EDGES //
+
 /// A mesh edge of vertex indices. In counter-clockwise winding order.
 pub type Edge = [usize; 2];
 
-/// Adds math utility functions for triangles
+/// A set of two indices, that can be operated from any set of positions.
+pub trait EdgeOperations {
+    /// Returns a new, flipped edge by changing vertex order.
+    fn flip(&self) -> Self;
+    /// Returns the calculated length of an edge.
+    fn length(&self, positions: &Vec<Vec3>) -> f32;
+}
+
+impl EdgeOperations for Edge {
+    fn flip(&self) -> Self {
+        [self[1], self[0]]
+    }
+
+    fn length(&self, positions: &Vec<Vec3>) -> f32 {
+        positions[self[0]].distance(positions[self[1]])
+    }
+}
+
+// TRIANGLES //
+
+/// A mesh triangle of vertex indices. In counter-clockwise face winding order.
+pub type Triangle = [usize; 3];
+
+/// A set of three indices, that can be operated on from any set of positions.
 pub trait TriangleOperations {
     /// Returns a positive value if the triangle's points are oriented counter-clockwise,
     /// negative if clockwise, and zero if they are collinear.
@@ -29,6 +52,10 @@ pub trait TriangleOperations {
     fn equals(&self, other: &Triangle) -> bool;
     /// Returns a new, flipped triangle by changing vertex order.
     fn flip(&self) -> Self;
+    /// Returns true if the triangle has this edge in its specified direction. False otherwise.
+    fn has_edge(&self, edge: &Edge) -> bool;
+    /// Returns the centerpoint of the triangle.
+    fn centerpoint(&self, positions: &Vec<Vec3>) -> Vec3;
 }
 
 impl TriangleOperations for Triangle {
@@ -110,12 +137,30 @@ impl TriangleOperations for Triangle {
     fn flip(&self) -> Self {
         [self[1], self[0], self[2]]
     }
+
+    fn has_edge(&self, edge: &Edge) -> bool {
+        for i in 0..3 {
+            // Check if the edge exists along this point or the next wrapped one
+            if edge[0] == self[i] && edge[1] == self[(i + 1) % self.len()] {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn centerpoint(&self, positions: &Vec<Vec3>) -> Vec3 {
+        (positions[self[0]] + positions[self[1]] + positions[self[2]]) * Vec3::splat(1.0 / 3.0)
+    }
 }
+
+// MESHES //
 
 /// Container for triangle mesh data.
 pub struct TriangleMesh {
     /// Primary mesh buffer, listing the index of corresponding vertex positions and normals, in counter-clockwise face winding.
-    pub indices: Vec<usize>,
+    pub triangles: Vec<Triangle>,
+    // pub indices: Vec<usize>,
     /// Individual vertices of the mesh.
     pub positions: Vec<Vec3>,
     /// Normals of the mesh, assigned to vertices of corresponding index.
@@ -123,78 +168,154 @@ pub struct TriangleMesh {
 }
 impl TriangleMesh {
     /// Creates a new TriangleMesh from the given mesh data.
-    pub fn new(indices: Vec<usize>, positions: Vec<Vec3>, normals: Vec<Vec3>) -> Self {
+    pub fn new(triangles: Vec<Triangle>, positions: Vec<Vec3>, normals: Option<Vec<Vec3>>) -> Self {
+        // Default normals to an empty vector if not included
+        let norms: Vec<Vec3>;
+        match normals {
+            Some(normals_list) => norms = normals_list,
+            None => norms = vec![],
+        }
+
         Self {
-            indices,
+            triangles,
             positions,
-            normals,
+            normals: norms,
         }
     }
-    /// Creates a new TriangleMesh from a list of triangles.
-    pub fn from_triangles(triangles: Vec<Triangle>, positions: Vec<Vec3>) -> Self {
-        let mut indices: Vec<usize> = vec![];
-        indices.reserve_exact(triangles.len());
-        for t in triangles.iter() {
-            indices.push(t[0]);
-            indices.push(t[1]);
-            indices.push(t[2]);
+
+    /// Creates a new TriangleMesh from a list of indices.
+    /// Every three indices are expected to represent a triangle, with counter-clockwise face winding.
+    /// Each index has a corresponding vertex position and normal.
+    /// List of normals is optional.
+    pub fn from_indices(
+        indices: Vec<usize>,
+        positions: Vec<Vec3>,
+        normals: Option<Vec<Vec3>>,
+    ) -> Self {
+        // Reserve triangles
+        let mut tris: Vec<Triangle> = vec![];
+        tris.reserve_exact(indices.len() / 3);
+
+        // Create triangles for each index
+        for i in 0..(indices.len() / 3) {
+            tris.push([indices[i * 3], indices[i * 3 + 1], indices[i * 3 + 2]]);
         }
 
-        let mut mesh = Self {
-            indices,
+        // Default normals to an empty vector if not included
+        let norms: Vec<Vec3>;
+        match normals {
+            Some(normals_list) => norms = normals_list,
+            None => norms = vec![],
+        }
+
+        Self {
+            triangles: tris,
             positions,
-            normals: vec![],
-        };
-
-        mesh.optimize();
-
-        mesh
-    }
-
-    /// Returns the calculated length of an edge.
-    pub fn calculate_edge_length(&self, edge: Edge) -> f32 {
-        self.positions[edge[0]].distance(self.positions[edge[1]])
-    }
-
-    /// Returns the left and right faces of an edge.
-    // pub fn fetch_edge_faces() -> (Triangle, Triangle) { }
-
-    /// Returns an iterator for iterating over this mesh's triangles.
-    pub fn walk_triangles(&self) -> WalkTriangles {
-        WalkTriangles {
-            mesh: self.indices.clone(),
-            curr: 0,
+            normals: norms,
         }
     }
 
-    /// Returns the number of vertices in the mesh
+    /// Returns the first left and right faces of an edge, if they exist.
+    pub fn tris_for_edge(&self, edge: &Edge) -> (Option<Triangle>, Option<Triangle>) {
+        let mut left: Option<Triangle> = None;
+        let mut right: Option<Triangle> = None;
+
+        for tri in self.triangles.iter() {
+            if tri.has_edge(edge) {
+                right = Some(*tri);
+
+                if left.is_some() {
+                    // Return if we finished
+                    break;
+                }
+            } else if tri.has_edge(&edge.flip()) {
+                left = Some(*tri);
+
+                if right.is_some() {
+                    // Return if we finished.
+                    break;
+                }
+            }
+        }
+
+        (left, right)
+    }
+
+    /// Returns the number of vertex positions in the mesh.
     pub fn count_vertices(&self) -> usize {
         self.positions.len()
     }
 
-    /// Removes duplicate and unused vertices
-    pub fn optimize(&mut self) {
-        let mut index = 0;
+    /// Unwraps the triangles in the mesh and returns them as an ordered list of indices.
+    pub fn indices(&self) -> Vec<usize> {
+        let mut indices: Vec<usize> = vec![];
+        indices.reserve_exact(self.triangles.len());
 
-        // Drop irrelevant positions
-        // TODO: drop duplicate positions, could maybe use dedup?
-        self.positions.retain(|_item| {
-            index += 1;
-
-            // Search through all indices. If we're being used somewhere, keep ourself
-            for idx in self.indices.iter() {
-                if *idx == index {
-                    return true;
-                }
+        for tri in self.triangles.iter() {
+            for idx in tri {
+                indices.push(*idx);
             }
-            false
+        }
+
+        indices
+    }
+
+    /// Removes all unused vertex positions in the mesh.
+    pub fn remove_unused(&mut self) {
+        // Keep track of all used points
+        let mut used: Vec<bool> = vec![];
+        used.resize(self.positions.len(), false);
+
+        // Figure out what points are used
+        for tri in self.triangles.iter() {
+            for item in tri {
+                used[*item] = true;
+            }
+        }
+
+        // Drop points that are not associated with anything
+        let mut idx: usize = 0;
+        self.positions.retain(|_item| {
+            let i = idx;
+            idx += 1;
+            used[i]
         });
+
+        // ...do the same for normals.
+        idx = 0;
+        self.normals.retain(|_item| {
+            let i = idx;
+            idx += 1;
+            used[i]
+        });
+
+        // Create an array for remapping vertex index values
+        let mut remapped: Vec<usize> = vec![];
+        remapped.resize(used.len(), 0);
+        let mut new_idx: usize = 0; // Current available index
+        for (idx, used) in used.iter().enumerate() {
+            if *used {
+                remapped[idx] = new_idx;
+                new_idx += 1;
+            }
+        }
+
+        // Adjust all triangle indices accordingly
+        let mut new_tris: Vec<Triangle> = vec![];
+        new_tris.reserve_exact(self.triangles.len());
+
+        for tri in self.triangles.iter() {
+            new_tris.push([remapped[tri[0]], remapped[tri[1]], remapped[tri[2]]]);
+        }
+
+        self.triangles = new_tris;
     }
 
     /// TODO: Bakes all normals into mesh data.
     pub fn bake_normals(&mut self) {}
 }
 
+/*
 /// Describes a list of triangles. Can be iterated.
 pub struct WalkTriangles {
     mesh: Vec<usize>,
@@ -216,6 +337,7 @@ impl Iterator for WalkTriangles {
         None
     }
 }
+*/
 
 // UNIT TESTS //
 #[cfg(test)]
@@ -223,6 +345,8 @@ mod tests {
     use crate::mesh::trimesh::{Triangle, TriangleOperations};
 
     use glam::Vec3;
+
+    use super::TriangleMesh;
 
     const MAX_DIFFERENCE: f32 = 1e-7;
 
@@ -344,5 +468,92 @@ mod tests {
 
             idx += 1;
         }
+    }
+
+    #[test]
+    fn test_remove_unused() {
+        let positions: Vec<Vec3> = vec![
+            Vec3::new(0.0, 0.0, 0.0), // 0
+            Vec3::new(1.0, 0.0, 0.0), // 1
+            Vec3::new(0.0, 1.0, 0.0), // 2
+            Vec3::new(0.0, 1.0, 0.0), // 3
+            Vec3::new(0.0, 0.0, 1.0), // 4
+            Vec3::new(0.0, 0.0, 1.0), // 5
+        ];
+        let normals: Vec<Vec3> = positions.clone();
+        let tris: Vec<Triangle> = vec![[1, 4, 3], [3, 4, 1]];
+        let indices: Vec<usize> = vec![1, 4, 3, 3, 4, 1];
+
+        let mut mesh = TriangleMesh::new(tris.clone(), positions.clone(), Some(normals.clone()));
+        let mut index_mesh =
+            TriangleMesh::from_indices(indices.clone(), positions.clone(), Some(normals.clone()));
+
+        assert_eq!(
+            tris, mesh.triangles,
+            "created TriangleMesh has the same triangles"
+        );
+        assert_eq!(
+            positions, mesh.positions,
+            "created TriangleMesh has the same vertex positions"
+        );
+        assert_eq!(
+            normals, mesh.normals,
+            "created TriangleMesh has the same vertex normals"
+        );
+        assert_eq!(
+            indices,
+            mesh.indices(),
+            "created TriangleMesh has the same indices"
+        );
+
+        assert_eq!(
+            tris, index_mesh.triangles,
+            "INDEXED TriangleMesh has the same triangles"
+        );
+        assert_eq!(
+            positions, index_mesh.positions,
+            "INDEXED TriangleMesh has the same vertex positions"
+        );
+        assert_eq!(
+            normals, index_mesh.normals,
+            "INDEXED TriangleMesh has the same vertex normals"
+        );
+        assert_eq!(
+            indices,
+            mesh.indices(),
+            "created TriangleMesh has the same indices"
+        );
+
+        // Remove unused positions
+        mesh.remove_unused();
+        index_mesh.remove_unused();
+
+        // Mesh vertex buffers shrank
+        assert_eq!(3, mesh.positions.len(), "only 3 positions remain");
+        assert_eq!(3, mesh.normals.len(), "only 3 normals remain");
+        assert_eq!(3, index_mesh.positions.len(), "only 3 positions remain");
+        assert_eq!(3, index_mesh.normals.len(), "only 3 normals remain");
+
+        // Mesh should only contain our expected positions
+        let positions_expected: Vec<Vec3> = vec![
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ];
+        assert_eq!(positions_expected, mesh.positions);
+        assert_eq!(positions_expected, index_mesh.positions);
+
+        // Indices should have been adjusted for resized buffers
+        let indices_expected: Vec<usize> = vec![0, 2, 1, 1, 2, 0];
+        assert_eq!(
+            indices_expected,
+            mesh.indices(),
+            "should return expected vertex indices"
+        );
+        assert_eq!(
+            indices_expected,
+            index_mesh.indices(),
+            "should return expected vertex indices"
+        );
     }
 }

@@ -34,5 +34,9 @@ pub fn mesh_from_nets(
         })
         .collect::<Vec<Vec3>>();
 
-    Some(TriangleMesh::new(indices, positions, normals))
+    Some(TriangleMesh::from_indices(
+        indices,
+        positions,
+        Some(normals),
+    ))
 }
