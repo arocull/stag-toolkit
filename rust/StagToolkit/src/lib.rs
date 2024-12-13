@@ -36,6 +36,9 @@ pub mod mesh {
 /// Internal implementation and Godot interfaces for Abyss' IslandBuilder tool.
 pub mod island;
 
+/// Internal implementation and Godot interfaces for primitive queues.
+pub mod primqueue;
+
 // IMPORTS //
 use godot::prelude::*;
 

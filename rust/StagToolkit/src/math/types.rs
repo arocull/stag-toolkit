@@ -1,5 +1,7 @@
 pub use glam::{Mat4, Quat, Vec2, Vec3, Vec4};
 use godot::builtin::PackedColorArray;
+use godot::builtin::PackedFloat32Array;
+use godot::builtin::PackedFloat64Array;
 use godot::builtin::PackedVector2Array;
 pub use godot::builtin::Quaternion as QuatGodot;
 pub use godot::builtin::Vector2 as Vec2Godot;
@@ -180,6 +182,14 @@ pub fn packed_index_array_usize(index_arr: Vec<usize>) -> PackedInt32Array {
 /// Creates a PackedInt32Array from a vector of indices.
 pub fn packed_index_array_u32(index_arr: Vec<u32>) -> PackedInt32Array {
     return PackedInt32Array::from_iter(index_arr.iter().map(|val| -> i32 { *val as i32 }));
+}
+/// Creates a PackedFloat32Array from a vector of floats.
+pub fn packed_float32_array(arr: Vec<f32>) -> PackedFloat32Array {
+    return PackedFloat32Array::from_iter(arr.iter().copied());
+}
+/// Creates a PackedFloat64Array from a vector of floats.
+pub fn packed_float64_array(arr: Vec<f64>) -> PackedFloat64Array {
+    return PackedFloat64Array::from_iter(arr.iter().copied());
 }
 
 #[cfg(test)]
