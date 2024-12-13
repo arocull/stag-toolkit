@@ -290,7 +290,7 @@ func __results():
 			print("\t{0}".format([test_file]))
 			var benches: Dictionary = _benchmarks.get(test_file, Dictionary())
 			for key in benches:
-				print("\t\t{0}: {1}".format([key, benches.get(key)]))
+				print("\t\t{0}:\t{1}".format([key, benches.get(key)]))
 
 ## Exits the runtime.
 func __exit(status: int = ExitCodes.Ok):
