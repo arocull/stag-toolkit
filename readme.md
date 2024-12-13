@@ -9,7 +9,8 @@ Currently equipped for Godot **4.2.2**
 ## Feature List
 
 - **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend
-- **[StagTest](docs/tools/stagtest.md)** testing harness for simulating gameplay for regression tests
+- **[StagTest](docs/tools/stagtest.md)** test framework for simulating gameplay and performing benchmarks
+- `QueueFloat` class for handling and analyzing large sets of numbers
 - Shader includes and debug shaders
 
 ### Included, but Not Maintained
@@ -23,8 +24,6 @@ Currently equipped for Godot **4.2.2**
 ## Documentation
 
 See the [docs](docs/), or see example usage on my [website](https://alanocull.com/).
-
-If making a contribution, please follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) standard (as best you can).
 
 ### General Setup
 
@@ -45,6 +44,15 @@ If making a contribution, please follow the [Conventional Commits](https://www.c
 2. Open the addon project in Godot to verify that it works: `cd godot/ && godot project.godot`
 3. Copy the `godot/addons/stag_toolkit/` directory into your project as `addons/stag_toolkit/`
 4. Done!
+
+### Contribution
+
+If making a contribution, please follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) standard (as best you can).
+
+You may need to install additional toolchains for pre-commit hooks.
+
+- `$ pip install pre-commit gdtoolkit` - Installs pre-commit hooks and a linting/formatting toolchain for GDScript.
+- `$ pre-commit install` - Initialize pre-commit hooks.
 
 ## Credits
 

@@ -17,9 +17,9 @@ To verify that StagTest is working, run it while inside your Godot project direc
 
 Breakdown of command-line arguments:
 - `godot` - should launch Godot Engine
-- `--headless` - will run Godot headlessly. This is optional, in case you want to observe your tests running.
+- `--headless` - will run Godot headlessly. This is optional, ignore it if you want to observe your tests running.
 - `--stagtest` - runs the StagTest harness
-- `--stagtest?` - prints help output for using StagTest (lists extra CLI args)
+- `--stagtest?` - prints help output for using StagTest (see for extra CLI args)
 
 ### Test Format
 
@@ -103,6 +103,11 @@ Signal Expectors are a unique form of assertion that can be to test signals:
 ### Informational
 - `StagTest.is_active()` - Returns true if StagTest is active (game launched with `--stagtest` flag)
 - `StagTest.path()` - Returns the path of the active test
+- `StagTest.benchmark(f: Callable, count: int, label: String, timeout: float = -1)` - Performs a timing benchmark of the Callable (with no arguments) the specified number of times, returning an analysis.
+	- If timeout is greater than zero, forcibly stops benchmark after X many seconds.
+	- If a test is skipped or failed during the benchmark, the benchmark exits without completing all iterations.
+	- Results are always in microseconds, unless otherwise specified.
+	- Use the `--bench` flag when running to output benchmark results.
 
 ## FAQ
 

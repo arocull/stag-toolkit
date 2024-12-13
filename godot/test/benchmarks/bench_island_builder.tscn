@@ -1,0 +1,146 @@
+[gd_scene load_steps=7 format=3 uid="uid://b058y2uxsddnv"]
+
+[ext_resource type="Script" path="res://test/benchmarks/bench_island_builder.gd" id="1_q3c4g"]
+[ext_resource type="Material" uid="uid://dofsy83ofsdua" path="res://3d/islandbuilder/materials/mat_island_sandy_nobake.tres" id="2_b1agm"]
+[ext_resource type="Material" uid="uid://d64jtoqgwdle" path="res://3d/islandbuilder/materials/mat_island_sandy.tres" id="3_q3jex"]
+[ext_resource type="Material" uid="uid://cm8v2ufi8wc32" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_union.tres" id="4_oyqel"]
+[ext_resource type="Material" uid="uid://6ggm7dshiami" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_intersect.tres" id="5_kl1p2"]
+[ext_resource type="Material" uid="uid://c64nj8mhjbl43" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_subtract.tres" id="6_bpo82"]
+
+[node name="BenchIslandBuilder" type="Node3D"]
+script = ExtResource("1_q3c4g")
+
+[node name="RigidBody3D" type="RigidBody3D" parent="."]
+freeze = true
+
+[node name="mesh_island" type="MeshInstance3D" parent="RigidBody3D"]
+layers = 5
+
+[node name="IslandBuilder" type="IslandBuilder" parent="."]
+output_to = NodePath("../RigidBody3D")
+material_baked = ExtResource("3_q3jex")
+material_preview = ExtResource("2_b1agm")
+
+[node name="UNION_box6" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.40846, 6.9776, 4.87364)
+material_override = ExtResource("4_oyqel")
+size = Vector3(9, 5, 9)
+
+[node name="INTERSECT_sphere2" type="CSGSphere3D" parent="IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.40846, 6.9776, 4.87364)
+material_override = ExtResource("5_kl1p2")
+operation = 1
+radius = 3.0
+
+[node name="UNION_box" type="CSGBox3D" parent="IslandBuilder"]
+material_override = ExtResource("4_oyqel")
+size = Vector3(9, 5, 9)
+
+[node name="UNION_box4" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 0.922343, 0.386373, 0, -0.386373, 0.922343, 0.163422, -2.34914, 0.387803)
+material_override = ExtResource("4_oyqel")
+size = Vector3(3.53278, 5, 3.87895)
+
+[node name="UNION_box5" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.98321, 0.182476, 0, -0.168077, 0.905626, -0.389349, -0.0710468, 0.382812, 0.92109, 0.0578537, -4.75153, 0.858887)
+material_override = ExtResource("4_oyqel")
+size = Vector3(2.72505, 4.63428, 2.94191)
+
+[node name="SUBTRACT_box15" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.86466, 0.143685, -0.48137, -0.487249, 0.473105, -0.734002, 0.122274, 0.86921, 0.479086, -0.683952, -7.53825, 1.46261)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(5.20507, 4.63428, 2.94191)
+
+[node name="SUBTRACT_box16" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.86466, 0.439728, -0.242904, -0.487249, 0.851791, -0.192459, 0.122274, 0.284766, 0.950767, 0.694248, -5.9823, -2.08304)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(5.20507, 5.10828, 2.94191)
+
+[node name="UNION_box2" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.880949, 0, -0.473212, 0, 1, 0, 0.473212, 0, 0.880949, 0, 3.11554, 0)
+material_override = ExtResource("4_oyqel")
+size = Vector3(3.5, 5, 3.5)
+
+[node name="SUBTRACT_box3" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.923478, 0, 0.383651, 0, 1, 0, -0.383651, 0, 0.923478, -2.76152, 4.64966, 0.807449)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 4.13611, 3.5)
+
+[node name="SUBTRACT_box8" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.610477, 0, 0.792034, 0, 1, 0, -0.792034, 0, 0.610477, 4.63489, 0.258855, 4.74922)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 6.47989, 3.5)
+
+[node name="SUBTRACT_box9" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.334662, 0, 0.942338, 0, 1, 0, -0.942338, 0, 0.334662, 5.68791, 0.258855, 3.24226)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 6.47989, 3.5)
+
+[node name="SUBTRACT_box10" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(-0.718017, 0, -0.696026, 0, 1, 0, 0.696026, 0, -0.718017, -4.55891, 0.258856, 5.04833)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 6.47989, 5.64258)
+
+[node name="SUBTRACT_box12" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(-0.908898, -0.21856, -0.355156, -0.233802, 0.972284, -7.45058e-09, 0.345313, 0.0830361, -0.934807, -5.64899, -0.802476, 2.25213)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 6.47989, 5.64258)
+
+[node name="SUBTRACT_box11" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(-0.0666789, -0.00727662, -0.997748, -0.108485, 0.994098, -4.65661e-10, 0.991859, 0.108241, -0.0670748, -2.16429, 0.258855, 5.9018)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 6.47989, 5.64258)
+
+[node name="SUBTRACT_box4" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.697765, 0, 0.716326, 0, 1, 0, -0.716326, 0, 0.697765, 4.22714, 1.26233, -4.56063)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 8.70642, 7.44727)
+
+[node name="SUBTRACT_box14" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.923298, 0.245067, 0.295741, -0.256542, 0.966533, 7.45058e-09, -0.285844, -0.0758702, 0.955268, 5.66281, 1.26233, -2.05847)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 8.70642, 7.44727)
+
+[node name="SUBTRACT_box13" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.218417, 0.0842626, 0.972211, -0.359932, 0.932979, -7.45058e-09, -0.907052, -0.349929, 0.234107, 0.859508, -0.648136, -5.9936)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 8.70642, 7.44727)
+
+[node name="SUBTRACT_box5" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(-0.613514, 0, 0.789684, 0, 1, 0, -0.789684, 0, -0.613514, -3.8845, 1.26233, -4.84159)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 8.70642, 5.21777)
+
+[node name="SUBTRACT_box6" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(-0.846407, 0, 0.532536, 0, 1, 0, -0.532536, 0, -0.846407, -5.16033, 1.26233, -3.461)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 8.70642, 5.21777)
+
+[node name="UNION_sphere" type="CSGSphere3D" parent="IslandBuilder"]
+transform = Transform3D(0.99916, 0.0274893, 0, -0.038961, 0.637562, -0.309216, -0.0126682, 0.207304, 0.950992, 1.40911, 1.89201, 1.60267)
+material_override = ExtResource("4_oyqel")
+radius = 2.82617
+
+[node name="SUBTRACT_box7" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(-0.693378, -0.485419, 0.532536, -0.573505, 0.819202, 0, -0.436255, -0.305412, -0.846407, -4.28991, -2.59216, -2.91336)
+material_override = ExtResource("6_bpo82")
+operation = 2
+size = Vector3(3.5, 8.70642, 5.21777)
+
+[node name="UNION_box3" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(0.297837, 0.580844, -0.757571, -0.00789723, 0.795058, 0.606482, 0.954584, -0.17465, 0.241385, -0.911575, 4.58428, 0.304026)
+material_override = ExtResource("4_oyqel")
+size = Vector3(3.02811, 1.31152, 3.81932)

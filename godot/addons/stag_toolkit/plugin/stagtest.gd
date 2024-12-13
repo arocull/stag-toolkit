@@ -1,6 +1,8 @@
 extends Node
 
 const DEFAULT_TEST_PATH: String = "res://test/scenarios/"
+const DEFAULT_BENCHMARK_PATH: String = "res://test/benchmarks/"
+const DEFAULT_REPORTS_PATH: String = "res://test/reports/"
 const DEFAULT_TIMEOUT: float = 30.0
 const DEFAULT_TIME_SCALE: float = 1.0
 
@@ -15,8 +17,35 @@ enum ExitCodes {
 	BadFile = ERR_FILE_UNRECOGNIZED,
 }
 
+class BenchmarkResult extends RefCounted:
+	var count: int = 0 # Number of times benchmark Callable was ran
+	var min: float = 0 # Minimum completion time, in milliseconds
+	var max: float = 0 # Maximum completion time, in milliseconds
+	var mean: float = 0 # Average completion time, in milliseconds
+	var median: float = 0 # Median completion time, in milliseconds
+	var standard_deviation: float = 0 # Standard deviation of completion time, in milliseconds
+	# Converts the benchmark result into a dictionary.
+	func dict() -> Dictionary:
+		return {
+			"count": self.count,
+			"mean": self.mean,
+			"median": self.median,
+			"standard_deviation": self.standard_deviation,
+			"min": self.min,
+			"max": self.max,
+		}
+	func _to_string() -> String:
+		return "n={0}\tmean={1}\trange=[{2}, {3}]\tmedian={4}\tσ={5}".format([
+			self.count,
+			StagTest.__format_duration(self.mean),
+			StagTest.__format_duration(self.min),
+			StagTest.__format_duration(self.max),
+			StagTest.__format_duration(self.median),
+			StagTest.__format_duration(self.standard_deviation),
+		])
+
 var args: Dictionary
-var __quit_function: Callable = __quit_default
+var _quit_function: Callable = __quit_default
 
 @onready var statistics: Dictionary = {
 	"discovered": 0, # Amount of test files discovered
@@ -31,7 +60,10 @@ var __quit_function: Callable = __quit_default
 	"assertions": 0,
 }
 @onready var test_data: Dictionary = test_data_default.duplicate(true)
+@onready var _benchmarks: Dictionary = Dictionary()
+@onready var _reports_benchmarks: Dictionary = Dictionary()
 @onready var _time_scale_base: float = DEFAULT_TIME_SCALE
+@onready var _reports_path: String = DEFAULT_REPORTS_PATH
 
 @onready var tests: Array[String] = []
 @onready var test_failures: Array[String] = []
@@ -57,19 +89,29 @@ func _ready():
 		queue_free()
 		return
 
+	var default_test_path: String = DEFAULT_TEST_PATH
+	if args.has("bench"):
+		default_test_path = DEFAULT_BENCHMARK_PATH
+
 	if args.has("stagtest?"):
 		print("StagTest - StagToolkit test harness implementation.")
 		print("   flags ---")
 		print("\t--stagtest? - displays command output, like this")
 		print("\t--stagtest  - runs with StagTest mode")
 		print("\t--fast      - escapes on the first test failure, instead of running all tests")
+		print("\t--bench     - enables benchmark reports and switches default test directory to \"{0}\"".format(
+			[DEFAULT_BENCHMARK_PATH]))
+		print("\t\t- benchmark times are reported in microseconds, unless otherwise specified")
 		print("   arguments ---")
 		print("\tnote: FILEPATHs can be absolute, relative, or a resource path. Resource paths are strongly advised.")
 		print("")
 		print("\t--test=FILEPATH - runs the provided scene file, or all scene files within given directory")
 		print("\t\t- if a directory, subdirectories are also run")
 		print("\t\t- organized alphabetically within each directory, running subdirectories first")
-		print("\t\tFILEPATH=\"{0}\" by default (quotes optional)".format([DEFAULT_TEST_PATH]))
+		print("\t\tFILEPATH=\"{0}\" by default (quotes optional)".format([default_test_path]))
+		print("\t--reports=DIRECTORY - writes reports to the given directory")
+		print("\t\t- set to empty string \"\" for no reports")
+		print("\t\tDIRECTORY=\"{0}\" by default (quotes optional)".format([DEFAULT_REPORTS_PATH]))
 		print("\t--timeout=SECONDS - forcibly ends all tests after the given amount of time, returning any collected results")
 		print("\t\tSECONDS={0} by default, floating-point times are valid".format([DEFAULT_TIMEOUT]))
 		print("\t--timescale=SCALE - sets the default engine time scale when not overidden by tests")
@@ -82,7 +124,8 @@ func _ready():
 		queue_free()
 		return
 
-	var test_root = args.get("test", DEFAULT_TEST_PATH).replace("\"", "")
+	var test_root = args.get("test", default_test_path).replace("\"", "")
+	_reports_path = args.get("reports", DEFAULT_REPORTS_PATH).replace("\"", "")
 	print("StagTest initializing...")
 
 	# Halt scene processing until tests are ready
@@ -95,8 +138,7 @@ func _ready():
 
 	# Begin timeout countdown
 	var timeout: float = float(args.get("timeout", "{0}".format([DEFAULT_TIMEOUT])))
-	get_tree().create_timer(timeout, true, false, true).timeout.connect(
-		__force_exit.bind("timeout after {0} seconds".format([timeout])))
+	get_tree().create_timer(timeout, true, false, true).timeout.connect(__timeout.bind(timeout))
 
 	__begin.call_deferred(test_root)
 
@@ -123,7 +165,7 @@ func __begin(test_root: String):
 	__run_test(tests[test_idx])
 
 func __join_path(directory: String, relpath: String) -> String:
-	return "{0}/{1}".format([directory, relpath])
+	return "{0}/{1}".format([directory, relpath]).simplify_path()
 
 # Deferable method for rich printing.
 func __print_rich(msg: String) -> void:
@@ -241,11 +283,23 @@ func __results():
 	if count > 0 and statistics.get("successes", 0) == count: # Easily highlight that all tests passed
 		print_rich("\t[color=green]all tests passed![/color]")
 
+	# Print benchmark results
+	if args.has("bench"):
+		print("\n\nbenchmarks ---")
+		for test_file in _benchmarks.keys():
+			print("\t{0}".format([test_file]))
+			var benches: Dictionary = _benchmarks.get(test_file, Dictionary())
+			for key in benches:
+				print("\t\t{0}: {1}".format([key, benches.get(key)]))
+
 ## Exits the runtime.
 func __exit(status: int = ExitCodes.Ok):
-	pause(true)
+	pause(true) # Pause game to prevent further ticks
+	__output_reports() # Write reports
+	_quit_function.call(status) # Quit
 
-	__quit_function.call(status)
+func __timeout(timeout: float):
+	__force_exit("timeout after {0} seconds".format([timeout]))
 
 ## Forcibly exits the runtime, skipping any active tests and returning results.
 func __force_exit(reason: String):
@@ -276,6 +330,52 @@ func __format_assertion_message(message: String):
 		return message
 	return ": {0}".format([message])
 
+# Takes a time duration in microseconds, formatting it to a string.
+func __format_duration(t: float) -> String:
+	if t > 1e8:
+		return "%4.4f s" % (t/1e8)
+	if t > 1e4:
+		return "%4.4f ms" % (t/1e4)
+	return "%4.4f μs" % t
+
+# Adds a report for the current test to the reports list.
+func __add_report(reports_list: Dictionary, new_report: Variant, label: String):
+	var r: Dictionary = reports_list.get(path(), Dictionary()) # Fetch all reports for this test
+
+	# If this report isn't included, add it
+	if not reports_list.has(path):
+		reports_list[path()] = r
+
+	r[label] = new_report # Set our new report
+
+# Outputs reports to the given directory
+func __output_reports():
+	# Write no reports if specified not to
+	if _reports_path.is_empty():
+		return
+
+	# Write benchmark reports
+	if args.has("bench"):
+		var out: String = __join_path(_reports_path, "benchmarks.json")
+		var fail_msg: String = "[color=red]failed to write benchmarks to {0}[/color]".format([out])
+
+		var dirstatus = __ensure_directory(out)
+		if not dirstatus == OK:
+			print_rich(fail_msg, ": while making directory, error code {0}".format([dirstatus]))
+
+		var benchFile = FileAccess.open(__join_path(_reports_path, "benchmarks.json"), FileAccess.WRITE)
+		if not is_instance_valid(benchFile):
+			print_rich(fail_msg, ": while opening file, error {0}".format([FileAccess.get_open_error()]))
+
+		print("\nwriting benchmarks to {0}".format([out]))
+		benchFile.store_string(JSON.stringify(_reports_benchmarks,"\t",true,true))
+		# benchFile.flush()
+		benchFile = null # Close benchmark file
+
+func __ensure_directory(filepath: String) -> int:
+	var path_absolute = ProjectSettings.globalize_path(filepath.get_base_dir())
+	return DirAccess.make_dir_recursive_absolute(path_absolute)
+
 func __quit_default(status: int):
 	get_tree().quit(status)
 
@@ -283,7 +383,7 @@ func __quit_default(status: int):
 
 # Overrides the runtime exit function, in case the game needs additional teardown steps.
 func override_exit_function(new_quit: Callable) -> void:
-	__quit_function = new_quit
+	_quit_function = new_quit
 
 # Returns true if StagTest is testing, in case the game needs to avoid certain setup steps.
 func is_active() -> bool:
@@ -328,6 +428,56 @@ func fail(reason: String) -> void:
 		print_rich("\t[color=red]<---- TEST FAILED HERE[/color]")
 		test_data["post_test_message"] = "[color=red]FAILED {0} for reason:\n\t{1}[/color]\n\n".format([path(), reason])
 		test_resulted = true
+
+# Performs a timing benchmark of the Callable (with no arguments) the specified number of times, returning an analysis.
+# If timeout is greater than zero, forcibly stops benchmark after X many seconds.
+# If a test is skipped or failed during the benchmark, the benchmark exits without completing all iterations.
+# Results are always in microseconds, unless otherwise specified.
+# Use the `--bench` flag when running to output benchmark results.
+func benchmark(f: Callable, count: int, label: String, timeout: float = -1) -> BenchmarkResult:
+	if count <= 0:
+		fail("for benchmark \"{0}\": benchmark count must be greater than 0".format([label]))
+		var res = BenchmarkResult.new()
+		__add_report(_benchmarks, res, label)
+		__add_report(_reports_benchmarks, res.dict(), label)
+		return res
+
+	# Initialize float queue and store timings
+	var queue: QueueFloat = QueueFloat.new()
+	queue.allocate(count)
+
+	var iterations: int = 0 # Number of times we've ran the Callable
+	var goal_time: int = -1
+	if timeout > 0:
+		goal_time = Time.get_ticks_msec() + int(timeout * 1000)
+
+	for i in range(0, count):
+		iterations += 1
+		var start: int = Time.get_ticks_usec()
+		f.call()
+		queue.push(float(Time.get_ticks_usec() - start))
+
+		# Stop benchmarking if the test has ended
+		if not in_test:
+			break
+		# Stop benchmarking if we exceeded our timeout
+		if goal_time > 0 and Time.get_ticks_msec() > goal_time:
+			break
+
+	# Perform analysis and return results
+	var res = BenchmarkResult.new()
+	res.count = iterations
+	res.mean = queue.mean()
+	res.median = queue.median()
+	var range: Vector2 = queue.range()
+	res.min = range.x
+	res.max = range.y
+	res.standard_deviation = queue.standard_deviation()
+
+	__add_report(_benchmarks, res, label)
+	__add_report(_reports_benchmarks, res.dict(), label)
+
+	return res
 
 # Assert that a given value is true.
 func assert_true(value: bool, message: String = "") -> void:

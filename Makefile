@@ -1,4 +1,4 @@
-.PHONY: all clean debug build test test-rust test-godot godot-abyss-release godot-abyss-debug
+.PHONY: all clean debug build test test-rust test-godot bench godot-abyss-release godot-abyss-debug
 
 all: debug build
 
@@ -25,6 +25,9 @@ test-rust:
 
 test-godot:
 	@cd godot/ && godot --headless --stagtest --timeout=5
+
+bench:
+	@cd godot/ && godot --headless --stagtest --bench --timeout=60
 
 # Builds Godot Linux export template with encryption for Abyss
 godot-abyss-release:

@@ -5,8 +5,12 @@ use godot::{prelude::GodotClass, prelude::*};
 /// A queue of floats, used for quickly storing and iterating through a set of data.
 /// Can also perform analysis on the data set.
 pub struct FloatQueue {
+    /// A vector of float values.
     vals: Vec<f32>,
+    /// Current index of queue for storing at.
     idx: usize,
+    /// Amount of items inside the queue that have been used up.
+    used: usize,
 }
 
 impl Default for FloatQueue {
@@ -21,6 +25,7 @@ impl FloatQueue {
         Self {
             vals: vec![0.0],
             idx: 0,
+            used: 1,
         }
     }
 
@@ -28,11 +33,17 @@ impl FloatQueue {
     pub fn allocate(&mut self, new_max_size: usize) {
         self.vals.resize(new_max_size, 0.0);
         self.idx = 0;
+        self.used = 1; // Reset use count
     }
 
-    /// Returns the queue length.
+    /// Returns the allocated queue length.
     pub fn len(&self) -> usize {
         self.vals.len()
+    }
+
+    /// Returns the actual length of the queue that is in use.
+    pub fn len_used(&self) -> usize {
+        self.used
     }
 
     /// Returns the current queue index.
@@ -49,6 +60,7 @@ impl FloatQueue {
     /// Number cannot be NAN.
     pub fn push(&mut self, new_float: f32) {
         self.vals[self.idx] = new_float;
+        self.used = self.used.max(self.idx + 1);
         self.increment(1);
     }
 
@@ -57,7 +69,12 @@ impl FloatQueue {
         let mut min: f32 = self.vals[0];
         let mut max: f32 = self.vals[0];
 
-        for val in self.vals.iter() {
+        for (i, val) in self.vals.iter().enumerate() {
+            // Don't include unused values
+            if i >= self.used {
+                break;
+            }
+
             min = min.min(*val);
             max = max.max(*val);
         }
@@ -68,6 +85,7 @@ impl FloatQueue {
     /// Returns the queue's contents, sorted in ascending order from smallest to greatest.
     pub fn sorted(&self) -> Vec<f32> {
         let mut vect = self.vals.clone();
+        vect.truncate(self.used); // Don't include unused vals
         vect.sort_by(|a, b| a.partial_cmp(b).unwrap());
         vect
     }
@@ -75,26 +93,34 @@ impl FloatQueue {
     /// Returns the average of the queue.
     pub fn mean(&self) -> f32 {
         let mut avg = 0.0;
-        for val in self.vals.iter() {
+        for (i, val) in self.vals.iter().enumerate() {
+            if i >= self.used {
+                break;
+            }
+
             avg += *val;
         }
-        avg / (self.vals.len() as f32)
+        avg / (self.used as f32)
     }
 
     /// Returns the median of the queue.
     pub fn median(&self) -> f32 {
         let sorted = self.sorted();
-        sorted[sorted.len() / 2]
+        sorted[self.used / 2]
     }
 
     /// Returns the standard deviation of the queue, using the given average.
     pub fn standard_deviation(&self, average: f32) -> f32 {
         let mut sum = 0.0;
-        for val in self.vals.iter() {
+        for (i, val) in self.vals.iter().enumerate() {
+            if i >= self.used {
+                break;
+            }
+
             let diff = *val - average;
             sum += diff * diff;
         }
-        (sum / (self.vals.len() as f32)).sqrt()
+        (sum / (self.used as f32)).sqrt()
     }
 }
 
@@ -131,6 +157,7 @@ mod tests {
         queue.push(-1.5);
         queue.push(17.0);
         assert_eq!(vec![9.0, -3.0, 2.0, -1.5, 17.0], queue.vals);
+        assert_eq!(5, queue.len_used());
 
         // Test sorting
         assert_eq!(vec![-3.0, -1.5, 2.0, 9.0, 17.0], queue.sorted());
@@ -144,6 +171,23 @@ mod tests {
             queue.standard_deviation(queue.mean()),
             "standard deviation"
         );
+
+        queue.push(1.0);
+        queue.push(1.0);
+        assert_eq!(vec![1.0, 1.0, 2.0, -1.5, 17.0], queue.vals);
+        assert_eq!(5, queue.len_used());
+
+        // Test that queue analysis considers half-used queue length
+        queue.allocate(5);
+        queue.push(5.0);
+        queue.push(3.0);
+        queue.push(4.0);
+        assert_eq!(3, queue.len_used(), "queue should only be half-used");
+        assert_eq!(4.0, queue.mean());
+        assert_eq!(4.0, queue.median());
+        assert_eq!(vec![3.0, 4.0, 5.0], queue.sorted());
+        assert_eq!(vec2(3.0, 5.0), queue.range());
+        assert_eq!(0.816_496_6, queue.standard_deviation(queue.mean()));
     }
 }
 
@@ -176,10 +220,16 @@ impl QueueFloat {
         self.queue.allocate(size as usize);
     }
 
-    /// Returns the queue length.
+    /// Returns the allocated queue length.
     #[func]
     pub fn size(&self) -> i64 {
         self.queue.len() as i64
+    }
+
+    /// Returns the length of queue that has been pushed to.
+    #[func]
+    pub fn size_used(&self) -> i64 {
+        self.queue.len_used() as i64
     }
 
     /// Returns the current queue index.
