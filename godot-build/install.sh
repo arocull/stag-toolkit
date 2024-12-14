@@ -1,4 +1,5 @@
 #!/usr/bin/bash
+set -e
 
 echo "Installing ${GODOT_VERSION}"
 
@@ -12,8 +13,10 @@ GODOT_URL="https://github.com/godotengine/godot-builds/releases/download/${GODOT
 GODOT_BIN="/usr/local/bin/Godot_v${GODOT_VERSION}_linux.x86_64"
 
 if [ ! -f $GODOT_BIN ]; then
-    wget --no-verbose --waitretry=0.5 --tries=100 -O /tmp/godot.zip $GODOT_URL && sudo unzip -o /tmp/godot.zip -d $INSTALLDIR && rm -rf /tmp/godot.zip && ln -s -f $GODOT_BIN $BINDIR/godot
+    wget --waitretry=0.5 --tries=100 -O /tmp/godot.zip $GODOT_URL && sudo unzip -o /tmp/godot.zip -d $INSTALLDIR && rm -rf /tmp/godot.zip && ln -s -f $GODOT_BIN $BINDIR/godot
+else
+    ln -s -f $GODOT_BIN $BINDIR/godot
 fi
 
 sudo chmod a-w /usr/local/bin
-echo "ThreeD: finished Godot installation"
+echo "Finished Godot installation"
