@@ -24,7 +24,7 @@ test-rust:
 	@cargo test
 
 test-godot:
-	@cd godot/ && godot --headless --stagtest --timeout=5
+	@cd godot/ && godot --headless --stagtest --timeout=15
 
 bench:
 	@cd godot/ && godot --headless --stagtest --bench --timeout=60

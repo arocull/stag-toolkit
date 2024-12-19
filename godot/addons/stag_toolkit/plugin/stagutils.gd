@@ -14,3 +14,17 @@ static func get_args() -> Dictionary:
 			arguments[argument.trim_prefix("--")] = ""
 
 	return arguments
+
+# Performs a simple factorial of the given integer.
+# Returns 0 if n is negative, as it is undefined behavior.
+static func factorial(n: int) -> int:
+	if n < 0:
+		return 0
+	if n == 0 or n == 1:
+		return 1
+
+	var sum: int = 1
+	while n > 1:
+		sum *= n
+		n -= 1
+	return sum
