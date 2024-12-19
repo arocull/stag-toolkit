@@ -1,3 +1,4 @@
+#!/usr/bin/bash
 TARGET=release
 PROJECT=$1
 VERSION=$3
