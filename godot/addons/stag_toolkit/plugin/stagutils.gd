@@ -16,14 +16,15 @@ static func get_args() -> Dictionary:
 	return arguments
 
 # Performs a simple factorial of the given integer.
-# Returns 0 if n is negative, as it is undefined behavior.
-static func factorial(n: int) -> int:
+# Returned as a floating-point for large numbers.
+# Returns NAN if n is negative, as it is undefined behavior.
+static func factorial(n: int) -> float:
 	if n < 0:
-		return 0
+		return NAN
 	if n == 0 or n == 1:
 		return 1
 
-	var sum: int = 1
+	var sum: float = 1
 	while n > 1:
 		sum *= n
 		n -= 1
