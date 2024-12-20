@@ -260,6 +260,61 @@ impl TriangleMesh {
         indices
     }
 
+    /// Merges all vertices within the given threshold distance of each other, merging later vertices into earlier ones.
+    /// This operation occurs in-place.
+    /// Does not remove degenerate triangles.
+    pub fn merge_duplicates(&mut self, threshold: f32) {
+        let thresh_squared = threshold * threshold;
+
+        // Array of new, merged vertices
+        let mut new_verts = self.positions.clone();
+        // List of vertex indices: (replace, new)
+        let mut replace: Vec<(usize, usize)> = vec![];
+
+        // Start from back of array
+        for (i, vert) in self.positions.iter().enumerate().rev() {
+            // ...read forward until we hit our current index
+            for j in 0..i {
+                if vert.distance_squared(self.positions[j]) <= thresh_squared {
+                    // Remove vertices at the back of the new list
+                    new_verts.remove(i);
+                    // ...and modify the vertices at the front to be the midpoint
+                    new_verts[j] = (vert + self.positions[j]) * 0.5;
+
+                    // ...and note what vertices to replace
+                    replace.push((i, j));
+
+                    break;
+                }
+            }
+        }
+
+        // Finally, update triangle indices
+        self.swap_indices(replace);
+    }
+
+    /// Iterates over all triangles, replacing each vertex index value using the given tuple: (old, new).
+    /// Does not remove degenerate triangles.
+    pub fn swap_indices(&mut self, replace: Vec<(usize, usize)>) {
+        if replace.is_empty() {
+            return;
+        }
+
+        for tri in self.triangles.iter_mut() {
+            // Iterate over every swap item
+            for idx_swap in replace.iter() {
+                // Update the triangle indices
+                for idx in 0..3 {
+                    if tri[idx] == idx_swap.0 {
+                        tri[idx] = idx_swap.1;
+                    }
+                }
+            }
+        }
+    }
+
+    // TODO: remove denegerate
+
     /// Removes all unused vertex positions in the mesh.
     pub fn remove_unused(&mut self) {
         // Keep track of all used points
