@@ -38,6 +38,10 @@ pub struct IslandBuildData {
     smoothing_weight: f32,
     noise_amplitude: f32,
     noise_w: f64,
+    /// Distance threshold for triangles to be merged together and collapsed for the visual mesh.
+    mesh_merge_distance: f32,
+    /// Distance threshold for triangles to be merged together and collapsed for the physics collisions.
+    collision_merge_distance: f32,
     mask_range_dirt: Vec2,
     mask_range_sand: Vec2,
     mask_power_sand: f32,
@@ -72,6 +76,8 @@ impl IslandBuildData {
             smoothing_weight: 0.5,
             noise_amplitude: 0.4,
             noise_w: 1.0,
+            mesh_merge_distance: 0.04,
+            collision_merge_distance: 0.15,
             mask_range_dirt: Vec2::new(-0.1, 0.8),
             mask_range_sand: Vec2::new(0.7, 1.0),
             mask_power_sand: 3.0,
@@ -178,8 +184,7 @@ impl IslandBuildData {
 
         let mesh = self.mesh.as_mut().unwrap();
 
-        // TODO: merge by distance
-        mesh.remove_unused();
+        mesh.optimize(self.mesh_merge_distance);
 
         self.optimized = true;
     }
@@ -301,12 +306,12 @@ impl IslandBuildData {
         // Remove hulls with an insignificant amount of triangles.
         hulls.retain(|hull| hull.triangles.len() >= 3);
 
-        // TODO: decimate
-
-        // Remove unused vertices
+        // Optimize collision mesh
         for mesh in hulls.iter_mut() {
-            mesh.remove_unused();
+            mesh.optimize(self.collision_merge_distance);
         }
+
+        // TODO: decimate
 
         hulls
     }
@@ -389,6 +394,11 @@ pub struct IslandBuilder {
     #[export]
     noise_w: f64,
 
+    #[export(range = (0.0, 0.5, 0.001, or_greater))]
+    mesh_merge_distance: f32,
+    #[export(range = (0.0, 1.0, 0.001, or_greater))]
+    collision_merge_distance: f32,
+
     /// Approximate physical density of material to use when calculating mass.
     /// Kilograms per meter cubed.
     #[export]
@@ -425,6 +435,8 @@ impl INode3D for IslandBuilder {
             noise_frequency: 0.335,
             noise_amplitude: 0.4,
             noise_w: 1.0,
+            mesh_merge_distance: 0.04,
+            collision_merge_distance: 0.15,
             gameplay_density: 23.23,
             gameplay_health_density: 2.0,
             material_baked: None,
@@ -475,6 +487,13 @@ impl IslandBuilder {
         self.data.smoothing_weight = self.generation_smoothing_weight;
         self.data.whitebox.default_edge_radius = self.generation_edge_radius;
         self.data.whitebox.default_hull_zscore = self.generation_hull_zscore;
+
+        // Force a mesh re-optimize
+        if self.data.mesh_merge_distance != self.mesh_merge_distance {
+            self.data.optimized = false;
+            self.data.mesh_merge_distance = self.mesh_merge_distance;
+        }
+        self.data.collision_merge_distance = self.collision_merge_distance;
 
         // Check if random seeds have changed
         // Don't bother setting seed if they haven't changed

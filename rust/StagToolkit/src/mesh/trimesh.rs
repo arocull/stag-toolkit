@@ -263,7 +263,7 @@ impl TriangleMesh {
     /// Merges all vertices within the given threshold distance of each other, merging later vertices into earlier ones.
     /// This operation occurs in-place.
     /// Does not remove degenerate triangles.
-    pub fn merge_duplicates(&mut self, threshold: f32) {
+    pub fn merge_by_distance(&mut self, threshold: f32) {
         let thresh_squared = threshold * threshold;
 
         // Array of new, merged vertices
@@ -275,11 +275,11 @@ impl TriangleMesh {
         for (i, vert) in self.positions.iter().enumerate().rev() {
             // ...read forward until we hit our current index
             for j in 0..i {
-                if vert.distance_squared(self.positions[j]) <= thresh_squared {
+                if vert.distance_squared(new_verts[j]) <= thresh_squared {
                     // Remove vertices at the back of the new list
                     new_verts.remove(i);
                     // ...and modify the vertices at the front to be the midpoint
-                    new_verts[j] = (vert + self.positions[j]) * 0.5;
+                    new_verts[j] = (vert + new_verts[j]) * 0.5;
 
                     // ...and note what vertices to replace
                     replace.push((i, j));
@@ -313,7 +313,12 @@ impl TriangleMesh {
         }
     }
 
-    // TODO: remove denegerate
+    /// Removes degenerate triangles from the mesh.
+    pub fn remove_degenerate(&mut self) {
+        // Ensure no vertex indices on the triangle match
+        self.triangles
+            .retain(|tri| !(tri[0] == tri[1] || tri[0] == tri[2] || tri[1] == tri[2]));
+    }
 
     /// Removes all unused vertex positions in the mesh.
     pub fn remove_unused(&mut self) {
@@ -368,6 +373,13 @@ impl TriangleMesh {
 
     /// TODO: Bakes all normals into mesh data.
     pub fn bake_normals(&mut self) {}
+
+    /// Performs all existing optimization steps on the triangle mesh.
+    pub fn optimize(&mut self, merge_distance: f32) {
+        self.merge_by_distance(merge_distance);
+        self.remove_degenerate();
+        self.remove_unused();
+    }
 }
 
 /*
