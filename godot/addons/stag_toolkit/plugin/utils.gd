@@ -1,6 +1,8 @@
 extends RefCounted
 class_name StagUtils
 
+# Utility functions that are not bundled with Godot, but I wish were.
+
 # Returns a dictionary of command-line arguments used to launch the program.
 static func get_args() -> Dictionary:
 	var arguments = {}
