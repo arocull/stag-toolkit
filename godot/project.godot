@@ -23,3 +23,12 @@ StagTest="*res://addons/stag_toolkit/plugin/stagtest.gd"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/stag_toolkit/plugin.cfg")
+
+[file_customization]
+
+folder_colors={
+"res://3d/": "red",
+"res://addons/": "green",
+"res://prototyping/": "pink",
+"res://test/": "yellow"
+}
