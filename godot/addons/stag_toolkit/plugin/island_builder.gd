@@ -32,6 +32,8 @@ func _parse_begin(object: Object) -> void:
 	var builder: IslandBuilder = fetch_builder_ancestor(object)
 	update_shapecount(builder)
 	update_volume(builder)
+	update_mass(builder)
+	update_hitpoints(builder)
 	update_button_availability(builder)
 
 	var this_is_previous: bool = last_builder == builder
@@ -79,6 +81,11 @@ func _parse_begin(object: Object) -> void:
 	var bnavigation: Button = panel.get_node("%btn_navigation")
 	bnavigation.pressed.connect(do_navigation.bind(builder))
 
+	var balldestroy: Button = panel.get_node("%btn_all_destroy")
+	balldestroy.pressed.connect(_destroy_all_bakes)
+	var ballbuild: Button = panel.get_node("%btn_all_build")
+	ballbuild.pressed.connect(_bake_everything)
+
 	var trealtime: CheckBox = panel.get_node("%toggle_realtime")
 	trealtime.button_pressed = realtime_enabled
 	trealtime.toggled.connect(_realtime_toggled)
@@ -111,7 +118,11 @@ func update_button_availability(builder: IslandBuilder):
 func update_shapecount(builder: IslandBuilder):
 	panel.get_node("%shape_count").text = "{0} shapes".format([builder.get_shape_count()])
 func update_volume(builder: IslandBuilder):
-	panel.get_node("%volume").text = "{0} m³".format([builder.get_volume()])
+	panel.get_node("%volume").text = "%.2f m³" % builder.get_volume()
+func update_mass(builder: IslandBuilder):
+	panel.get_node("%mass").text = "%.2f kg" % (builder.get_volume() * builder.gameplay_density)
+func update_hitpoints(builder: IslandBuilder):
+	panel.get_node("%hitpoints").text = "%.2f HP" % (builder.get_volume() * builder.gameplay_health_density)
 
 func do_serialize(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
@@ -128,6 +139,8 @@ func do_precompute(builder: IslandBuilder):
 	print("IslandBuilder: Pre-computation took ", float(t2 - t1) * 0.001, " ms")
 func _on_precompute(builder: IslandBuilder):
 	update_volume(builder)
+	update_mass(builder)
+	update_hitpoints(builder)
 	update_button_availability(builder)
 
 func do_metaclear(node: Node):
@@ -138,15 +151,13 @@ func do_metaclear(node: Node):
 
 # Destroys any binary IslandBuilder data for safe git saving
 func do_destroy(node: IslandBuilder):
-	for child in find_output_object(node).get_children():
-		if child is CollisionShape3D:
-			child.queue_free() # Remove collision shapes
-		elif child is MeshInstance3D:
-			child.mesh = null # Unlinks the mesh data
+	node.destroy_bakes()
+	update_shapecount(node)
+	update_button_availability(node)
 
 func do_mesh_preview(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
-	find_mesh_output(builder).mesh = builder.mesh_preview(null)
+	builder.target_mesh().mesh = builder.mesh_preview(null)
 	var t2 = Time.get_ticks_usec()
 	print("IslandBuilder: Mesh preview took ", float(t2 - t1) * 0.001, " ms")
 
@@ -164,14 +175,14 @@ func do_mesh_bake(builder: IslandBuilder):
 	#importer.generate_lods(builder.lod_normal_merge_angle, builder.lod_normal_split_angle, [])
 	importer.generate_lods(25, 60, [])
 	mesh.clear_surfaces()
-	find_mesh_output(builder).mesh = importer.get_mesh(mesh)
+	builder.target_mesh().mesh = importer.get_mesh(mesh)
 
 func do_collision(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
 	var hulls: Array[ConvexPolygonShape3D] = builder.collision_hulls()
 	var t2 = Time.get_ticks_usec()
 	print("IslandBuilder: Collision Hulls took ", float(t2 - t1) * 0.001, " ms before instancing")
-	var out = find_output_object(builder)
+	var out = builder.target()
 
 	for child in out.get_children():
 		if child is CollisionShape3D:
@@ -195,7 +206,7 @@ func do_collision(builder: IslandBuilder):
 		out.get_parent().set_maximum_health(builder.get_volume() * builder.gameplay_health_density)
 
 func do_navigation(builder: IslandBuilder):
-	var out = find_output_object(builder)
+	var out = builder.target()
 	if out.has_method("set_navigation_properties"):
 		var nav_props: NavIslandProperties = builder.navigation_properties()
 		out.set_navigation_properties(nav_props)
@@ -210,30 +221,46 @@ func do_finalize(builder: IslandBuilder):
 	var t2 = Time.get_ticks_usec()
 	print("IslandBuilder: FINALIZE ALL took ", float(t2 - t1) * 0.001, " ms")
 
-func find_output_object(builder: IslandBuilder) -> Node:
-	var out = builder.get_node(builder.output_to)
-	if not is_instance_valid(out):
-		return builder
-	return out
+## DESTROY ALL BAKES ##
+func _destroy_all_bakes():
+	if is_instance_valid(last_builder):
+		var builders = fetch_all_builders(last_builder.get_tree().edited_scene_root)
+		for builder in builders:
+			if is_instance_valid(builder):
+				builder.destroy_bakes()
+	if is_instance_valid(last_builder):
+		update_shapecount(last_builder)
+		update_button_availability(last_builder)
 
-func find_mesh_output(builder: IslandBuilder) -> MeshInstance3D:
-	var out = find_output_object(builder)
-	for child in out.get_children():
-		if child is MeshInstance3D:
-			return child
+func _bake_everything():
+	if is_instance_valid(last_builder):
+		var builders = fetch_all_builders(last_builder.get_tree().edited_scene_root)
+		for builder in builders:
+			if is_instance_valid(builder):
+				builder.serialize()
+				builder.net()
+				builder.optimize()
+				do_finalize(builder)
 
-	var mesh = MeshInstance3D.new()
-	mesh.name = 'mesh_island'
-	mesh.set_layer_mask_value(1, true)
-	mesh.set_layer_mask_value(2, false)
-	mesh.set_layer_mask_value(3, true)
-	out.add_child(mesh)
-	mesh.owner = out.get_tree().edited_scene_root
+				if builder.target() != builder:
+					builder.visible = false
 
-	return mesh
+	if is_instance_valid(last_builder):
+		update_shapecount(last_builder)
+		update_volume(last_builder)
+		update_mass(last_builder)
+		update_hitpoints(last_builder)
 
+# Fetches all IslandBuilder nodes under the given node, inclusive
+func fetch_all_builders(current: Node, builders: Array[IslandBuilder] = []) -> Array[IslandBuilder]:
+	if current is IslandBuilder:
+		builders.append(current)
+	for child in current.get_children():
+		fetch_all_builders(child, builders)
+	return builders
 
-# CSG LINTING
+## CSG LINTING ##
+
 const LINT_PREFIXES = [
 	"UNION_",
 	"INTERSECT_",
@@ -296,7 +323,9 @@ func lint_node_recursive(node: Node):
 		lint_node_recursive(child)
 	lint_node(node)
 
-# REALTIME PREVIEW
+
+## REALTIME PREVIEW ##
+
 var realtime_thread: Thread
 var realtime_queued: bool = false
 var realtime_last_update: int = -1
@@ -408,6 +437,6 @@ func _realtime_preview(builder: IslandBuilder, on_finish: Callable) -> void:
 	on_finish.call_deferred(builder.mesh_preview(null))
 func _realtime_preview_finish(new_mesh: ArrayMesh, builder: IslandBuilder) -> void:
 	# print("applying realtime")
-	find_mesh_output(builder).mesh = new_mesh
+	builder.target_mesh().mesh = new_mesh
 	realtime_queued = false
 	realtime_last_update = Time.get_ticks_msec()

@@ -12,6 +12,7 @@ script = ExtResource("1_ytp1n")
 
 [node name="IslandBuilder" type="IslandBuilder" parent="."]
 output_to = NodePath("../RigidBody3D")
+collision_decimation_angle = 2.0
 material_baked = ExtResource("2_lyvhm")
 material_preview = ExtResource("3_0xy63")
 visible = false
@@ -133,6 +134,7 @@ mass = 3707.2
 freeze = true
 
 [node name="mesh_island" type="MeshInstance3D" parent="RigidBody3D"]
+visible = false
 layers = 5
 
 [node name="aabb_checker" type="GPUParticles3D" parent="."]

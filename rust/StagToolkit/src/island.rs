@@ -1,5 +1,5 @@
 use core::f32;
-use std::ops::Index;
+use std::{f32::consts::PI, ops::Index};
 
 use crate::{
     math::{
@@ -19,7 +19,10 @@ use fast_surface_nets::{
 };
 use glam::{FloatExt, Mat4, Vec2, Vec3, Vec4};
 use godot::{
-    classes::{mesh::PrimitiveType, ArrayMesh, ConvexPolygonShape3D, Material},
+    classes::{
+        mesh::PrimitiveType, ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, Material,
+        MeshInstance3D, ProjectSettings,
+    },
     prelude::*,
 };
 
@@ -38,6 +41,14 @@ pub struct IslandBuildData {
     smoothing_weight: f32,
     noise_amplitude: f32,
     noise_w: f64,
+    /// Distance threshold for triangles to be merged together and collapsed for the visual mesh.
+    mesh_merge_distance: f32,
+    /// Distance threshold for triangles to be merged together and collapsed for the physics collisions.
+    collision_merge_distance: f32,
+    /// Angle threshold for decimating triangles used in physics collisions. In radians.
+    collision_decimate_angle: f32,
+    /// Max number of iterations for performing decimation.
+    collision_decimate_iterations: i32,
     mask_range_dirt: Vec2,
     mask_range_sand: Vec2,
     mask_power_sand: f32,
@@ -72,6 +83,10 @@ impl IslandBuildData {
             smoothing_weight: 0.5,
             noise_amplitude: 0.4,
             noise_w: 1.0,
+            mesh_merge_distance: 0.04,
+            collision_merge_distance: 0.15,
+            collision_decimate_angle: PI / 60.0,
+            collision_decimate_iterations: 100,
             mask_range_dirt: Vec2::new(-0.1, 0.8),
             mask_range_sand: Vec2::new(0.7, 1.0),
             mask_power_sand: 3.0,
@@ -178,8 +193,7 @@ impl IslandBuildData {
 
         let mesh = self.mesh.as_mut().unwrap();
 
-        // TODO: merge by distance
-        mesh.remove_unused();
+        mesh.optimize(self.mesh_merge_distance);
 
         self.optimized = true;
     }
@@ -298,15 +312,19 @@ impl IslandBuildData {
             hulls[min_shape_idx].triangles.push(*tri);
         }
 
-        // Remove hulls with an insignificant amount of triangles.
-        hulls.retain(|hull| hull.triangles.len() >= 3);
-
-        // TODO: decimate
-
-        // Remove unused vertices
+        // Optimize collision mesh
         for mesh in hulls.iter_mut() {
-            mesh.remove_unused();
+            if self.collision_decimate_angle > 0.0 {
+                mesh.decimate_planar(
+                    self.collision_decimate_angle,
+                    self.collision_decimate_iterations,
+                );
+            }
+            mesh.optimize(self.collision_merge_distance);
         }
+
+        // Remove hulls with an insignificant amount of triangles.
+        hulls.retain(|hull| hull.triangles.len() >= 6);
 
         hulls
     }
@@ -351,8 +369,8 @@ impl IResource for NavIslandProperties {
 pub struct IslandBuilder {
     data: IslandBuildData,
 
-    /// Node to output the result on.
-    /// This may affect how data is stored and applied via the plugin.
+    /// Node to target for storing generation output, and modifying data.
+    /// If empty or target is not found, uses this node instead.
     #[export]
     output_to: NodePath,
 
@@ -388,6 +406,21 @@ pub struct IslandBuilder {
     /// W position for sampling noise.
     #[export]
     noise_w: f64,
+
+    /// Distance threshold for triangles to be merged together and collapsed for the visual mesh.
+    #[export(range = (0.0, 0.5, 0.001, or_greater))]
+    mesh_merge_distance: f32,
+    /// Distance threshold for triangles to be merged together and collapsed for the physics collisions.
+    #[export(range = (0.0, 1.0, 0.001, or_greater))]
+    collision_merge_distance: f32,
+    /// Angular threshold for decimating triangles used in physics collisions. In degrees.
+    /// If zero, mesh decimation will not occur.
+    #[export(range = (0.0, 179.9, 0.001, or_greater))]
+    collision_decimation_angle: f32,
+    /// Maximum number of iterations for performing collision mesh decimation.
+    /// If the mesh has not changed after an iteration, not all iterations will be used.
+    #[export(range = (0.0, 500.0, 1.0, or_greater))]
+    collision_decimate_iterations: i32,
 
     /// Approximate physical density of material to use when calculating mass.
     /// Kilograms per meter cubed.
@@ -425,6 +458,10 @@ impl INode3D for IslandBuilder {
             noise_frequency: 0.335,
             noise_amplitude: 0.4,
             noise_w: 1.0,
+            mesh_merge_distance: 0.04,
+            collision_merge_distance: 0.15,
+            collision_decimation_angle: 2.0,
+            collision_decimate_iterations: 100,
             gameplay_density: 23.23,
             gameplay_health_density: 2.0,
             material_baked: None,
@@ -476,6 +513,15 @@ impl IslandBuilder {
         self.data.whitebox.default_edge_radius = self.generation_edge_radius;
         self.data.whitebox.default_hull_zscore = self.generation_hull_zscore;
 
+        // Force a mesh re-optimize
+        if self.data.mesh_merge_distance != self.mesh_merge_distance {
+            self.data.optimized = false;
+            self.data.mesh_merge_distance = self.mesh_merge_distance;
+        }
+        self.data.collision_merge_distance = self.collision_merge_distance;
+        self.data.collision_decimate_angle = self.collision_decimation_angle.to_radians();
+        self.data.collision_decimate_iterations = self.collision_decimate_iterations;
+
         // Check if random seeds have changed
         // Don't bother setting seed if they haven't changed
         let (seed_x, seed_y, seed_z) = self.data.noise.get_seed();
@@ -503,8 +549,7 @@ impl IslandBuilder {
         self.data.whitebox.clear();
         self.apply_settings();
         self.data.whitebox.serialize_from(self.base().to_godot());
-        self.base_mut()
-            .emit_signal("completed_serialize".into(), &[]);
+        self.base_mut().emit_signal("completed_serialize", &[]);
     }
 
     /// Performs Surface Nets Algorithm, storing it in the IslandBuilderData for future use.
@@ -514,7 +559,7 @@ impl IslandBuilder {
         self.apply_settings();
         self.data.nets();
 
-        self.base_mut().emit_signal("completed_nets".into(), &[]);
+        self.base_mut().emit_signal("completed_nets", &[]);
 
         self.data.mesh.is_none()
     }
@@ -544,11 +589,12 @@ impl IslandBuilder {
         match arrs_opt {
             Some(arrs) => {
                 mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
-                mesh.surface_set_name(0, "island".into());
+                mesh.surface_set_name(0, "island");
                 // Add a material, if valid
-                if self.material_preview.is_some() {
-                    mesh.surface_set_material(0, self.material_preview.clone());
+                if let Some(mat) = &self.material_preview {
+                    mesh.surface_set_material(0, mat);
                 }
+
                 mesh
             }
             _ => mesh,
@@ -559,17 +605,21 @@ impl IslandBuilder {
     /// Optimizes the mesh data beforehand, if not already optimized.
     #[func]
     pub fn mesh_baked(&mut self) -> Gd<ArrayMesh> {
+        self.apply_settings();
         self.optimize();
 
         let mut mesh = ArrayMesh::new_gd();
         let arrs_opt = self.data.get_mesh_baked();
+        // TODO: generate LODs
         match arrs_opt {
             Some(arrs) => {
                 mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
-                mesh.surface_set_name(0, "island".into());
-                if self.material_baked.is_some() {
-                    mesh.surface_set_material(0, self.material_baked.clone());
+                mesh.surface_set_name(0, "island");
+
+                if let Some(mat) = &self.material_baked {
+                    mesh.surface_set_material(0, mat);
                 }
+
                 mesh
             }
             _ => mesh,
@@ -580,6 +630,7 @@ impl IslandBuilder {
     /// Optimizes the mesh data beforehand, if not already optimized.
     #[func]
     pub fn collision_hulls(&mut self) -> Array<Gd<ConvexPolygonShape3D>> {
+        self.apply_settings();
         self.optimize();
 
         let hull_pts = self.data.get_hulls();
@@ -592,7 +643,7 @@ impl IslandBuilder {
             let pos: PackedVector3Array = hull.positions.clone().to_vector3();
 
             shape.set_points(&pos);
-            hulls.push(shape);
+            hulls.push(&shape);
         }
 
         hulls
@@ -623,6 +674,93 @@ impl IslandBuilder {
             .whitebox
             .get_aabb()
             .expand(Vec3Godot::splat(self.noise_amplitude))
+    }
+
+    // EDITOR HELPERS
+    // TODO: apply preview mesh?
+    // TODO: apply baked mesh?
+    // TODO: apply collision hulls?
+
+    /// Fetches the output node for this IslandBuilder.
+    /// If no output is specified, uses this node instead.
+    #[func]
+    fn target(&mut self) -> Gd<Node> {
+        let target = self.base().get_node_or_null(&self.output_to);
+        match target {
+            Some(node) => node,
+            None => self.base_mut().clone().upcast::<Node>(),
+        }
+    }
+
+    /// Fetches the output mesh for this IslandBuilder.
+    /// Creates one if none was found.
+    /// If the mesh is newly created, its render layers are specified by
+    /// `"addons/stag_toolkit/island_builder/render_layers"`
+    /// in the Project Settings.
+    #[func]
+    fn target_mesh(&mut self) -> Gd<MeshInstance3D> {
+        let mut target = self.target();
+
+        // Find a mesh
+        for child in target.get_children().iter_shared() {
+            match child.try_cast::<MeshInstance3D>() {
+                Ok(mesh) => return mesh,
+                Err(_as_node) => {}
+            }
+        }
+
+        // If no mesh found, create one
+        let mut mesh = MeshInstance3D::new_alloc();
+
+        // Get render layers mask from Project Settings
+        let settings = ProjectSettings::singleton();
+        let mask = settings
+            .get_setting_ex("addons/stag_toolkit/island_builder/render_layers")
+            .default_value(&Variant::from(5))
+            .done();
+        mesh.set_layer_mask(mask.to());
+
+        // Add mesh to scene
+        mesh.set_name("mesh_island");
+        target.add_child(&mesh);
+
+        // Ensure scene owns mesh object
+        // If no scene tree found, instead use target node as owner
+        if let Some(tree) = target.get_tree() {
+            mesh.set_owner(&tree.get_edited_scene_root().unwrap_or(target));
+        }
+
+        mesh
+    }
+
+    /// Destroys all MeshInstance3D and CollisionShape3D nodes directly under the output node.
+    /// Also clears all working data. The IslandBuilder will have to be re-serialized and netted.
+    #[func]
+    fn destroy_bakes(&mut self) {
+        self.data.whitebox.clear();
+        self.data.mesh = None;
+        self.data.optimized = false;
+
+        let mut out = self.target();
+        // Iterate over all children.
+        for child in out.get_children().iter_shared() {
+            // If this is a MeshInstance3D, destroy it
+            match child.try_cast::<MeshInstance3D>() {
+                Ok(mut mesh) => {
+                    mesh.set_mesh(Gd::null_arg());
+                }
+                Err(as_node) => {
+                    // OR, if this is a CollisionShape3D, destroy it
+                    match as_node.try_cast::<CollisionShape3D>() {
+                        Ok(mut collision) => {
+                            out.remove_child(&collision);
+                            collision.queue_free();
+                        }
+                        Err(_as_node_again) => {}
+                    }
+                }
+            }
+        }
     }
 
     /// Emitted upon completing serialization.

@@ -9,11 +9,12 @@ Currently equipped for Godot **4.2.2**
 ## Feature List
 
 - **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend
-- **[StagTest](docs/tools/stagtest.md)** test framework for simulating gameplay and performing benchmarks
+- **[StagTest](docs/tools/stagtest.md)** framework for simulating gameplay and performing benchmarks
 - `QueueFloat` class for handling and analyzing large sets of numbers
+- Settings for importing meshes/scenes with custom LODs
 - Shader includes and debug shaders
 
-### Included, but Not Maintained
+### In Repository, but Not Maintained
 - Island shader variants and textures used in Abyss
 - Prototype animation classes
 

@@ -28,6 +28,24 @@ text = "###.## m^3"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="mass" type="Label" parent="information1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "###.## kg"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="hitpoints" type="Label" parent="information1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "###.## HP"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="precomp" type="HBoxContainer" parent="."]
 layout_mode = 2
 alignment = 1
@@ -46,30 +64,16 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Precompute"
 
-[node name="btn_metadata" type="Button" parent="precomp"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Clear Metadata"
-
-[node name="workflow" type="HBoxContainer" parent="."]
-layout_mode = 2
-alignment = 1
-
-[node name="btn_mesh_preview" type="Button" parent="workflow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Mesh Preview"
-
-[node name="btn_finalize" type="Button" parent="workflow"]
+[node name="btn_finalize" type="Button" parent="precomp"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Finalize"
+
+[node name="workflow" type="HBoxContainer" parent="."]
+layout_mode = 2
+alignment = 1
 
 [node name="btn_destroy" type="Button" parent="workflow"]
 unique_name_in_owner = true
@@ -77,6 +81,21 @@ custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Destroy Bakes"
+
+[node name="btn_metadata" type="Button" parent="workflow"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Clear Metadata"
+
+[node name="btn_mesh_preview" type="Button" parent="workflow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Mesh Preview"
 
 [node name="separator" type="HSeparator" parent="."]
 layout_mode = 2
@@ -128,5 +147,26 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Calc Navigation"
 
-[node name="HSeparator" type="HSeparator" parent="."]
+[node name="separator3" type="HSeparator" parent="."]
+layout_mode = 2
+
+[node name="map_wide" type="HBoxContainer" parent="."]
+layout_mode = 2
+alignment = 1
+
+[node name="btn_all_destroy" type="Button" parent="map_wide"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Destroy ALL Bakes"
+
+[node name="btn_all_build" type="Button" parent="map_wide"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Build ALL Islands"
+
+[node name="separator4" type="HSeparator" parent="."]
 layout_mode = 2

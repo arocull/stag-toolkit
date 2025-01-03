@@ -219,22 +219,18 @@ impl TriangleMesh {
     pub fn tris_for_edge(&self, edge: &Edge) -> (Option<Triangle>, Option<Triangle>) {
         let mut left: Option<Triangle> = None;
         let mut right: Option<Triangle> = None;
+        let flip = edge.flip();
 
         for tri in self.triangles.iter() {
             if tri.has_edge(edge) {
                 right = Some(*tri);
-
-                if left.is_some() {
-                    // Return if we finished
-                    break;
-                }
-            } else if tri.has_edge(&edge.flip()) {
+                break;
+            }
+        }
+        for tri in self.triangles.iter() {
+            if tri.has_edge(&flip) {
                 left = Some(*tri);
-
-                if right.is_some() {
-                    // Return if we finished.
-                    break;
-                }
+                break;
             }
         }
 
@@ -258,6 +254,154 @@ impl TriangleMesh {
         }
 
         indices
+    }
+
+    /// Creates and returns a list of all unique edges inside the mesh.
+    pub fn edges(&self) -> Vec<Edge> {
+        let mut edges: Vec<Edge> = vec![];
+        edges.reserve_exact(self.triangles.len() * 3);
+
+        for tri in self.triangles.iter() {
+            let edge1: Edge = [tri[0], tri[1]];
+            let edge2: Edge = [tri[1], tri[2]];
+            let edge3: Edge = [tri[2], tri[0]];
+
+            if !(edges.contains(&edge1) || edges.contains(&edge1.flip())) {
+                edges.push(edge1);
+            }
+            if !(edges.contains(&edge2) || edges.contains(&edge2.flip())) {
+                edges.push(edge2);
+            }
+            if !(edges.contains(&edge3) || edges.contains(&edge3.flip())) {
+                edges.push(edge3);
+            }
+        }
+
+        edges
+    }
+
+    /// Calculates the angle between two faces on a given edge.
+    /// If the edge does not exist, returns f32::MAX.
+    pub fn edge_angle(&self, edge: &Edge) -> f32 {
+        // Get the two triangles for the edge
+        let (left, right) = self.tris_for_edge(edge);
+
+        // If neither triangle exists, the edge is invalid
+        if left.is_none() || right.is_none() {
+            return f32::MAX;
+        }
+
+        let left = left.unwrap();
+        let right = right.unwrap();
+
+        // Calculate the cost of collapsing the edge
+        left.normal(&self.positions)
+            .angle_between(right.normal(&self.positions))
+    }
+
+    /// Removes an edge from the mesh by merging both vertices into a centerpoint.
+    /// Does not remove degenerate geometry.
+    pub fn edge_collapse(&mut self, edge: &Edge) {
+        // Create a new vertex at the center of the edge
+        let center = (self.positions[edge[0]] + self.positions[edge[1]]) * 0.5;
+
+        // Append vertex to end of positions list
+        let new_idx = self.positions.len();
+        self.positions.push(center);
+
+        // Swap out old vertex indices for new one
+        self.swap_indices(vec![(edge[0], new_idx), (edge[1], new_idx)]);
+    }
+
+    /// Decimates the mesh by removing all immediate edges with an angle less than the given threshold.
+    pub fn decimate_planar(&mut self, threshold: f32, iterations: i32) {
+        // Do nothing if invalid.
+        if iterations <= 0 {
+            return;
+        }
+
+        for _ in 0..iterations {
+            // Get a list of all edges in the trimesh
+            let edges = self.edges();
+
+            // Collapse all edges below the threshold
+            let mut count = 0;
+            for edge in edges.iter() {
+                if self.edge_angle(edge) < threshold {
+                    self.edge_collapse(edge);
+                    count += 1;
+                }
+            }
+
+            // Clean up mesh after decimation
+            self.remove_degenerate();
+            self.remove_unused();
+
+            // End decimation if nothing changed
+            if count == 0 {
+                break;
+            }
+        }
+    }
+
+    /// Merges all vertices within the given threshold distance of each other, merging later vertices into earlier ones.
+    /// This operation occurs in-place.
+    /// Does not remove degenerate triangles.
+    pub fn merge_by_distance(&mut self, threshold: f32) {
+        let thresh_squared = threshold * threshold;
+
+        // Array of new, merged vertices
+        let mut new_verts = self.positions.clone();
+        // List of vertex indices: (replace, new)
+        let mut replace: Vec<(usize, usize)> = vec![];
+
+        // Start from back of array
+        for (i, vert) in self.positions.iter().enumerate().rev() {
+            // ...read forward until we hit our current index
+            for j in 0..i {
+                if vert.distance_squared(new_verts[j]) <= thresh_squared {
+                    // Remove vertices at the back of the new list
+                    new_verts.remove(i);
+                    // ...and modify the vertices at the front to be the midpoint
+                    new_verts[j] = (vert + new_verts[j]) * 0.5;
+
+                    // ...and note what vertices to replace
+                    replace.push((i, j));
+
+                    break;
+                }
+            }
+        }
+
+        // Finally, update triangle indices
+        self.swap_indices(replace);
+    }
+
+    /// Iterates over all triangles, replacing each vertex index value using the given tuple: (old, new).
+    /// Does not remove degenerate triangles.
+    pub fn swap_indices(&mut self, replace: Vec<(usize, usize)>) {
+        if replace.is_empty() {
+            return;
+        }
+
+        for tri in self.triangles.iter_mut() {
+            // Iterate over every swap item
+            for idx_swap in replace.iter() {
+                // Update the triangle indices
+                for idx in 0..3 {
+                    if tri[idx] == idx_swap.0 {
+                        tri[idx] = idx_swap.1;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Removes degenerate triangles from the mesh.
+    pub fn remove_degenerate(&mut self) {
+        // Ensure no vertex indices on the triangle match
+        self.triangles
+            .retain(|tri| !(tri[0] == tri[1] || tri[0] == tri[2] || tri[1] == tri[2]));
     }
 
     /// Removes all unused vertex positions in the mesh.
@@ -313,6 +457,13 @@ impl TriangleMesh {
 
     /// TODO: Bakes all normals into mesh data.
     pub fn bake_normals(&mut self) {}
+
+    /// Performs all existing optimization steps on the triangle mesh.
+    pub fn optimize(&mut self, merge_distance: f32) {
+        self.merge_by_distance(merge_distance);
+        self.remove_degenerate();
+        self.remove_unused();
+    }
 }
 
 /*
@@ -342,9 +493,9 @@ impl Iterator for WalkTriangles {
 // UNIT TESTS //
 #[cfg(test)]
 mod tests {
-    use crate::mesh::trimesh::{Triangle, TriangleOperations};
+    use crate::mesh::trimesh::{Edge, Triangle, TriangleOperations};
 
-    use glam::Vec3;
+    use glam::{vec3, Vec3};
 
     use super::TriangleMesh;
 
@@ -555,5 +706,48 @@ mod tests {
             index_mesh.indices(),
             "should return expected vertex indices"
         );
+    }
+
+    #[test]
+    fn test_planar_decimation() {
+        let positions: Vec<Vec3> = vec![
+            vec3(1.0, 0.0, 0.0),
+            vec3(-1.0, 0.0, 0.0),
+            vec3(0.0, 0.0, 1.0),
+            vec3(0.0, 0.0, -1.0),
+        ];
+        let triangles: Vec<Triangle> = vec![[0, 1, 2], [0, 3, 1]];
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+
+        let edge_valid: Edge = [0, 1];
+        let edge_invalid: Edge = [0, 2];
+
+        assert_eq!(
+            1.0,
+            triangles[0].orientation(&positions).signum(),
+            "first triangle should be facing up"
+        );
+        assert_eq!(
+            1.0,
+            triangles[1].orientation(&positions).signum(),
+            "second triangle should be facing up"
+        );
+
+        assert_eq!(
+            0.0,
+            mesh.edge_angle(&edge_valid),
+            "faces sharing same plane should have an angle of zero"
+        );
+        assert_eq!(
+            f32::MAX,
+            mesh.edge_angle(&edge_invalid),
+            "faces not sharing an edge should have an infinite angle"
+        );
+
+        let edges = mesh.edges();
+        assert_eq!(5, edges.len());
+
+        mesh.decimate_planar(0.1, 10);
+        assert_eq!(0, mesh.triangles.len());
     }
 }
