@@ -35,29 +35,29 @@ impl GodotSurfaceArrays {
         );
 
         // Bind vertex data
-        // sa.set(ArrayType::VERTEX.to_index(), Variant::nil()); // Overridden anyway
-        sa.set(ArrayType::NORMAL.to_index(), Variant::nil());
-        sa.set(ArrayType::TANGENT.to_index(), Variant::nil());
+        // sa.set(ArrayType::VERTEX.to_index(), &Variant::nil()); // Overridden anyway
+        sa.set(ArrayType::NORMAL.to_index(), &Variant::nil());
+        sa.set(ArrayType::TANGENT.to_index(), &Variant::nil());
 
         // Bind masking data
-        sa.set(ArrayType::COLOR.to_index(), Variant::nil());
+        sa.set(ArrayType::COLOR.to_index(), &Variant::nil());
 
         // Bind UV projections
-        sa.set(ArrayType::TEX_UV.to_index(), Variant::nil());
-        sa.set(ArrayType::TEX_UV2.to_index(), Variant::nil());
+        sa.set(ArrayType::TEX_UV.to_index(), &Variant::nil());
+        sa.set(ArrayType::TEX_UV2.to_index(), &Variant::nil());
 
         // Bind custom arrays
-        sa.set(ArrayType::CUSTOM0.to_index(), Variant::nil());
-        sa.set(ArrayType::CUSTOM1.to_index(), Variant::nil());
-        sa.set(ArrayType::CUSTOM2.to_index(), Variant::nil());
-        sa.set(ArrayType::CUSTOM3.to_index(), Variant::nil());
+        sa.set(ArrayType::CUSTOM0.to_index(), &Variant::nil());
+        sa.set(ArrayType::CUSTOM1.to_index(), &Variant::nil());
+        sa.set(ArrayType::CUSTOM2.to_index(), &Variant::nil());
+        sa.set(ArrayType::CUSTOM3.to_index(), &Variant::nil());
 
         // Bind skeleton
-        sa.set(ArrayType::BONES.to_index(), Variant::nil());
-        sa.set(ArrayType::WEIGHTS.to_index(), Variant::nil());
+        sa.set(ArrayType::BONES.to_index(), &Variant::nil());
+        sa.set(ArrayType::WEIGHTS.to_index(), &Variant::nil());
 
         // FINALLY, bind indices (actually don't bother since we'll be overriding them anyway)
-        // sa.set(ArrayType::INDEX.to_index(), Variant::nil()); // Overridden anyway
+        // sa.set(ArrayType::INDEX.to_index(), &Variant::nil()); // Overridden anyway
 
         Self { surface_arrays: sa }
     }
@@ -75,7 +75,7 @@ impl GodotSurfaceArrays {
 
     /// Internally sets a SurfaceArray value to the given variant.
     fn set_internal(&mut self, arrtype: ArrayType, value: Variant) {
-        self.surface_arrays.set(arrtype.to_index(), value);
+        self.surface_arrays.set(arrtype.to_index(), &value);
     }
 
     /// Sets the indices buffer
@@ -255,8 +255,8 @@ impl GodotWhitebox {
 
     /// Fetches the given metadata float from a node, or returns a default
     fn fetch_meta(node: Gd<Node>, meta_name: StringName, default: f32) -> f32 {
-        if node.has_meta(meta_name.clone()) {
-            return node.get_meta(meta_name).to();
+        if node.has_meta(&meta_name) {
+            return node.get_meta(&meta_name).to();
         }
         default
     }

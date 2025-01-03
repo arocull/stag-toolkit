@@ -19,7 +19,10 @@ use fast_surface_nets::{
 };
 use glam::{FloatExt, Mat4, Vec2, Vec3, Vec4};
 use godot::{
-    classes::{mesh::PrimitiveType, ArrayMesh, ConvexPolygonShape3D, Material},
+    classes::{
+        mesh::PrimitiveType, ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, Material,
+        MeshInstance3D,
+    },
     prelude::*,
 };
 
@@ -356,8 +359,8 @@ impl IResource for NavIslandProperties {
 pub struct IslandBuilder {
     data: IslandBuildData,
 
-    /// Node to output the result on.
-    /// This may affect how data is stored and applied via the plugin.
+    /// Node to target for storing generation output, and modifying data.
+    /// If empty or target is not found, uses this node instead.
     #[export]
     output_to: NodePath,
 
@@ -522,8 +525,7 @@ impl IslandBuilder {
         self.data.whitebox.clear();
         self.apply_settings();
         self.data.whitebox.serialize_from(self.base().to_godot());
-        self.base_mut()
-            .emit_signal("completed_serialize".into(), &[]);
+        self.base_mut().emit_signal("completed_serialize", &[]);
     }
 
     /// Performs Surface Nets Algorithm, storing it in the IslandBuilderData for future use.
@@ -533,7 +535,7 @@ impl IslandBuilder {
         self.apply_settings();
         self.data.nets();
 
-        self.base_mut().emit_signal("completed_nets".into(), &[]);
+        self.base_mut().emit_signal("completed_nets", &[]);
 
         self.data.mesh.is_none()
     }
@@ -563,11 +565,12 @@ impl IslandBuilder {
         match arrs_opt {
             Some(arrs) => {
                 mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
-                mesh.surface_set_name(0, "island".into());
+                mesh.surface_set_name(0, "island");
                 // Add a material, if valid
-                if self.material_preview.is_some() {
-                    mesh.surface_set_material(0, self.material_preview.clone());
+                if let Some(mat) = &self.material_preview {
+                    mesh.surface_set_material(0, mat);
                 }
+
                 mesh
             }
             _ => mesh,
@@ -582,13 +585,16 @@ impl IslandBuilder {
 
         let mut mesh = ArrayMesh::new_gd();
         let arrs_opt = self.data.get_mesh_baked();
+        // TODO: generate LODs
         match arrs_opt {
             Some(arrs) => {
                 mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
-                mesh.surface_set_name(0, "island".into());
-                if self.material_baked.is_some() {
-                    mesh.surface_set_material(0, self.material_baked.clone());
+                mesh.surface_set_name(0, "island");
+
+                if let Some(mat) = &self.material_baked {
+                    mesh.surface_set_material(0, mat);
                 }
+
                 mesh
             }
             _ => mesh,
@@ -611,7 +617,7 @@ impl IslandBuilder {
             let pos: PackedVector3Array = hull.positions.clone().to_vector3();
 
             shape.set_points(&pos);
-            hulls.push(shape);
+            hulls.push(&shape);
         }
 
         hulls
@@ -642,6 +648,51 @@ impl IslandBuilder {
             .whitebox
             .get_aabb()
             .expand(Vec3Godot::splat(self.noise_amplitude))
+    }
+
+    // EDITOR HELPERS
+    // TODO: apply preview mesh?
+    // TODO: apply baked mesh?
+    // TODO: apply collision hulls?
+
+    /// Fetches the output node for this IslandBuilder.
+    /// If no output is specified, uses this node instead.
+    fn fetch_output_node(&mut self) -> Gd<Node> {
+        let target = self.base().get_node_or_null(&self.output_to);
+        match target {
+            Some(node) => node,
+            None => self.base_mut().clone().upcast::<Node>(),
+        }
+    }
+
+    /// Destroys all MeshInstance3D and CollisionShape3D nodes directly under the output node.
+    /// Also clears all working data. The IslandBuilder will have to be re-serialized and netted.
+    #[func]
+    fn destroy_bakes(&mut self) {
+        self.data.whitebox.clear();
+        self.data.mesh = None;
+        self.data.optimized = false;
+
+        let mut out = self.fetch_output_node();
+        // Iterate over all children.
+        for child in out.get_children().iter_shared() {
+            // If this is a MeshInstance3D, destroy it
+            match child.try_cast::<MeshInstance3D>() {
+                Ok(mut mesh) => {
+                    mesh.set_mesh(Gd::null_arg());
+                }
+                Err(as_node) => {
+                    // OR, if this is a CollisionShape3D, destroy it
+                    match as_node.try_cast::<CollisionShape3D>() {
+                        Ok(mut collision) => {
+                            out.remove_child(&collision);
+                            collision.queue_free();
+                        }
+                        Err(_as_node_again) => {}
+                    }
+                }
+            }
+        }
     }
 
     /// Emitted upon completing serialization.

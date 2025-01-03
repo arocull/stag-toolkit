@@ -32,6 +32,8 @@ func _parse_begin(object: Object) -> void:
 	var builder: IslandBuilder = fetch_builder_ancestor(object)
 	update_shapecount(builder)
 	update_volume(builder)
+	update_mass(builder)
+	update_hitpoints(builder)
 	update_button_availability(builder)
 
 	var this_is_previous: bool = last_builder == builder
@@ -111,7 +113,11 @@ func update_button_availability(builder: IslandBuilder):
 func update_shapecount(builder: IslandBuilder):
 	panel.get_node("%shape_count").text = "{0} shapes".format([builder.get_shape_count()])
 func update_volume(builder: IslandBuilder):
-	panel.get_node("%volume").text = "{0} m³".format([builder.get_volume()])
+	panel.get_node("%volume").text = "%.2f m³" % builder.get_volume()
+func update_mass(builder: IslandBuilder):
+	panel.get_node("%mass").text = "%.2f kg" % (builder.get_volume() * builder.gameplay_density)
+func update_hitpoints(builder: IslandBuilder):
+	panel.get_node("%hitpoints").text = "%.2f HP" % (builder.get_volume() * builder.gameplay_health_density)
 
 func do_serialize(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
@@ -128,6 +134,8 @@ func do_precompute(builder: IslandBuilder):
 	print("IslandBuilder: Pre-computation took ", float(t2 - t1) * 0.001, " ms")
 func _on_precompute(builder: IslandBuilder):
 	update_volume(builder)
+	update_mass(builder)
+	update_hitpoints(builder)
 	update_button_availability(builder)
 
 func do_metaclear(node: Node):
@@ -138,11 +146,9 @@ func do_metaclear(node: Node):
 
 # Destroys any binary IslandBuilder data for safe git saving
 func do_destroy(node: IslandBuilder):
-	for child in find_output_object(node).get_children():
-		if child is CollisionShape3D:
-			child.queue_free() # Remove collision shapes
-		elif child is MeshInstance3D:
-			child.mesh = null # Unlinks the mesh data
+	node.destroy_bakes()
+	update_shapecount(node)
+	update_button_availability(node)
 
 func do_mesh_preview(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
