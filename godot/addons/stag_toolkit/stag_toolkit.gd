@@ -5,49 +5,73 @@ extends EditorPlugin
 # All-purpose toolkit for Godot game creation.
 # See readme.md and LICENSE for details.
 
-# List of StagToolkit classes for registration
 # Note: Built-in editor Icon colors can be found here:
 # https://github.com/godotengine/godot/blob/4.3/editor/themes/editor_color_map.cpp
-var classes: Array[Dictionary] = [
+
+# Project Settings config options
+var settings: Array[Dictionary] = [
 	{
-		"type": "StagUtils",
-		"base": "RefCounted",
-		"script": "res://addons/stag_toolkit/plugin/utils.gd",
-		"icon": "res://addons/stag_toolkit/icons/icon_islandbuilder.svg",
-		"debug": false,
+		"name": "addons/stag_toolkit/island_builder/enabled",
+		"type": TYPE_BOOL,
+		"description": "Whether the IslandBuilder tool is enabled or not. Requires plugin reload.",
+		"default": true,
 	},
 	{
-		"type": "StagImportUtils",
-		"base": "RefCounted",
-		"script": "res://addons/stag_toolkit/plugin/utils_import.gd",
-		"icon": "res://addons/stag_toolkit/icons/icon_islandbuilder.svg",
-		"debug": true,
+		"name": "addons/stag_toolkit/island_builder/render_layers",
+		"type": TYPE_INT,
+		"hint": PROPERTY_HINT_LAYERS_3D_RENDER,
+		"description": "What render layers that newly generated IslandBuilder meshes will appear on.",
+		"default": 5,
 	}
 ]
 
-# List of Dockers
-## IslandBuilder
-var island_builder = preload("res://addons/stag_toolkit/plugin/island_builder.gd").new()
+# Defines where the docker is docked
+enum DockerType {
+	Inspector = 0,
+}
+
+# Editor docker configurations
+var dockers: Array[Dictionary] = [
+	{
+		"toggle": "addons/stag_toolkit/island_builder/enabled",
+		"resource": "res://addons/stag_toolkit/plugin/island_builder.gd",
+		"constructed": null,
+		"init": "thread_init",
+		"deinit": "thread_deinit",
+		"type": DockerType.Inspector,
+	}
+]
 
 # List of Importers
 ## Simple LOD
 var import_simple_lod = preload("res://addons/stag_toolkit/plugin/importer/simple_lod.gd").new()
 
+# Initializes all configuration options for StagToolkit
+func initialize_settings() -> void:
+	for setting in settings:
+		# Create the setting if it does not already exist
+		if not ProjectSettings.has_setting(setting.name):
+			ProjectSettings.set_setting(setting.name, setting.default)
+		# Add property info for the setting
+		ProjectSettings.add_property_info(setting)
+
 func _enter_tree() -> void:
-	# Register all custom classes
-	var class_order = classes.duplicate(false) # Duplicate array to preserve order
-	for custom in class_order:
-		# Skip item if it is debug only
-		if custom.get("debug", false) and not OS.is_debug_build():
-			continue
-		add_custom_type(custom.type, custom.base, load(custom.script), load(custom.icon))
-		print("Registered ", custom.type)
+	for setting in settings:
+		if not ProjectSettings.has_setting(setting.name):
+			ProjectSettings.set_setting(setting.name, setting.default)
+		ProjectSettings.add_property_info(setting)
 
 	# Register docks
+	for docker in dockers:
+		if ProjectSettings.get_setting(docker.toggle, true) and docker.has("resource"):
+			# Instantiate docker
+			var dock = load(docker.resource).new()
+			docker["constructed"] = dock
 
-	## Island Builder
-	add_inspector_plugin(island_builder)
-	island_builder.thread_init()
+			# Add it as a plugin and initialize
+			add_inspector_plugin(dock)
+			if docker.has("init"):
+				dock.call(docker.init)
 
 	# Register importers
 
@@ -61,16 +85,12 @@ func _exit_tree() -> void:
 	remove_scene_post_import_plugin(import_simple_lod)
 
 	# Unregister docks
+	for docker in dockers:
+		if ProjectSettings.get_setting(docker.toggle, true) and is_instance_valid(docker.get("constructed", null)):
+			# Remove plugin and call deconstructor
+			remove_inspector_plugin(docker.constructed)
+			if docker.has("deinit"):
+				docker.constructed.call(docker.deinit)
 
-	## Island Builder
-	island_builder.thread_deinit()
-	remove_inspector_plugin(island_builder)
-
-	# Unregister all custom classes
-	var class_order = classes.duplicate(false) # Duplicate array to preserve order
-	class_order.reverse()
-	for custom in class_order:
-		# Skip item if it is debug only
-		if custom.get("debug", false) and not OS.is_debug_build():
-			continue
-		remove_custom_type(custom.type)
+			# Dereference docker for cleanup
+			docker.constructed = null

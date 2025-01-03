@@ -157,7 +157,7 @@ func do_destroy(node: IslandBuilder):
 
 func do_mesh_preview(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
-	find_mesh_output(builder).mesh = builder.mesh_preview(null)
+	builder.target_mesh().mesh = builder.mesh_preview(null)
 	var t2 = Time.get_ticks_usec()
 	print("IslandBuilder: Mesh preview took ", float(t2 - t1) * 0.001, " ms")
 
@@ -175,7 +175,7 @@ func do_mesh_bake(builder: IslandBuilder):
 	#importer.generate_lods(builder.lod_normal_merge_angle, builder.lod_normal_split_angle, [])
 	importer.generate_lods(25, 60, [])
 	mesh.clear_surfaces()
-	find_mesh_output(builder).mesh = importer.get_mesh(mesh)
+	builder.target_mesh().mesh = importer.get_mesh(mesh)
 
 func do_collision(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
@@ -220,23 +220,6 @@ func do_finalize(builder: IslandBuilder):
 	do_navigation(builder)
 	var t2 = Time.get_ticks_usec()
 	print("IslandBuilder: FINALIZE ALL took ", float(t2 - t1) * 0.001, " ms")
-
-func find_mesh_output(builder: IslandBuilder) -> MeshInstance3D:
-	var out = builder.target()
-	for child in out.get_children():
-		if child is MeshInstance3D:
-			return child
-
-	var mesh = MeshInstance3D.new()
-	mesh.name = 'mesh_island'
-	mesh.set_layer_mask_value(1, true)
-	mesh.set_layer_mask_value(2, false)
-	mesh.set_layer_mask_value(3, true)
-	out.add_child(mesh)
-	mesh.owner = out.get_tree().edited_scene_root
-
-	return mesh
-
 
 ## DESTROY ALL BAKES ##
 func _destroy_all_bakes():
@@ -454,6 +437,6 @@ func _realtime_preview(builder: IslandBuilder, on_finish: Callable) -> void:
 	on_finish.call_deferred(builder.mesh_preview(null))
 func _realtime_preview_finish(new_mesh: ArrayMesh, builder: IslandBuilder) -> void:
 	# print("applying realtime")
-	find_mesh_output(builder).mesh = new_mesh
+	builder.target_mesh().mesh = new_mesh
 	realtime_queued = false
 	realtime_last_update = Time.get_ticks_msec()

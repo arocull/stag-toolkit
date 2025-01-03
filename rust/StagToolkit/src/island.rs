@@ -21,7 +21,7 @@ use glam::{FloatExt, Mat4, Vec2, Vec3, Vec4};
 use godot::{
     classes::{
         mesh::PrimitiveType, ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, Material,
-        MeshInstance3D,
+        MeshInstance3D, ProjectSettings,
     },
     prelude::*,
 };
@@ -664,6 +664,47 @@ impl IslandBuilder {
             Some(node) => node,
             None => self.base_mut().clone().upcast::<Node>(),
         }
+    }
+
+    /// Fetches the output mesh for this IslandBuilder.
+    /// Creates one if none was found.
+    /// If the mesh is newly created, its render layers are specified by
+    /// `"addons/stag_toolkit/island_builder/render_layers"`
+    /// in the Project Settings.
+    #[func]
+    fn target_mesh(&mut self) -> Gd<MeshInstance3D> {
+        let mut target = self.target();
+
+        // Find a mesh
+        for child in target.get_children().iter_shared() {
+            match child.try_cast::<MeshInstance3D>() {
+                Ok(mesh) => return mesh,
+                Err(_as_node) => {}
+            }
+        }
+
+        // If no mesh found, create one
+        let mut mesh = MeshInstance3D::new_alloc();
+
+        // Get render layers mask from Project Settings
+        let settings = ProjectSettings::singleton();
+        let mask = settings
+            .get_setting_ex("addons/stag_toolkit/island_builder/render_layers")
+            .default_value(&Variant::from(5))
+            .done();
+        mesh.set_layer_mask(mask.to());
+
+        // Add mesh to scene
+        mesh.set_name("mesh_island");
+        target.add_child(&mesh);
+
+        // Ensure scene owns mesh object
+        // If no scene tree found, instead use target node as owner
+        if let Some(tree) = target.get_tree() {
+            mesh.set_owner(&tree.get_edited_scene_root().unwrap_or(target));
+        }
+
+        mesh
     }
 
     /// Destroys all MeshInstance3D and CollisionShape3D nodes directly under the output node.

@@ -10,7 +10,7 @@
 script = ExtResource("1_bdgar")
 
 [node name="IslandBuilder" type="IslandBuilder" parent="."]
-output_to = NodePath("")
+output_to = NodePath("../body")
 material_baked = ExtResource("2_ehd04")
 material_preview = ExtResource("3_1lqiu")
 
@@ -34,3 +34,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, 0)
 material_override = ExtResource("5_7gndr")
 operation = 2
 size = Vector3(2, 2, 6)
+
+[node name="body" type="RigidBody3D" parent="."]
+axis_lock_linear_y = true
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+mass = 154.629
+freeze = true

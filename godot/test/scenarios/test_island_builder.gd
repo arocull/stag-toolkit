@@ -49,3 +49,19 @@ func _ready():
 	var hulls = builder.collision_hulls()
 
 	StagTest.assert_equal(1, hulls.size(), "should be exactly 1 collision hull")
+
+	# Fetching target
+	StagTest.assert_valid(builder.target(), "builder target should always be valid")
+	StagTest.assert_equal($body, builder.target(), "should target correct node")
+
+	# Fetching + creating target mesh
+	StagTest.assert_valid(builder.target_mesh(), "target mesh should be instantiated")
+	StagTest.assert_true($body.is_ancestor_of(builder.target_mesh()), "target mesh should be child of builder target")
+	StagTest.assert_true(builder.target_mesh().get_layer_mask_value(3), "target mesh should be on layer 3")
+
+	# Destroying bakes
+	builder.target_mesh().mesh = builder.mesh_preview(null)
+	StagTest.assert_valid(builder.target_mesh(), "target mesh should be instantiated from preview")
+	builder.destroy_bakes()
+	StagTest.assert_valid($body/mesh_island, "target mesh should still exist after destroying bakes")
+	StagTest.assert_equal(null, builder.target_mesh().mesh, "target mesh should have mesh asset cleared")
