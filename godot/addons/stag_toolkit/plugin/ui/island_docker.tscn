@@ -155,12 +155,14 @@ layout_mode = 2
 alignment = 1
 
 [node name="btn_all_destroy" type="Button" parent="map_wide"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Destroy ALL Bakes"
 
 [node name="btn_all_build" type="Button" parent="map_wide"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3

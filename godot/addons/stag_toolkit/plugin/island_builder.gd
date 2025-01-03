@@ -81,6 +81,11 @@ func _parse_begin(object: Object) -> void:
 	var bnavigation: Button = panel.get_node("%btn_navigation")
 	bnavigation.pressed.connect(do_navigation.bind(builder))
 
+	var balldestroy: Button = panel.get_node("%btn_all_destroy")
+	balldestroy.pressed.connect(_destroy_all_bakes)
+	var ballbuild: Button = panel.get_node("%btn_all_build")
+	ballbuild.pressed.connect(_bake_everything)
+
 	var trealtime: CheckBox = panel.get_node("%toggle_realtime")
 	trealtime.button_pressed = realtime_enabled
 	trealtime.toggled.connect(_realtime_toggled)
@@ -177,7 +182,7 @@ func do_collision(builder: IslandBuilder):
 	var hulls: Array[ConvexPolygonShape3D] = builder.collision_hulls()
 	var t2 = Time.get_ticks_usec()
 	print("IslandBuilder: Collision Hulls took ", float(t2 - t1) * 0.001, " ms before instancing")
-	var out = find_output_object(builder)
+	var out = builder.target()
 
 	for child in out.get_children():
 		if child is CollisionShape3D:
@@ -201,7 +206,7 @@ func do_collision(builder: IslandBuilder):
 		out.get_parent().set_maximum_health(builder.get_volume() * builder.gameplay_health_density)
 
 func do_navigation(builder: IslandBuilder):
-	var out = find_output_object(builder)
+	var out = builder.target()
 	if out.has_method("set_navigation_properties"):
 		var nav_props: NavIslandProperties = builder.navigation_properties()
 		out.set_navigation_properties(nav_props)
@@ -216,14 +221,8 @@ func do_finalize(builder: IslandBuilder):
 	var t2 = Time.get_ticks_usec()
 	print("IslandBuilder: FINALIZE ALL took ", float(t2 - t1) * 0.001, " ms")
 
-func find_output_object(builder: IslandBuilder) -> Node:
-	var out = builder.get_node(builder.output_to)
-	if not is_instance_valid(out):
-		return builder
-	return out
-
 func find_mesh_output(builder: IslandBuilder) -> MeshInstance3D:
-	var out = find_output_object(builder)
+	var out = builder.target()
 	for child in out.get_children():
 		if child is MeshInstance3D:
 			return child
@@ -239,7 +238,46 @@ func find_mesh_output(builder: IslandBuilder) -> MeshInstance3D:
 	return mesh
 
 
-# CSG LINTING
+## DESTROY ALL BAKES ##
+func _destroy_all_bakes():
+	if is_instance_valid(last_builder):
+		var builders = fetch_all_builders(last_builder.get_tree().edited_scene_root)
+		for builder in builders:
+			if is_instance_valid(builder):
+				builder.destroy_bakes()
+	if is_instance_valid(last_builder):
+		update_shapecount(last_builder)
+		update_button_availability(last_builder)
+
+func _bake_everything():
+	if is_instance_valid(last_builder):
+		var builders = fetch_all_builders(last_builder.get_tree().edited_scene_root)
+		for builder in builders:
+			if is_instance_valid(builder):
+				builder.serialize()
+				builder.net()
+				builder.optimize()
+				do_finalize(builder)
+
+				if builder.target() != builder:
+					builder.visible = false
+
+	if is_instance_valid(last_builder):
+		update_shapecount(last_builder)
+		update_volume(last_builder)
+		update_mass(last_builder)
+		update_hitpoints(last_builder)
+
+# Fetches all IslandBuilder nodes under the given node, inclusive
+func fetch_all_builders(current: Node, builders: Array[IslandBuilder] = []) -> Array[IslandBuilder]:
+	if current is IslandBuilder:
+		builders.append(current)
+	for child in current.get_children():
+		fetch_all_builders(child, builders)
+	return builders
+
+## CSG LINTING ##
+
 const LINT_PREFIXES = [
 	"UNION_",
 	"INTERSECT_",
@@ -302,7 +340,9 @@ func lint_node_recursive(node: Node):
 		lint_node_recursive(child)
 	lint_node(node)
 
-# REALTIME PREVIEW
+
+## REALTIME PREVIEW ##
+
 var realtime_thread: Thread
 var realtime_queued: bool = false
 var realtime_last_update: int = -1

@@ -657,7 +657,8 @@ impl IslandBuilder {
 
     /// Fetches the output node for this IslandBuilder.
     /// If no output is specified, uses this node instead.
-    fn fetch_output_node(&mut self) -> Gd<Node> {
+    #[func]
+    fn target(&mut self) -> Gd<Node> {
         let target = self.base().get_node_or_null(&self.output_to);
         match target {
             Some(node) => node,
@@ -673,7 +674,7 @@ impl IslandBuilder {
         self.data.mesh = None;
         self.data.optimized = false;
 
-        let mut out = self.fetch_output_node();
+        let mut out = self.target();
         // Iterate over all children.
         for child in out.get_children().iter_shared() {
             // If this is a MeshInstance3D, destroy it
