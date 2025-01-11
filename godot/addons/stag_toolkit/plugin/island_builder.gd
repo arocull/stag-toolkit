@@ -1,7 +1,7 @@
 extends EditorInspectorPlugin
 
-const TWEAK_TIMER_THRESHOLD = 1000 # After 1 second idle time, update preview
-const TWEAK_TIMEOUT_THRESHOLD = 10000 # After 10 seconds, reset the queue
+const TWEAK_TIMER_THRESHOLD = 1000 ## After 1 second idle time, update preview
+const TWEAK_TIMEOUT_THRESHOLD = 10000 ## After 10 seconds, reset the queue
 
 const PRECOMPUTE_REQUIRED_BUTTONS = [
 	"btn_mesh_preview",
@@ -149,7 +149,7 @@ func do_metaclear(node: Node):
 	node.remove_meta("edge_radius")
 	node.remove_meta("hull_zscore")
 
-# Destroys any binary IslandBuilder data for safe git saving
+## Destroys any binary IslandBuilder data for safe git saving
 func do_destroy(node: IslandBuilder):
 	node.destroy_bakes()
 	update_shapecount(node)
@@ -251,7 +251,7 @@ func _bake_everything():
 		update_mass(last_builder)
 		update_hitpoints(last_builder)
 
-# Fetches all IslandBuilder nodes under the given node, inclusive
+## Fetches all IslandBuilder nodes under the given node, inclusive
 func fetch_all_builders(current: Node, builders: Array[IslandBuilder] = []) -> Array[IslandBuilder]:
 	if current is IslandBuilder:
 		builders.append(current)
@@ -272,7 +272,7 @@ func _csg_linter(new_state: bool):
 	if csg_linting and is_instance_valid(last_builder):
 		lint_node_recursive(last_builder)
 
-# Lints the given string with the according suffix
+## Lints the given string with the according suffix
 func lint_name(name: String, operation: int, suffix: String):
 	# Generic names should always be replaced
 	var tailor: bool = name.begins_with("CSG")
@@ -296,7 +296,7 @@ func lint_name(name: String, operation: int, suffix: String):
 			name = "SUBTRACT_"
 	return name + suffix
 
-# Returns a material to represent the given CSG operation
+## Returns a material to represent the given CSG operation
 func lint_material(operation: int):
 	match operation:
 		0: #OPERATION_UNION:
@@ -308,7 +308,7 @@ func lint_material(operation: int):
 		_:
 			return load("res://addons/stag_toolkit/utils/shaders/matdebug_overdraw.tres")
 
-# Performs CSG linting on the given node for better readability
+## Performs CSG linting on the given node for better readability
 func lint_node(node: Node):
 	if is_instance_valid(last_builder) and last_builder.is_ancestor_of(node):
 		if node is CSGBox3D:
@@ -331,11 +331,11 @@ var realtime_queued: bool = false
 var realtime_last_update: int = -1
 var realtime_dirty: bool = false
 
-# Initializes the realtime thread
+## Initializes the realtime thread
 func thread_init() -> void:
 	realtime_thread = Thread.new()
 	EditorInterface.get_inspector().property_edited.connect(on_property_change)
-# Deinitializes the realtime thread
+## Deinitializes the realtime thread
 func thread_deinit() -> void:
 	if realtime_thread.is_started():
 		realtime_thread.wait_to_finish()
@@ -346,7 +346,7 @@ func _realtime_toggled(new_state: bool) -> void:
 	if realtime_thread.is_started():
 		realtime_thread.wait_to_finish()
 
-# Unbind tree and property updates from mesh generation
+## Unbind tree and property updates from mesh generation
 func unbind_realtime(node: Node) -> void:
 	if node.child_entered_tree.is_connected(on_child_added):
 		node.child_entered_tree.disconnect(on_child_added)
@@ -359,7 +359,7 @@ func unbind_realtime(node: Node) -> void:
 			node.visibility_changed.disconnect(update_realtime_preview)
 	for child in node.get_children():
 		unbind_realtime(child)
-# Bind tree and property updates to mesh regeneration
+## Bind tree and property updates to mesh regeneration
 func bind_realtime(node: Node, top_level: bool = false) -> void:
 	if top_level:
 		node.child_order_changed.connect(update_realtime_preview)
@@ -404,14 +404,12 @@ func _check_transforms_internal(node: Node) -> void:
 		var old_transform: Transform3D = transforms.get(node.get_instance_id(), node.transform)
 		if not old_transform.is_equal_approx(node.transform):
 			update_realtime_preview()
-			# print("transform updated, requesting realtime preview")
-			#return # We don't need to check the rest of the transforms!
 		transforms[node.get_instance_id()] = node.transform
 
 	for child in node.get_children():
 		_check_transforms_internal(child)
 
-# Called if the IslandBuilder tree changed somehow
+## Called if the IslandBuilder tree changed somehow
 func update_realtime_preview(dirty: bool = true):
 	if not realtime_enabled: return
 
@@ -422,21 +420,16 @@ func update_realtime_preview(dirty: bool = true):
 	_update_realtime_preview_deferred.call_deferred()
 
 func _update_realtime_preview_deferred():
-	# print("update realtime preview event")
 	last_builder.serialize()
 	if realtime_thread.is_started():
-		# print("Awaiting thread")
 		realtime_thread.wait_to_finish()
 	realtime_thread.start(_realtime_preview.bind(last_builder, _realtime_preview_finish.bind(last_builder)))
 
 func _realtime_preview(builder: IslandBuilder, on_finish: Callable) -> void:
 	Thread.set_thread_safety_checks_enabled(false)
-	# print("doing nets")
 	if builder.net(): return # Buffer was empty
-	# print("doing mesh preview")
 	on_finish.call_deferred(builder.mesh_preview(null))
 func _realtime_preview_finish(new_mesh: ArrayMesh, builder: IslandBuilder) -> void:
-	# print("applying realtime")
 	builder.target_mesh().mesh = new_mesh
 	realtime_queued = false
 	realtime_last_update = Time.get_ticks_msec()

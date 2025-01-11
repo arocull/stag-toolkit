@@ -8,8 +8,8 @@ const DEFAULT_TIME_SCALE: float = 1.0
 
 # Singleton for handling tests.
 
-signal test_post_ready()
-signal test_pre_exit()
+signal test_post_ready() ## Called just after beginning a test.
+signal test_pre_exit() ## Called just before exiting a test.
 
 enum ExitCodes {
 	Ok = OK,
@@ -18,13 +18,13 @@ enum ExitCodes {
 }
 
 class BenchmarkResult extends RefCounted:
-	var count: int = 0 # Number of times benchmark Callable was ran
-	var min: float = 0 # Minimum completion time, in milliseconds
-	var max: float = 0 # Maximum completion time, in milliseconds
-	var mean: float = 0 # Average completion time, in milliseconds
-	var median: float = 0 # Median completion time, in milliseconds
-	var standard_deviation: float = 0 # Standard deviation of completion time, in milliseconds
-	# Converts the benchmark result into a dictionary.
+	var count: int = 0 ## Number of times benchmark Callable was ran
+	var min: float = 0 ## Minimum completion time, in milliseconds
+	var max: float = 0 ## Maximum completion time, in milliseconds
+	var mean: float = 0 ## Average completion time, in milliseconds
+	var median: float = 0 ## Median completion time, in milliseconds
+	var standard_deviation: float = 0 ## Standard deviation of completion time, in milliseconds
+	## Converts the benchmark result into a dictionary.
 	func dict() -> Dictionary:
 		return {
 			"count": self.count,
@@ -167,7 +167,7 @@ func __begin(test_root: String):
 func __join_path(directory: String, relpath: String) -> String:
 	return "{0}/{1}".format([directory, relpath]).simplify_path()
 
-# Deferable method for rich printing.
+## Deferable method for rich printing.
 func __print_rich(msg: String) -> void:
 	print_rich(msg)
 
@@ -330,7 +330,7 @@ func __format_assertion_message(message: String):
 		return message
 	return ": {0}".format([message])
 
-# Takes a time duration in microseconds, formatting it to a string.
+## Takes a time duration in microseconds, formatting it to a string.
 func __format_duration(t: float) -> String:
 	if t > 1e8:
 		return "%4.4f s" % (t/1e8)
@@ -338,7 +338,7 @@ func __format_duration(t: float) -> String:
 		return "%4.4f ms" % (t/1e4)
 	return "%4.4f μs" % t
 
-# Adds a report for the current test to the reports list.
+## Adds a report for the current test to the reports list.
 func __add_report(reports_list: Dictionary, new_report: Variant, label: String):
 	var r: Dictionary = reports_list.get(path(), Dictionary()) # Fetch all reports for this test
 
@@ -348,7 +348,7 @@ func __add_report(reports_list: Dictionary, new_report: Variant, label: String):
 
 	r[label] = new_report # Set our new report
 
-# Outputs reports to the given directory
+## Outputs reports to the given directory
 func __output_reports():
 	# Write no reports if specified not to
 	if _reports_path.is_empty():
@@ -381,34 +381,34 @@ func __quit_default(status: int):
 
 ## SETUP CALLS ##
 
-# Overrides the runtime exit function, in case the game needs additional teardown steps.
+## Overrides the runtime exit function, in case the game needs additional teardown steps.
 func override_exit_function(new_quit: Callable) -> void:
 	_quit_function = new_quit
 
-# Returns true if StagTest is testing, in case the game needs to avoid certain setup steps.
+## Returns true if StagTest is testing, in case the game needs to avoid certain setup steps.
 func is_active() -> bool:
 	return args.has("stagtest")
 
 ### TEST CALLABLES ###
 
-# Returns the path of the active test.
+## Returns the path of the active test.
 func path() -> String:
 	return tests[test_idx]
 
-# Sets the pause of the scene tree.
+## Sets the pause of the scene tree.
 func pause(paused: bool) -> void:
 	get_tree().paused = paused
 
-# Sets the engine time scale.
+## Sets the engine time scale.
 func time_scale(new_scale: float = _time_scale_base) -> void:
 	Engine.time_scale = new_scale
 
-# Puts the test into Teardown mode.
-# If the test is not skipped or failed during Teardown, it passes.
+## Puts the test into Teardown mode.
+## If the test is not skipped or failed during Teardown, it passes.
 func teardown() -> void:
 	__cleanup_test()
 
-# Puts the test into Teardown mode (if not already), skipping the remainder of the test.
+## Puts the test into Teardown mode (if not already), skipping the remainder of the test.
 func skip(reason: String) -> void:
 	if in_test:
 		__cleanup_test()
@@ -418,7 +418,7 @@ func skip(reason: String) -> void:
 		test_data["post_test_message"] = "[color=yellow]SKIPPED {0} for reason:\n\t{1}[/color]\n\n".format([path(), reason])
 		test_resulted = true
 
-# Puts the test into Teardown mode (if not already), marking the test as failed.
+## Puts the test into Teardown mode (if not already), marking the test as failed.
 func fail(reason: String) -> void:
 	if in_test:
 		__cleanup_test()
@@ -429,11 +429,11 @@ func fail(reason: String) -> void:
 		test_data["post_test_message"] = "[color=red]FAILED {0} for reason:\n\t{1}[/color]\n\n".format([path(), reason])
 		test_resulted = true
 
-# Performs a timing benchmark of the Callable (with no arguments) the specified number of times, returning an analysis.
-# If timeout is greater than zero, forcibly stops benchmark after X many seconds.
-# If a test is skipped or failed during the benchmark, the benchmark exits without completing all iterations.
-# Results are always in microseconds, unless otherwise specified.
-# Use the `--bench` flag when running to output benchmark results.
+## Performs a timing benchmark of the Callable (with no arguments) the specified number of times, returning an analysis.
+## If timeout is greater than zero, forcibly stops benchmark after X many seconds.
+## If a test is skipped or failed during the benchmark, the benchmark exits without completing all iterations.
+## Results are always in microseconds, unless otherwise specified.
+## Use the `--bench` flag when running to output benchmark results.
 func benchmark(f: Callable, count: int, label: String, timeout: float = -1) -> BenchmarkResult:
 	if count <= 0:
 		fail("for benchmark \"{0}\": benchmark count must be greater than 0".format([label]))
@@ -479,31 +479,31 @@ func benchmark(f: Callable, count: int, label: String, timeout: float = -1) -> B
 
 	return res
 
-# Assert that a given value is true.
+## Assert that a given value is true.
 func assert_true(value: bool, message: String = "") -> void:
 	test_data["assertions"] += 1
 	if not value:
 		fail("assert wasn't true{0}".format([__format_assertion_message(message)]))
 
-# Assert that two values are equal.
+## Assert that two values are equal.
 func assert_equal(a: Variant, b: Variant, message: String = "") -> void:
 	test_data["assertions"] += 1
 	if not a == b:
 		fail("assert {0} == {1} wasn't equal{2}".format([a, b, __format_assertion_message(message)]))
 
-# Assert that two values are NOT equal.
+## Assert that two values are NOT equal.
 func assert_unequal(a: Variant, b: Variant, message: String = "") -> void:
 	test_data["assertions"] += 1
 	if a == b:
 		fail("assert {0} == {1} was equal{2}".format([a, b, __format_assertion_message(message)]))
 
-# Assert that the given instance is valid.
+## Assert that the given instance is valid.
 func assert_valid(a: Object, message: String = "") -> void:
 	test_data["assertions"] += 1
 	if not is_instance_valid(a):
 		fail("assert {0} was not a valid instance{1}".format([a, __format_assertion_message(message)]))
 
-# Assert that two values are equal, within a threshold amount.
+## Assert that two values are equal, within a threshold amount.
 func assert_approx_equal(a: Variant, b: Variant, threshold: float = 1e-5, message: String = "") -> void:
 	test_data["assertions"] += 1
 
@@ -521,11 +521,11 @@ func assert_approx_equal(a: Variant, b: Variant, threshold: float = 1e-5, messag
 		fail("assert {0} ~= {1} wasn't equal{2}".format([a, b, __format_assertion_message(message)]))
 
 
-# Pass: the signal, a function with as many arguments as the signal takes, plus a callable, that is invoked.
-# Message may be any additional error context you want on failure.
-# Returns a Signal expector that, when called with a boolean argument (which defaults to true):
-#	true: will fail the test if the given Signal was NOT emitted
-#	false: will fail the test if the given Signal WAS emitted
+## Pass: the signal, a function with as many arguments as the signal takes, plus a callable, that is invoked.
+## Message may be any additional error context you want on failure.
+## Returns a Signal expector that, when called with a boolean argument (which defaults to true):
+## - true: will fail the test if the given Signal was NOT emitted
+## - false: will fail the test if the given Signal WAS emitted
 func signal_expector(sig: Signal, to_connect: Callable, message: String = "") -> Callable:
 	var event_data: Dictionary = { "emitted": false }
 

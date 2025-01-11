@@ -3,12 +3,12 @@ class_name StagUtils
 
 # Utility functions that are not bundled with Godot, but I wish were.
 
-# Minimum integer value, see https://docs.godotengine.org/en/stable/classes/class_int.html
+## Minimum integer value, see https://docs.godotengine.org/en/stable/classes/class_int.html
 const INTEGER_MIN: int = -9223372036854775808
-# Maximum integer value, see https://docs.godotengine.org/en/stable/classes/class_int.html
+## Maximum integer value, see https://docs.godotengine.org/en/stable/classes/class_int.html
 const INTEGER_MAX: int = 9223372036854775807
 
-# Returns a dictionary of command-line arguments used to launch the program.
+## Returns a dictionary of command-line arguments used to launch the program.
 static func get_args() -> Dictionary:
 	var arguments = {}
 	for argument in OS.get_cmdline_args():
@@ -22,9 +22,9 @@ static func get_args() -> Dictionary:
 
 	return arguments
 
-# Performs a simple factorial of the given integer.
-# Returned as a floating-point for large numbers.
-# Returns NAN if n is negative, as it is undefined behavior.
+## Performs a simple factorial of the given integer.
+## Returned as a floating-point for large numbers.
+## Returns NAN if n is negative, as it is undefined behavior.
 static func factorial(n: int) -> float:
 	if n < 0:
 		return NAN

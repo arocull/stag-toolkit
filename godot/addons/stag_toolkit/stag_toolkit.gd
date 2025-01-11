@@ -8,7 +8,7 @@ extends EditorPlugin
 # Note: Built-in editor Icon colors can be found here:
 # https://github.com/godotengine/godot/blob/4.3/editor/themes/editor_color_map.cpp
 
-# Project Settings config options
+## Project Settings config options
 var settings: Array[Dictionary] = [
 	{
 		"name": "addons/stag_toolkit/island_builder/enabled",
@@ -25,12 +25,12 @@ var settings: Array[Dictionary] = [
 	}
 ]
 
-# Defines where the docker is docked
+## Defines where the docker is docked
 enum DockerType {
 	Inspector = 0,
 }
 
-# Editor docker configurations
+## Editor docker configurations
 var dockers: Array[Dictionary] = [
 	{
 		"toggle": "addons/stag_toolkit/island_builder/enabled",
@@ -46,7 +46,7 @@ var dockers: Array[Dictionary] = [
 ## Simple LOD
 var import_simple_lod = preload("res://addons/stag_toolkit/plugin/importer/simple_lod.gd").new()
 
-# Initializes all configuration options for StagToolkit
+## Initializes all configuration options for StagToolkit
 func initialize_settings() -> void:
 	for setting in settings:
 		# Create the setting if it does not already exist
