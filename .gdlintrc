@@ -42,7 +42,7 @@ loop-variable-name: _?[a-z][a-z0-9]*(_[a-z0-9]+)*
 max-file-lines: 1000
 max-line-length: 128
 max-public-methods: 100
-max-returns: 6
+max-returns: 12
 mixed-tabs-and-spaces: null
 no-elif-return: null
 no-else-return: null

@@ -8,11 +8,14 @@ Currently equipped for Godot **4.2.2**
 
 ## Feature List
 
-- **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend
-- **[StagTest](docs/tools/stagtest.md)** framework for simulating gameplay and performing benchmarks
-- `QueueFloat` class for handling and analyzing large sets of numbers
-- Settings for importing meshes/scenes with custom LODs
+- **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend (Rust required)
+- **[StagTest](docs/tools/stagtest.md)** framework for simulating gameplay and performing benchmarks (Rust required for benchmarking)
+- **`QueueFloat`** class for handling and analyzing large sets of numbers (Rust required)
+- [**Texture/Material** importer](docs/tools/ironpress.md) for `.ironpress` files
+- "Simple LOD" importer for meshes/scenes with custom LODs
 - Shader includes and debug shaders
+
+Some features can be toggled on/off via the Project Settings under `addons/stag_toolkit`. May require an plugin reload or editor restart.
 
 ### In Repository, but Not Maintained
 - Island shader variants and textures used in Abyss

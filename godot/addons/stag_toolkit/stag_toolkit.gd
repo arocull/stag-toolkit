@@ -11,6 +11,18 @@ extends EditorPlugin
 ## Project Settings config options
 var settings: Array[Dictionary] = [
 	{
+		"name": "addons/stag_toolkit/importers/simple_lod/enabled",
+		"type": TYPE_BOOL,
+		"description": "Whether the Simple LOD scene importer is enabled or not. Requires plugin reload.",
+		"default": true,
+	},
+	{
+		"name": "addons/stag_toolkit/importers/ironpress/enabled",
+		"type": TYPE_BOOL,
+		"description": "Whether the IronPress material importer is enabled or not. Requires plugin reload.",
+		"default": true,
+	},
+	{
 		"name": "addons/stag_toolkit/island_builder/enabled",
 		"type": TYPE_BOOL,
 		"description": "Whether the IslandBuilder tool is enabled or not. Requires plugin reload.",
@@ -25,9 +37,11 @@ var settings: Array[Dictionary] = [
 	}
 ]
 
-## Defines where the docker is docked
+## Defines where/how the docker is docked
 enum DockerType {
-	Inspector = 0,
+	Inspector,
+	Import,
+	ScenePostImport,
 }
 
 ## Editor docker configurations
@@ -39,12 +53,20 @@ var dockers: Array[Dictionary] = [
 		"init": "thread_init",
 		"deinit": "thread_deinit",
 		"type": DockerType.Inspector,
+	},
+	{
+		"toggle": "addons/stag_toolkit/importer/ironpress",
+		"resource": "res://addons/stag_toolkit/plugin/importer/ironpress.gd",
+		"constructed": null,
+		"type": DockerType.Import,
+	},
+	{
+		"toggle": "addons/stag_toolkit/importer/simple_lod",
+		"resource": "res://addons/stag_toolkit/plugin/importer/simple_lod.gd",
+		"constructed": null,
+		"type": DockerType.ScenePostImport,
 	}
 ]
-
-# List of Importers
-## Simple LOD
-var import_simple_lod = preload("res://addons/stag_toolkit/plugin/importer/simple_lod.gd").new()
 
 ## Initializes all configuration options for StagToolkit
 func initialize_settings() -> void:
@@ -61,7 +83,7 @@ func _enter_tree() -> void:
 			ProjectSettings.set_setting(setting.name, setting.default)
 		ProjectSettings.add_property_info(setting)
 
-	# Register docks
+	# Register docks and importers
 	for docker in dockers:
 		if ProjectSettings.get_setting(docker.toggle, true) and docker.has("resource"):
 			# Instantiate docker
@@ -69,26 +91,30 @@ func _enter_tree() -> void:
 			docker["constructed"] = dock
 
 			# Add it as a plugin and initialize
-			add_inspector_plugin(dock)
+			match docker.type:
+				DockerType.Inspector:
+					add_inspector_plugin(dock)
+				DockerType.Import:
+					add_import_plugin(dock)
+				DockerType.ScenePostImport:
+					add_scene_post_import_plugin(dock)
+
 			if docker.has("init"):
 				dock.call(docker.init)
 
-	# Register importers
-
-	## Simple LOD
-	add_scene_post_import_plugin(import_simple_lod)
-
 func _exit_tree() -> void:
-	# Unregister importers
-
-	## Simple LOD
-	remove_scene_post_import_plugin(import_simple_lod)
-
-	# Unregister docks
+	# Unregister docks and importers
 	for docker in dockers:
 		if ProjectSettings.get_setting(docker.toggle, true) and is_instance_valid(docker.get("constructed", null)):
 			# Remove plugin and call deconstructor
-			remove_inspector_plugin(docker.constructed)
+			match docker.type:
+				DockerType.Inspector:
+					remove_inspector_plugin(docker.constructed)
+				DockerType.Import:
+					remove_import_plugin(docker.constructed)
+				DockerType.ScenePostImport:
+					remove_scene_post_import_plugin(docker.constructed)
+
 			if docker.has("deinit"):
 				docker.constructed.call(docker.deinit)
 

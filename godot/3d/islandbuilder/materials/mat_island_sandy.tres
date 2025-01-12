@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://ccomn1uvmksl" path="res://3d/islandbuilder/materials/textures/gradient_dirt.tres" id="2_q2yiv"]
 [ext_resource type="Texture2D" uid="uid://dr7dg5kqracap" path="res://3d/islandbuilder/materials/textures/noise_normal.tres" id="3_hsvpp"]
 [ext_resource type="Texture2D" uid="uid://ecst7cpkecy5" path="res://3d/islandbuilder/materials/textures/gradient_sand.tres" id="4_8q8px"]
-[ext_resource type="Texture2D" uid="uid://cho1103b20vt2" path="res://3d/islandbuilder/materials/textures/noise_generic.png" id="5_1qe5k"]
+[ext_resource type="Texture2D" uid="uid://cho1103b20vt2" path="res://3d/islandbuilder/materials/textures/noise_generic.png" id="5_xegw0"]
 
 [sub_resource type="GradientTexture1D" id="GradientTexture1D_x26um"]
 gradient = ExtResource("2_7vydk")
@@ -13,7 +13,7 @@ gradient = ExtResource("2_7vydk")
 [resource]
 render_priority = 0
 shader = ExtResource("1_2go6m")
-shader_parameter/noise_generic = ExtResource("5_1qe5k")
+shader_parameter/noise_generic = ExtResource("5_xegw0")
 shader_parameter/noise_normal = ExtResource("3_hsvpp")
 shader_parameter/gradient_rock = SubResource("GradientTexture1D_x26um")
 shader_parameter/gradient_dirt = ExtResource("2_q2yiv")
