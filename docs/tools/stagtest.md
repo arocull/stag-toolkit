@@ -87,7 +87,8 @@ Optional messages can be included for additional context.
 - `StagTest.assert_equal(a: Variant, b: Variant, message: String = "")` - Assert that two values are equal.
 - `StagTest.assert_unequal(a: Variant, b: Variant, message: String = "")` - Assert that two values are NOT equal.
 - `StagTest.assert_valid(a: Object, message: String = "")` - Assert that the given Object is valid.
-- `StagTest.assert_approx_equal(a: Variant, b: Variant, threshold: float = 1e-5, message: String = "")` - Asserts that two variants of the same type are approximately equal. Threshold is currently only implemented for scalar values.
+- `StagTest.assert_approx_equal(a: Variant, b: Variant, message: String = "")` - Utilizes Godot's built-in "approx_equal" method for comparing two values. Note that this threshold value scales based on the magnitude of the values being compared, with low-precision.
+- `StagTest.assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: String = "")` - Asserts that two variants of the same type are within a specified delta. Only some common types are supported.
 
 <br/>
 

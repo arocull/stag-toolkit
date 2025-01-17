@@ -24,7 +24,7 @@ func _ready():
 	StagTest.assert_equal(arr, queue.sorted(), "sorted")
 
 	# Assert statistics
-	StagTest.assert_approx_equal(4.7, queue.mean(), 1e-9, "mean")
-	StagTest.assert_approx_equal(2.0, queue.median(), 1e-9, "median")
+	StagTest.assert_in_delta(4.7, queue.mean(), 1e-6, "mean")
+	StagTest.assert_in_delta(2.0, queue.median(), 1e-6, "median")
 	StagTest.assert_true(Vector2(-3.0, 17.0).is_equal_approx(queue.range()), "range should be equal")
-	StagTest.assert_approx_equal(7.413501, queue.standard_deviation(), 1e-5, "standard deviation")
+	StagTest.assert_in_delta(7.413501, queue.standard_deviation(), 1e-5, "standard deviation")

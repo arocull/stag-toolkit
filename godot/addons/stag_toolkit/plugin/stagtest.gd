@@ -429,6 +429,112 @@ func fail(reason: String) -> void:
 		test_data["post_test_message"] = "[color=red]FAILED {0} for reason:\n\t{1}[/color]\n\n".format([path(), reason])
 		test_resulted = true
 
+## Assert that a given value is true.
+func assert_true(value: bool, message: String = "") -> void:
+	test_data["assertions"] += 1
+	if not value:
+		fail("assert wasn't true{0}".format([__format_assertion_message(message)]))
+
+## Assert that two values are equal.
+func assert_equal(a: Variant, b: Variant, message: String = "") -> void:
+	test_data["assertions"] += 1
+	if not a == b:
+		fail("assert {0} == {1} wasn't equal{2}".format([a, b, __format_assertion_message(message)]))
+
+## Assert that two values are NOT equal.
+func assert_unequal(a: Variant, b: Variant, message: String = "") -> void:
+	test_data["assertions"] += 1
+	if a == b:
+		fail("assert {0} == {1} was equal{2}".format([a, b, __format_assertion_message(message)]))
+
+## Assert that the given instance is valid.
+func assert_valid(a: Object, message: String = "") -> void:
+	test_data["assertions"] += 1
+	if not is_instance_valid(a):
+		fail("assert {0} was not a valid instance{1}".format([a, __format_assertion_message(message)]))
+
+## Assert that two values are equal within an epsilon value, that scales with magnitude.
+## Note: to use a specific delta threshold value, use `StagTest.assert_in_delta(...)` instead.
+func assert_approx_equal(a: Variant, b: Variant, message: String = "") -> void:
+	test_data["assertions"] += 1
+
+	# Ensure types match
+	if typeof(a) != typeof(b):
+		fail("assert {0} ~= {1} had mismatch types".format([a, b, __format_assertion_message(message)]))
+
+	var approx_equal: bool
+	if a is float or a is int:
+		approx_equal = is_equal_approx(a, b)
+	elif (a is Vector2 or a is Vector2i or a is Vector3 or a is Vector3i or a is Vector3 or a is Vector4i or
+		a is Quaternion or a is Basis or a is Transform2D or a is Transform3D or a is Plane or a is Color):
+		approx_equal = a.is_equal_approx(b)
+	else:
+		fail("assert {0} ~= {1} were not supported type".format([a, b, __format_assertion_message(message)]))
+
+## Assert that two values are equal, within a threshold amount.
+## Use `is_equal_approx()` if you must scale with magnitude.
+func assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: String = "") -> void:
+	test_data["assertions"] += 1
+
+	# Ensure types match
+	if typeof(a) != typeof(b):
+		fail("assert Δ >= | {0} - {1} | had mismatch types".format([a, b, __format_assertion_message(message)]))
+
+	var diff: float = INF
+	var approximately_equal: bool = is_same(a, b)
+	if not approximately_equal:
+		if a is float or a is int:
+			diff = abs(a - b)
+		elif a is Vector2 or a is Vector3 or a is Vector4: # Regular distance check
+			diff = a.distance_to(b)
+		elif a is Vector2i: # Otherwise, use Manhattan distance
+			diff = absi(a.x - b.x) + absi(a.y - b.y)
+		elif a is Vector3i:
+			diff = absi(a.x - b.x) + absi(a.y - b.y) + absi(a.z - b.z)
+		elif a is Vector4i:
+			diff = absi(a.x - b.x) + absi(a.y - b.y) + absi(a.z - b.z) + absi(a.w - b.w)
+		else:
+			fail("assert Δ >= | {0} - {1} | were not a supported type {4}".format([
+				a, b, delta, diff, __format_assertion_message(message)]))
+
+		approximately_equal = diff <= delta
+
+	# Return if failed
+	if not approximately_equal:
+		fail("assert Δ >= | {0} - {1} | were not in delta ({2} < {3}) {4}".format([
+			a, b, delta, diff, __format_assertion_message(message)]))
+
+
+## Pass: the signal, a function with as many arguments as the signal takes, plus a callable, that is invoked.
+## Message may be any additional error context you want on failure.
+## Returns a Signal expector that, when called with a boolean argument (which defaults to true):
+## - true: will fail the test if the given Signal was NOT emitted
+## - false: will fail the test if the given Signal WAS emitted
+func signal_expector(sig: Signal, to_connect: Callable, message: String = "") -> Callable:
+	var event_data: Dictionary = { "emitted": false }
+
+	# Stores when the event to be emitted.
+	var event_reciever = func (): event_data["emitted"] = true
+
+	# Listen for the signal to be emitted. Allow multiple connections, as data is unique each bind.
+	sig.connect(to_connect.bind(event_reciever), CONNECT_ONE_SHOT | CONNECT_REFERENCE_COUNTED)
+
+	# Call this function to process the Signal expect.
+	var event_expector = func (should_call: bool = true):
+		test_data["assertions"] += 1
+		if should_call:
+			if not event_data.get("emitted", false):
+				fail("expected {0} to be emitted{1}".format([sig.get_name(), __format_assertion_message(message)]))
+		else:
+			if event_data.get("emitted", false):
+				fail("expected {0} to NOT be emitted{1}".format([sig.get_name(), __format_assertion_message(message)]))
+
+	return event_expector
+
+
+### BEGIN RUST-ONLY FUNCTIONALITY ###
+
+
 ## Performs a timing benchmark of the Callable (with no arguments) the specified number of times, returning an analysis.
 ## If timeout is greater than zero, forcibly stops benchmark after X many seconds.
 ## If a test is skipped or failed during the benchmark, the benchmark exits without completing all iterations.
@@ -479,70 +585,5 @@ func benchmark(f: Callable, count: int, label: String, timeout: float = -1) -> B
 
 	return res
 
-## Assert that a given value is true.
-func assert_true(value: bool, message: String = "") -> void:
-	test_data["assertions"] += 1
-	if not value:
-		fail("assert wasn't true{0}".format([__format_assertion_message(message)]))
 
-## Assert that two values are equal.
-func assert_equal(a: Variant, b: Variant, message: String = "") -> void:
-	test_data["assertions"] += 1
-	if not a == b:
-		fail("assert {0} == {1} wasn't equal{2}".format([a, b, __format_assertion_message(message)]))
-
-## Assert that two values are NOT equal.
-func assert_unequal(a: Variant, b: Variant, message: String = "") -> void:
-	test_data["assertions"] += 1
-	if a == b:
-		fail("assert {0} == {1} was equal{2}".format([a, b, __format_assertion_message(message)]))
-
-## Assert that the given instance is valid.
-func assert_valid(a: Object, message: String = "") -> void:
-	test_data["assertions"] += 1
-	if not is_instance_valid(a):
-		fail("assert {0} was not a valid instance{1}".format([a, __format_assertion_message(message)]))
-
-## Assert that two values are equal, within a threshold amount.
-func assert_approx_equal(a: Variant, b: Variant, threshold: float = 1e-5, message: String = "") -> void:
-	test_data["assertions"] += 1
-
-	# Ensure types match
-	if typeof(a) != typeof(b):
-		fail("assert {0} ~= {1} had mismatch types".format([a, b, __format_assertion_message(message)]))
-
-	var approximately_equal: bool = is_equal_approx(a, b)
-	if not approximately_equal:
-		if (a is float and b is float) || (a is int and b is int):
-			approximately_equal = abs(a - b) <= threshold
-
-	# Return if failed
-	if not approximately_equal:
-		fail("assert {0} ~= {1} wasn't equal{2}".format([a, b, __format_assertion_message(message)]))
-
-
-## Pass: the signal, a function with as many arguments as the signal takes, plus a callable, that is invoked.
-## Message may be any additional error context you want on failure.
-## Returns a Signal expector that, when called with a boolean argument (which defaults to true):
-## - true: will fail the test if the given Signal was NOT emitted
-## - false: will fail the test if the given Signal WAS emitted
-func signal_expector(sig: Signal, to_connect: Callable, message: String = "") -> Callable:
-	var event_data: Dictionary = { "emitted": false }
-
-	# Stores when the event to be emitted.
-	var event_reciever = func (): event_data["emitted"] = true
-
-	# Listen for the signal to be emitted. Allow multiple connections, as data is unique each bind.
-	sig.connect(to_connect.bind(event_reciever), CONNECT_ONE_SHOT | CONNECT_REFERENCE_COUNTED)
-
-	# Call this function to process the Signal expect.
-	var event_expector = func (should_call: bool = true):
-		test_data["assertions"] += 1
-		if should_call:
-			if not event_data.get("emitted", false):
-				fail("expected {0} to be emitted{1}".format([sig.get_name(), __format_assertion_message(message)]))
-		else:
-			if event_data.get("emitted", false):
-				fail("expected {0} to NOT be emitted{1}".format([sig.get_name(), __format_assertion_message(message)]))
-
-	return event_expector
+### END RUST-ONLY FUNCTIONALITY ###
