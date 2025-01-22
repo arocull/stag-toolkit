@@ -179,31 +179,9 @@ func do_mesh_bake(builder: IslandBuilder):
 
 func do_collision(builder: IslandBuilder):
 	var t1 = Time.get_ticks_usec()
-	var hulls: Array[ConvexPolygonShape3D] = builder.collision_hulls()
+	builder.apply_physics()
 	var t2 = Time.get_ticks_usec()
-	print("IslandBuilder: Collision Hulls took ", float(t2 - t1) * 0.001, " ms before instancing")
-	var out = builder.target()
-
-	for child in out.get_children():
-		if child is CollisionShape3D:
-			child.free()
-
-	# Add collision hulls
-	for idx in range(0,hulls.size()):
-		var item: ConvexPolygonShape3D = hulls[idx]
-		var shape = CollisionShape3D.new()
-		shape.shape = item
-		shape.name = "collis{0}".format([idx])
-		out.add_child(shape)
-		shape.owner = out.get_tree().edited_scene_root
-
-	if out is RigidBody3D:
-		out.mass = builder.get_volume() * builder.gameplay_density
-		out.axis_lock_angular_x = true
-		out.axis_lock_angular_z = true
-		out.axis_lock_linear_y = true
-	if out.get_parent().has_method("set_maximum_health"):
-		out.get_parent().set_maximum_health(builder.get_volume() * builder.gameplay_health_density)
+	print("IslandBuilder: Collision Hulls took ", float(t2 - t1) * 0.001)
 
 func do_navigation(builder: IslandBuilder):
 	var out = builder.target()
@@ -224,28 +202,15 @@ func do_finalize(builder: IslandBuilder):
 ## DESTROY ALL BAKES ##
 func _destroy_all_bakes():
 	if is_instance_valid(last_builder):
-		var builders = fetch_all_builders(last_builder.get_tree().edited_scene_root)
-		for builder in builders:
-			if is_instance_valid(builder):
-				builder.destroy_bakes()
-	if is_instance_valid(last_builder):
+		IslandBuilder.all_destroy_bakes(last_builder.get_tree())
+
 		update_shapecount(last_builder)
 		update_button_availability(last_builder)
 
 func _bake_everything():
 	if is_instance_valid(last_builder):
-		var builders = fetch_all_builders(last_builder.get_tree().edited_scene_root)
-		for builder in builders:
-			if is_instance_valid(builder):
-				builder.serialize()
-				builder.net()
-				builder.optimize()
-				do_finalize(builder)
+		IslandBuilder.all_bake(last_builder.get_tree())
 
-				if builder.target() != builder:
-					builder.visible = false
-
-	if is_instance_valid(last_builder):
 		update_shapecount(last_builder)
 		update_volume(last_builder)
 		update_mass(last_builder)

@@ -2,6 +2,7 @@ use glam::{FloatExt, Mat4, Vec3};
 use noise::{NoiseFn, Perlin, Seedable};
 
 /// Perlin noise implementation that generates a 3D output value
+#[derive(Clone, Copy)]
 pub struct PerlinField {
     x: Perlin,
     y: Perlin,

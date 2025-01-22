@@ -81,6 +81,7 @@ func _import(
 	var rfs = EditorInterface.get_resource_filesystem()
 
 	# Run CLI and import associated textures
+	var ran_cli: bool = false
 	if options.get("run_cli", false):
 		var cliout: Array = []
 		var error = OS.execute(
@@ -88,8 +89,9 @@ func _import(
 			[ProjectSettings.globalize_path(source_file)],
 			cliout, true, false)
 		if error != OK:
-			push_error("IronPress Importer: Failed to run IronPress CLI, output: ", cliout)
-			return error
+			push_warning("IronPress Importer: IronPress CLI failed, skipping step. Output: ", cliout)
+		else:
+			ran_cli = true
 
 	# Figure out where output textures will be saved
 	var textures_dir: String = source_file.get_base_dir().path_join(content["output"]).simplify_path()
@@ -103,14 +105,16 @@ func _import(
 		for channel: String in channels:
 			var tex_path: String = textures_dir.path_join("{0}_{1}.png".format([mat_name, channel]))
 
-			# Tell editor file system that this file SPECIFICALLY has changed
-			rfs.update_file(tex_path)
+			# Ensure textures are imported if running CLI
+			if ran_cli:
+				# Tell editor file system that this file SPECIFICALLY has changed
+				rfs.update_file(tex_path)
 
-			# Forcibly import this file RIGHT NOW
-			var err = append_import_external_resource(tex_path)
-			if err != OK:
-				push_error("IronPress Importer: While importing {0}, failed to import texture {1}".format([source_file, tex_path]))
-				return err
+				# Forcibly import this file RIGHT NOW
+				var err = append_import_external_resource(tex_path)
+				if err != OK:
+					push_error("IronPress Importer: While importing {0}, failed to import texture {1}".format([source_file, tex_path]))
+					return err
 
 			# Optimize texture by modifying its settings
 			if options.get("optimize_textures", false):

@@ -157,6 +157,7 @@ impl TriangleOperations for Triangle {
 // MESHES //
 
 /// Container for triangle mesh data.
+#[derive(Clone)]
 pub struct TriangleMesh {
     /// Primary mesh buffer, listing the index of corresponding vertex positions and normals, in counter-clockwise face winding.
     pub triangles: Vec<Triangle>,
@@ -212,6 +213,25 @@ impl TriangleMesh {
             triangles: tris,
             positions,
             normals: norms,
+        }
+    }
+
+    /// Joins the given mesh with this one, in place.
+    /// Does not merge points or optimize the mesh in any way.
+    pub fn join(&mut self, mesh: &Self) {
+        let idx_count = self.positions.len();
+
+        // Glomp in other mesh's positions and normals
+        self.positions.append(&mut mesh.positions.clone());
+        self.normals.append(&mut mesh.normals.clone());
+
+        // Prepare to add a ton of triangles
+        self.triangles.reserve_exact(mesh.triangles.len());
+
+        // Shift each triangle index based on our current number of points
+        for tri in mesh.triangles.iter() {
+            self.triangles
+                .push([tri[0] + idx_count, tri[1] + idx_count, tri[2] + idx_count]);
         }
     }
 

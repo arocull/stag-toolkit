@@ -10,7 +10,7 @@
 [node name="MeshgenTest" type="Node3D"]
 script = ExtResource("1_ytp1n")
 
-[node name="IslandBuilder" type="IslandBuilder" parent="."]
+[node name="IslandBuilder" type="IslandBuilder" parent="." groups=["StagToolkit_IslandBuilder"]]
 output_to = NodePath("../RigidBody3D")
 material_baked = ExtResource("2_lyvhm")
 material_preview = ExtResource("3_0xy63")

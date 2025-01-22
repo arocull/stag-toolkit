@@ -114,13 +114,12 @@ impl GodotSurfaceArrays {
 }
 
 /// A collection of Signed Distance Field shapes for sampling.
+#[derive(Clone)]
 pub struct GodotWhitebox {
     /// List of shapes contained by the whitebox.
     shapes: Vec<sdf::Shape>,
     /// The default edge radius for a shape, to use when not pre-defined.
     pub default_edge_radius: f32,
-    /// The default collision hull Z-Score threshold for a shape, to use when not pre-defined.
-    pub default_hull_zscore: f32,
 }
 impl Default for GodotWhitebox {
     fn default() -> Self {
@@ -134,7 +133,6 @@ impl GodotWhitebox {
         Self {
             shapes: vec![],
             default_edge_radius: 0.0,
-            default_hull_zscore: 0.0,
         }
     }
 
@@ -264,10 +262,6 @@ impl GodotWhitebox {
     fn fetch_edge_radius(&self, node: Gd<Node>) -> f32 {
         Self::fetch_meta(node, "edge_radius".into(), self.default_edge_radius)
     }
-    // Fetches the hull ZScore of a whitebox node
-    // fn fetch_hull_zscore(&self, node: Gd<Node>) -> f32 {
-    //     Self::fetch_meta(node, "hull_zscore".into(), self.default_edge_radius)
-    // }
 }
 
 // HELPER FUNCTIONS

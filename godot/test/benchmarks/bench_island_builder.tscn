@@ -16,7 +16,7 @@ freeze = true
 [node name="mesh_island" type="MeshInstance3D" parent="RigidBody3D"]
 layers = 5
 
-[node name="IslandBuilder" type="IslandBuilder" parent="."]
+[node name="IslandBuilder" type="IslandBuilder" parent="." groups=["StagToolkit_IslandBuilder"]]
 output_to = NodePath("../RigidBody3D")
 material_baked = ExtResource("3_q3jex")
 material_preview = ExtResource("2_b1agm")

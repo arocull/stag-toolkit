@@ -1,0 +1,210 @@
+[gd_scene load_steps=7 format=3 uid="uid://278d1eswpqof"]
+
+[ext_resource type="Material" uid="uid://d64jtoqgwdle" path="res://3d/islandbuilder/materials/mat_island_sandy.tres" id="1_31xs5"]
+[ext_resource type="Script" path="res://test/benchmarks/bench_many_islands.gd" id="1_n8fg2"]
+[ext_resource type="Material" uid="uid://dofsy83ofsdua" path="res://3d/islandbuilder/materials/mat_island_sandy_nobake.tres" id="2_ulmlj"]
+[ext_resource type="Material" uid="uid://cm8v2ufi8wc32" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_union.tres" id="3_kwbm3"]
+[ext_resource type="Material" uid="uid://6ggm7dshiami" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_intersect.tres" id="4_bahb6"]
+[ext_resource type="Material" uid="uid://c64nj8mhjbl43" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_subtract.tres" id="5_2qlbs"]
+
+[node name="BenchManyIslands" type="Node3D"]
+script = ExtResource("1_n8fg2")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.866023, -0.433016, 0.250001, 0, 0.499998, 0.866027, -0.500003, 0.749999, -0.43301, 0, 0, 0)
+shadow_enabled = true
+
+[node name="isle1" type="Node3D" parent="."]
+
+[node name="body" type="RigidBody3D" parent="isle1"]
+axis_lock_linear_y = true
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+mass = 3567.61
+
+[node name="mesh_island" type="MeshInstance3D" parent="isle1/body"]
+layers = 5
+
+[node name="IslandBuilder" type="IslandBuilder" parent="isle1" groups=["StagToolkit_IslandBuilder"]]
+output_to = NodePath("../body")
+material_baked = ExtResource("1_31xs5")
+material_preview = ExtResource("2_ulmlj")
+
+[node name="UNION_box" type="CSGBox3D" parent="isle1/IslandBuilder"]
+material_override = ExtResource("3_kwbm3")
+size = Vector3(10, 10, 10)
+
+[node name="INTERSECT_sphere" type="CSGSphere3D" parent="isle1/IslandBuilder"]
+material_override = ExtResource("4_bahb6")
+operation = 1
+radius = 5.0
+
+[node name="SUBTRACT_box" type="CSGBox3D" parent="isle1/IslandBuilder"]
+transform = Transform3D(0.707107, -0.707107, 0, 0.612372, 0.612372, 0.5, -0.353553, -0.353553, 0.866025, 0, 0, 0)
+material_override = ExtResource("5_2qlbs")
+operation = 2
+size = Vector3(7, 7, 7)
+
+[node name="isle2" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, 0)
+
+[node name="body" type="RigidBody3D" parent="isle2"]
+axis_lock_linear_y = true
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+mass = 3567.61
+
+[node name="mesh_island" type="MeshInstance3D" parent="isle2/body"]
+layers = 5
+
+[node name="IslandBuilder" type="IslandBuilder" parent="isle2" groups=["StagToolkit_IslandBuilder"]]
+output_to = NodePath("../body")
+material_baked = ExtResource("1_31xs5")
+material_preview = ExtResource("2_ulmlj")
+
+[node name="UNION_box" type="CSGBox3D" parent="isle2/IslandBuilder"]
+material_override = ExtResource("3_kwbm3")
+size = Vector3(10, 10, 10)
+
+[node name="INTERSECT_sphere" type="CSGSphere3D" parent="isle2/IslandBuilder"]
+material_override = ExtResource("4_bahb6")
+operation = 1
+radius = 5.0
+
+[node name="SUBTRACT_box" type="CSGBox3D" parent="isle2/IslandBuilder"]
+transform = Transform3D(0.707107, -0.707107, 0, 0.612372, 0.612372, 0.5, -0.353553, -0.353553, 0.866025, 0, 0, 0)
+material_override = ExtResource("5_2qlbs")
+operation = 2
+size = Vector3(7, 7, 7)
+
+[node name="isle3" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, 0)
+
+[node name="body" type="RigidBody3D" parent="isle3"]
+axis_lock_linear_y = true
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+mass = 3567.61
+
+[node name="mesh_island" type="MeshInstance3D" parent="isle3/body"]
+layers = 5
+
+[node name="IslandBuilder" type="IslandBuilder" parent="isle3" groups=["StagToolkit_IslandBuilder"]]
+output_to = NodePath("../body")
+material_baked = ExtResource("1_31xs5")
+material_preview = ExtResource("2_ulmlj")
+
+[node name="UNION_box" type="CSGBox3D" parent="isle3/IslandBuilder"]
+material_override = ExtResource("3_kwbm3")
+size = Vector3(10, 10, 10)
+
+[node name="INTERSECT_sphere" type="CSGSphere3D" parent="isle3/IslandBuilder"]
+material_override = ExtResource("4_bahb6")
+operation = 1
+radius = 5.0
+
+[node name="SUBTRACT_box" type="CSGBox3D" parent="isle3/IslandBuilder"]
+transform = Transform3D(0.707107, -0.707107, 0, 0.612372, 0.612372, 0.5, -0.353553, -0.353553, 0.866025, 0, 0, 0)
+material_override = ExtResource("5_2qlbs")
+operation = 2
+size = Vector3(7, 7, 7)
+
+[node name="isle4" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -17)
+
+[node name="body" type="RigidBody3D" parent="isle4"]
+axis_lock_linear_y = true
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+mass = 3567.61
+
+[node name="mesh_island" type="MeshInstance3D" parent="isle4/body"]
+layers = 5
+
+[node name="IslandBuilder" type="IslandBuilder" parent="isle4" groups=["StagToolkit_IslandBuilder"]]
+output_to = NodePath("../body")
+material_baked = ExtResource("1_31xs5")
+material_preview = ExtResource("2_ulmlj")
+
+[node name="UNION_box" type="CSGBox3D" parent="isle4/IslandBuilder"]
+material_override = ExtResource("3_kwbm3")
+size = Vector3(10, 10, 10)
+
+[node name="INTERSECT_sphere" type="CSGSphere3D" parent="isle4/IslandBuilder"]
+material_override = ExtResource("4_bahb6")
+operation = 1
+radius = 5.0
+
+[node name="SUBTRACT_box" type="CSGBox3D" parent="isle4/IslandBuilder"]
+transform = Transform3D(0.707107, -0.707107, 0, 0.612372, 0.612372, 0.5, -0.353553, -0.353553, 0.866025, 0, 0, 0)
+material_override = ExtResource("5_2qlbs")
+operation = 2
+size = Vector3(7, 7, 7)
+
+[node name="isle5" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16, 0, -17)
+
+[node name="body" type="RigidBody3D" parent="isle5"]
+axis_lock_linear_y = true
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+mass = 3567.61
+
+[node name="mesh_island" type="MeshInstance3D" parent="isle5/body"]
+layers = 5
+
+[node name="IslandBuilder" type="IslandBuilder" parent="isle5" groups=["StagToolkit_IslandBuilder"]]
+output_to = NodePath("../body")
+material_baked = ExtResource("1_31xs5")
+material_preview = ExtResource("2_ulmlj")
+
+[node name="UNION_box" type="CSGBox3D" parent="isle5/IslandBuilder"]
+material_override = ExtResource("3_kwbm3")
+size = Vector3(10, 10, 10)
+
+[node name="INTERSECT_sphere" type="CSGSphere3D" parent="isle5/IslandBuilder"]
+material_override = ExtResource("4_bahb6")
+operation = 1
+radius = 5.0
+
+[node name="SUBTRACT_box" type="CSGBox3D" parent="isle5/IslandBuilder"]
+transform = Transform3D(0.707107, -0.707107, 0, 0.612372, 0.612372, 0.5, -0.353553, -0.353553, 0.866025, 0, 0, 0)
+material_override = ExtResource("5_2qlbs")
+operation = 2
+size = Vector3(7, 7, 7)
+
+[node name="isle6" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -16, 0, -17)
+
+[node name="body" type="RigidBody3D" parent="isle6"]
+axis_lock_linear_y = true
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+mass = 3567.61
+
+[node name="mesh_island" type="MeshInstance3D" parent="isle6/body"]
+layers = 5
+
+[node name="IslandBuilder" type="IslandBuilder" parent="isle6" groups=["StagToolkit_IslandBuilder"]]
+output_to = NodePath("../body")
+material_baked = ExtResource("1_31xs5")
+material_preview = ExtResource("2_ulmlj")
+
+[node name="UNION_box" type="CSGBox3D" parent="isle6/IslandBuilder"]
+material_override = ExtResource("3_kwbm3")
+size = Vector3(10, 10, 10)
+
+[node name="INTERSECT_sphere" type="CSGSphere3D" parent="isle6/IslandBuilder"]
+material_override = ExtResource("4_bahb6")
+operation = 1
+radius = 5.0
+
+[node name="SUBTRACT_box" type="CSGBox3D" parent="isle6/IslandBuilder"]
+transform = Transform3D(0.707107, -0.707107, 0, 0.612372, 0.612372, 0.5, -0.353553, -0.353553, 0.866025, 0, 0, 0)
+material_override = ExtResource("5_2qlbs")
+operation = 2
+size = Vector3(7, 7, 7)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 11, 22)
+current = true
