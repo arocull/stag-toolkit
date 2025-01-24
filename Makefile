@@ -1,6 +1,6 @@
-.PHONY: all clean debug build test test-rust test-godot bench godot-abyss-release godot-abyss-debug
+.PHONY: all clean debug build test test-rust test-godot bench bundle godot-abyss-release godot-abyss-debug
 
-all: debug build
+all: build
 
 clean:
 	@cargo clean
@@ -34,3 +34,7 @@ godot-abyss-release:
 	@./godot-build/build.sh abyss release 4.2.2-stable
 godot-abyss-debug:
 	@./godot-build/build.sh abyss debug 4.2.2-stable
+
+bundle: build
+	@mkdir -p build/
+	@cd godot && zip -qqr9 ../build/StagToolkit_Linux.zip addons/

@@ -1,0 +1,55 @@
+#checkov:skip:CKV2_GHA_1:Comment
+name: Build Release
+run-name: Release - ${{ gitea.event.repository.name }}
+
+on:
+  # release:
+  #   types: [published]
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    name: Bundle and Release
+    permissions:
+      id-token: write
+      contents: read
+      actions: write
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ gitea.head_ref }}
+          fetch-depth: 0
+
+      - name: Install Rust Toolchain
+        uses: crusty-pie/toolchain@v1
+        with:
+          toolchain: 1.82.0
+          override: true
+          components: rustfmt, clippy
+
+      - name: Rust Build
+        id: rust-build
+        run: cargo build --release
+
+      - name: Bundle
+        run: make bundle
+
+      # https://github.com/softprops/action-gh-release
+      # - name: Upload Release
+      #   uses: softprops/action-gh-release@v2
+      #   if: startsWith(github.ref, 'refs/tags/')
+      #   with:
+      #     files: build/StagToolkit_Linux.zip
+      #     generate_release_notes: true
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: built-toolkit
+          path: build/StagToolkit_Linux.zip

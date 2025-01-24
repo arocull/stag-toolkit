@@ -39,9 +39,9 @@ jobs:
           VALIDATE_GROOVY: false
           FIX_GROOVY: false
 
-  build:
+  test:
     runs-on: ubuntu-latest
-    name: Build and Push
+    name: Build and Test
     permissions:
       id-token: write
       contents: read
@@ -66,7 +66,7 @@ jobs:
       - name: Install Rust toolchain
         uses: crusty-pie/toolchain@v1
         with:
-          toolchain: 1.80.0
+          toolchain: 1.82.0
           override: true
           components: rustfmt, clippy
 

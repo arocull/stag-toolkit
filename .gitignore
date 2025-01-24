@@ -2,6 +2,7 @@
 target/
 rust/StagToolkit/target/
 rust/StagToolkit/rust/
+reports/
 
 ## GODOT
 godot/addons/stag_toolkit/bin/**/*.dll
