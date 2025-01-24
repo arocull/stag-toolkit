@@ -18,10 +18,15 @@ stag_toolkit/importers/ironpress/enabled=true
 [application]
 
 config/name="StagToolkit"
+config/description="All-purpose toolkit for Godot game creation."
+config/version="0.1.4"
 config/tags=PackedStringArray("abyss", "plugin", "prototype")
 run/main_scene="res://3d/startup.tscn"
 config/features=PackedStringArray("4.2", "Forward Plus")
+boot_splash/bg_color=Color(0.115683, 0.418536, 0.334711, 1)
+boot_splash/image="res://bootsplash.png"
 config/icon="res://icon.svg"
+boot_splash/minimum_display_time=250
 
 [autoload]
 
