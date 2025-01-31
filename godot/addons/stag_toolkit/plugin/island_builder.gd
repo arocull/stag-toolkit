@@ -380,7 +380,7 @@ func _update_realtime_preview_deferred():
 func _realtime_preview(builder: IslandBuilder, on_finish: Callable) -> void:
 	Thread.set_thread_safety_checks_enabled(false)
 	if builder.net(): return # Buffer was empty
-	on_finish.call_deferred(builder.mesh_preview(null))
+	on_finish.call_deferred(builder.generate_preview_mesh(null))
 func _realtime_preview_finish(new_mesh: ArrayMesh, builder: IslandBuilder) -> void:
 	builder.target_mesh().mesh = new_mesh
 	realtime_queued = false
