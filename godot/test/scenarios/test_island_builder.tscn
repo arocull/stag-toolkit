@@ -9,10 +9,11 @@
 [node name="IslandBuilder" type="Node3D"]
 script = ExtResource("1_bdgar")
 
-[node name="IslandBuilder" type="IslandBuilder" parent="."]
+[node name="IslandBuilder" type="IslandBuilder" parent="." groups=["StagToolkit_IslandBuilder"]]
 output_to = NodePath("../body")
 material_baked = ExtResource("2_ehd04")
 material_preview = ExtResource("3_1lqiu")
+visible = false
 
 [node name="UNION_box" type="CSGBox3D" parent="IslandBuilder"]
 material_override = ExtResource("4_jo25n")
@@ -39,5 +40,8 @@ size = Vector3(2, 2, 6)
 axis_lock_linear_y = true
 axis_lock_angular_x = true
 axis_lock_angular_z = true
-mass = 154.629
+mass = 38.6489
 freeze = true
+
+[node name="mesh_island" type="MeshInstance3D" parent="body"]
+layers = 5

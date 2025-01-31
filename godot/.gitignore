@@ -1,5 +1,8 @@
 # Godot 4+ specific ignores
-.godot/
+# FORCIBLY INCLUDE the Global Script Class Cache, to prevent import script errors
+.godot/*
+!.godot/global_script_class_cache.cfg
+!.godot/extension_list.cfg
 
 # StagTest Reports
 test/reports/

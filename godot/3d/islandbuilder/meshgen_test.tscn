@@ -1,6 +1,5 @@
-[gd_scene load_steps=7 format=3 uid="uid://t3qlgeb877ia"]
+[gd_scene load_steps=6 format=3 uid="uid://t3qlgeb877ia"]
 
-[ext_resource type="Script" path="res://3d/islandbuilder/meshgen_test.gd" id="1_ytp1n"]
 [ext_resource type="Material" uid="uid://d64jtoqgwdle" path="res://3d/islandbuilder/materials/mat_island_sandy.tres" id="2_lyvhm"]
 [ext_resource type="Material" uid="uid://dofsy83ofsdua" path="res://3d/islandbuilder/materials/mat_island_sandy_nobake.tres" id="3_0xy63"]
 [ext_resource type="Material" uid="uid://cm8v2ufi8wc32" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_union.tres" id="4_lkpm7"]
@@ -8,7 +7,6 @@
 [ext_resource type="Material" uid="uid://c64nj8mhjbl43" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_subtract.tres" id="6_mqddq"]
 
 [node name="MeshgenTest" type="Node3D"]
-script = ExtResource("1_ytp1n")
 
 [node name="IslandBuilder" type="IslandBuilder" parent="." groups=["StagToolkit_IslandBuilder"]]
 output_to = NodePath("../RigidBody3D")
@@ -139,5 +137,3 @@ layers = 5
 [node name="aabb_checker" type="GPUParticles3D" parent="."]
 emitting = false
 visibility_aabb = AABB(-4.30869, -7.40014, -5.58029, 9.45502, 8.70274, 10.7182)
-
-[connection signal="completed_serialize" from="IslandBuilder" to="." method="_on_island_builder_completed_serialize"]

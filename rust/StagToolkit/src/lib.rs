@@ -39,6 +39,9 @@ pub mod island;
 /// Internal implementation and Godot interfaces for primitive queues.
 pub mod primqueue;
 
+/// Sanity tests.
+// pub mod sanity;
+
 // IMPORTS //
 use godot::prelude::*;
 

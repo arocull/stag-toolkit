@@ -49,6 +49,23 @@ See the [docs](docs/), or see example usage on my [website](https://alanocull.co
 3. Copy the `godot/addons/stag_toolkit/` directory into your project as `addons/stag_toolkit/`
 4. Done!
 
+### Cross Compiling
+
+Make use Rust's target system!
+
+- Install for key x86_64 platforms: `$ rustup target add x86_64-unknown-linux-gnu x86_64-pc-windows-gnu`
+- Get a list of [all platforms](https://doc.rust-lang.org/nightly/rustc/platform-support.html): `$ rustup target list`
+- Ensure you have the proper linker installed [to make use of cargo](https://stackoverflow.com/a/62853319)
+
+Platforms still working on support for: `x86_64-apple-darwin`
+
+#### On Linux
+
+Install the proper linkers!
+
+- Ubuntu: `$ sudo apt-get install mingw-w64`
+- Fedora: `$ sudo dnf install mingw64-gcc`
+
 ### Contribution
 
 If making a contribution, please follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) standard (as best you can).

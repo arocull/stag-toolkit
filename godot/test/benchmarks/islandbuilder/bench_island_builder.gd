@@ -17,16 +17,17 @@ func _ready():
 	StagTest.benchmark(builder.optimize, 10, "optimize")
 
 	StagTest.benchmark(bench_mesh_baked, 1000, "mesh baked", 10.0)
-	StagTest.benchmark(bench_collision_hulls, 1000, "collision", 10.0)
+
+	StagTest.benchmark(bench_collision_hulls, 1000, "collision", 60.0)
 
 func bench_mesh_preview():
-	builder.mesh_preview(null)
+	builder.generate_preview_mesh(null)
 
 func bench_mesh_preview_preallocated():
-	builder.mesh_preview(preview_mesh)
+	builder.generate_preview_mesh(preview_mesh)
 
 func bench_mesh_baked():
-	builder.mesh_baked()
+	builder.generate_baked_mesh()
 
 func bench_collision_hulls():
-	builder.collision_hulls()
+	builder.generate_collision_hulls()

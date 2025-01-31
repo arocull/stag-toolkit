@@ -1,7 +1,9 @@
 use core::f32;
 use rayon::prelude::*;
-use std::{f32::consts::PI, ops::Index};
+use std::f32::consts::PI;
+use std::mem::swap;
 
+use crate::mesh::trimesh::Triangle;
 use crate::{
     math::{
         sdf::{sample_shape_list, ShapeOperation},
@@ -23,6 +25,7 @@ use godot::{
     classes::{
         mesh::PrimitiveType, physics_server_3d::BodyAxis, ArrayMesh, CollisionShape3D,
         ConvexPolygonShape3D, Material, MeshInstance3D, ProjectSettings, RigidBody3D,
+        WorkerThreadPool,
     },
     prelude::*,
 };
@@ -32,6 +35,7 @@ pub const GROUP_NAME: &str = "StagToolkit_IslandBuilder";
 
 const VOLUME_MAX_CELLS: u32 = 48;
 const VOLUME_MAX_CELLS_TRIM: u32 = 44;
+const VOLUME_WORK_GROUP_SIZE: u32 = 48 * 48 * 48;
 type IslandChunkSize = ConstShape3u32<VOLUME_MAX_CELLS, VOLUME_MAX_CELLS, VOLUME_MAX_CELLS>;
 
 /// Container for working data about a given island.
@@ -108,7 +112,6 @@ impl IslandBuildData {
     }
 
     /// Perform Naive Surface Nets algorithm on geometry.
-    /// TODO: Utilize chunking to break up task.
     fn nets(&mut self) {
         let aabb: Aabb = self
             .whitebox
@@ -137,21 +140,45 @@ impl IslandBuildData {
         let mut voxels = VolumeData::new(1.0f32, dim);
 
         // Sample SDF at every voxel
-        for i in 0u32..dim[0] * dim[1] * dim[2] {
-            let [x, y, z] = voxels.delinearize(i);
+        let mut voxel_workers = voxels.to_workers(VOLUME_WORK_GROUP_SIZE, false);
 
-            let sample_pos: Vec3 = trans.transform_point3(Vec3::new(x as f32, y as f32, z as f32));
-            let sample = sample_shape_list(shapes, sample_pos);
+        // Sample island SDF in chunks
+        voxels.data = voxel_workers
+            .par_iter_mut()
+            .flat_map(|worker| -> Vec<f32> {
+                for i in 0u32..worker.range_width {
+                    let [x, y, z] = voxels.delinearize(i + worker.range_min);
 
-            voxels.set_linear(i as usize, sample);
-        }
+                    let sample_pos: Vec3 =
+                        trans.transform_point3(Vec3::new(x as f32, y as f32, z as f32));
+                    let sample = sample_shape_list(shapes, sample_pos);
+
+                    worker.data[i as usize] = sample;
+                }
+
+                worker.data.clone()
+            })
+            .collect();
 
         // Factor noise in
         voxels.noise_add(&self.noise, trans, self.noise_w, self.noise_amplitude);
 
-        // Perform smoothing blurs
-        for _i in 0u32..self.smoothing_repetitions {
-            voxels = voxels.blur(self.smoothing_radius_voxels, self.smoothing_weight);
+        if self.smoothing_repetitions > 0 {
+            // Perform smoothing blurs, swapping between current and a buffer.
+            // DON'T recreate the buffer each time, because it guzzles performance.
+            let mut blur_buffer = VolumeData::new(1.0, dim);
+
+            for _i in 0u32..self.smoothing_repetitions {
+                voxels.blur(
+                    self.smoothing_radius_voxels,
+                    self.smoothing_weight,
+                    VOLUME_WORK_GROUP_SIZE,
+                    &mut blur_buffer,
+                );
+
+                // Swap buffers
+                swap(&mut voxels, &mut blur_buffer);
+            }
         }
 
         // Perform padding
@@ -354,11 +381,25 @@ impl IslandBuildData {
 
         let mut hulls: Vec<TriangleMesh> = vec![];
 
-        // Fetch the shape list, and allocate an equal amount of collision hulls
-        let shapes = self.whitebox.get_shapes();
+        // Fetch the shape list, retaining only Union shapes
+        let mut shapes = self.whitebox.get_shapes().clone();
+        shapes.retain(|shape| shape.operation == ShapeOperation::Union);
+
+        // Allocate a collision hull for each shape
         hulls.reserve_exact(shapes.len());
+
+        // Number of triangles to pre-allocate, based on mesh + shape size
+        let tri_prealloc = mesh.triangles.len() / shapes.len();
+
         for _ in shapes.iter() {
-            hulls.push(TriangleMesh::new(vec![], mesh.positions.clone(), None));
+            // Pre-allocate some space for triangles beforehand
+            let mut tris: Vec<Triangle> = vec![];
+            tris.reserve(tri_prealloc);
+
+            // Build trimesh
+            let trimesh = TriangleMesh::new(tris, mesh.positions.clone(), None);
+
+            hulls.push(trimesh);
         }
 
         // Assign each triangle to the nearest collision hull
@@ -370,18 +411,11 @@ impl IslandBuildData {
             let center = tri.centerpoint(&mesh.positions);
 
             for shape_idx in 0..shapes.len() {
-                let shape = shapes.index(shape_idx);
-
-                // Ignore non-union shapes
-                if shape.operation != ShapeOperation::Union {
-                    continue;
-                }
-
                 // TODO: somehow take Intersection CSG into account when sampling shapes,
                 // so collision shapes that are cut off via intersections,
                 // do not include shapes added after said intersection.
 
-                let d = shape.sample(center);
+                let d = shapes[shape_idx].sample(center);
                 if d < min_dist {
                     min_dist = d;
                     min_shape_idx = shape_idx;
@@ -397,8 +431,10 @@ impl IslandBuildData {
                 mesh.decimate_planar(
                     self.collision_decimate_angle,
                     self.collision_decimate_iterations,
+                    8,
                 );
             }
+
             mesh.optimize(self.collision_merge_distance);
         });
 
@@ -590,6 +626,16 @@ impl IslandBuilder {
         self.data.mesh.is_some()
     }
 
+    /// Returns an estimation of the AABB for the island based off the serialized whitebox,
+    /// factoring noise into account.
+    #[func]
+    fn estimate_aabb(&self) -> Aabb {
+        self.data
+            .whitebox
+            .get_aabb()
+            .expand(Vec3Godot::splat(self.noise_amplitude))
+    }
+
     // Setters //
 
     // Build Steps //
@@ -640,7 +686,6 @@ impl IslandBuilder {
         self.data.whitebox.clear();
         self.apply_settings();
         self.data.whitebox.serialize_from(self.base().to_godot());
-        self.base_mut().emit_signal("completed_serialize", &[]);
     }
 
     /// Performs Surface Nets Algorithm, storing it in the IslandBuilderData for future use.
@@ -649,22 +694,19 @@ impl IslandBuilder {
     pub fn net(&mut self) -> bool {
         self.apply_settings();
         self.data.nets();
-
-        self.base_mut().emit_signal("completed_nets", &[]);
-
         self.data.mesh.is_none()
     }
 
-    /// Optimizes the mesh, if it has not been optimized already, for baking and gameplay.
+    /// Optimizes the mesh, if it has not been optimized already, for baking steps.
     #[func]
     pub fn optimize(&mut self) {
         self.data.optimize_mesh();
     }
 
-    /// Returns a simple triangle mesh for previewing, without baking any data.
+    /// Returns an unoptimized triangle mesh for previewing with no extra information baked-in.
     /// Returns an empty mesh if not pre-computed.
     #[func]
-    pub fn mesh_preview(&self, recycle_mesh: Option<Gd<ArrayMesh>>) -> Gd<ArrayMesh> {
+    pub fn generate_preview_mesh(&self, recycle_mesh: Option<Gd<ArrayMesh>>) -> Gd<ArrayMesh> {
         let mut mesh: Gd<ArrayMesh>;
         match recycle_mesh {
             Some(recycle) => {
@@ -695,7 +737,7 @@ impl IslandBuilder {
     /// Returns an empty mesh if not pre-computed.
     /// Optimizes the mesh data beforehand, if not already optimized.
     #[func]
-    pub fn mesh_baked(&mut self) -> Gd<ArrayMesh> {
+    pub fn generate_baked_mesh(&mut self) -> Gd<ArrayMesh> {
         self.apply_settings();
         self.optimize();
 
@@ -720,7 +762,7 @@ impl IslandBuilder {
     /// Returns an empty array if not pre-computed.
     /// Optimizes the mesh data beforehand, if not already optimized.
     #[func]
-    pub fn collision_hulls(&mut self) -> Array<Gd<ConvexPolygonShape3D>> {
+    pub fn generate_collision_hulls(&mut self) -> Array<Gd<ConvexPolygonShape3D>> {
         self.apply_settings();
         self.optimize();
 
@@ -742,7 +784,7 @@ impl IslandBuilder {
     /// Computes and returns the navigation properties of the island.
     /// Properties will be zero'd if not pre-computed.
     #[func]
-    fn navigation_properties(&self) -> Gd<NavIslandProperties> {
+    fn generate_navigation_properties(&self) -> Gd<NavIslandProperties> {
         let mut props = NavIslandProperties::new_gd();
         let aabb = self.get_aabb();
 
@@ -757,19 +799,16 @@ impl IslandBuilder {
         props
     }
 
-    /// Returns an estimation of the AABB for the island based off the serialized whitebox,
-    /// factoring noise into account.
+    /// Applies the given mesh to the island output.
     #[func]
-    fn estimate_aabb(&self) -> Aabb {
-        self.data
-            .whitebox
-            .get_aabb()
-            .expand(Vec3Godot::splat(self.noise_amplitude))
+    fn apply_mesh(&mut self, mesh: Gd<ArrayMesh>) {
+        self.target_mesh().set_mesh(&mesh);
     }
 
-    /// Regenerates collision hulls and sets up physics properties on the destination, if possible.
+    /// Applies the given list of collision shapes to the island output.
+    /// Sets up physics properties on RigidBodies when possible.
     #[func]
-    fn apply_physics(&mut self) {
+    fn apply_collision_hulls(&mut self, hulls: Array<Gd<ConvexPolygonShape3D>>, volume: f32) {
         let mut target = self.target();
 
         // Remove all current collider children
@@ -785,7 +824,6 @@ impl IslandBuilder {
         }
 
         // Get collision hulls
-        let hulls = self.collision_hulls();
         for (idx, hull) in hulls.iter_shared().enumerate() {
             let mut shape = CollisionShape3D::new_alloc();
             shape.set_shape(&hull);
@@ -802,7 +840,7 @@ impl IslandBuilder {
 
         // Apply physics properties
         if let Ok(mut rigid) = target.clone().try_cast::<RigidBody3D>() {
-            rigid.set_mass(self.get_volume() * self.gameplay_density);
+            rigid.set_mass(volume * self.gameplay_density);
             rigid.set_axis_lock(BodyAxis::ANGULAR_X, true);
             rigid.set_axis_lock(BodyAxis::ANGULAR_Z, true);
             rigid.set_axis_lock(BodyAxis::LINEAR_Y, true);
@@ -813,11 +851,18 @@ impl IslandBuilder {
             if p.has_method("set_maximum_health") {
                 p.call(
                     "set_maximum_health",
-                    &[Variant::from(
-                        self.get_volume() * self.gameplay_health_density,
-                    )],
+                    &[Variant::from(volume * self.gameplay_health_density)],
                 );
             }
+        }
+    }
+
+    /// Applies the given `NavIslandProperties` to the island output, if possible.
+    #[func]
+    fn apply_navigation_properties(&mut self, props: Gd<NavIslandProperties>) {
+        let mut p = self.base_mut();
+        if p.has_method("set_navigation_properties") {
+            p.call("set_navigation_properties", &[Variant::from(props)]);
         }
     }
 
@@ -908,14 +953,70 @@ impl IslandBuilder {
         }
     }
 
+    /// Performs all `IslandBuilder` baking steps in order, and applies the results.
+    /// If running on a thread, pass `true` for `thread` safe-calls only.
+    #[func]
+    fn build(&mut self, threaded: bool) {
+        // Perform initial data setup
+        self.apply_settings();
+        if !threaded {
+            self.serialize();
+        }
+        self.net();
+        self.optimize();
+
+        // Generate result data
+        let mesh = self.generate_baked_mesh();
+        let hulls = self.generate_collision_hulls();
+        let navprops = self.generate_navigation_properties();
+        let volume = self.get_volume();
+
+        // Apply results
+        if threaded {
+            // Make a deferred call if necessary.
+            self.base_mut().call_deferred(
+                "apply_build_data",
+                &[
+                    mesh.to_variant(),
+                    hulls.to_variant(),
+                    Variant::from(volume),
+                    navprops.to_variant(),
+                ],
+            );
+        } else {
+            self.apply_build_data(mesh, hulls, volume, navprops);
+        }
+    }
+
+    /// Applies the provided build data to the island output.
+    /// Called by `build(...)` automatically, this function is separated for multi-threading purposes only.
+    #[func]
+    fn apply_build_data(
+        &mut self,
+        mesh: Gd<ArrayMesh>,
+        hulls: Array<Gd<ConvexPolygonShape3D>>,
+        volume: f32,
+        navprops: Gd<NavIslandProperties>,
+    ) {
+        self.apply_mesh(mesh);
+        self.apply_collision_hulls(hulls, volume);
+        self.apply_navigation_properties(navprops);
+
+        let target = self.base().get_node_or_null(&self.output_to);
+        if let Some(_) = target {
+            self.base_mut().set_visible(false);
+        }
+    }
+
     /// Returns a list of ALL IslandBuilder nodes within the `"StagToolkit_IslandBuilder"` group in the given SceneTree.
-    fn all_builders(mut tree: Gd<SceneTree>) -> Vec<Gd<Self>> {
+    #[func]
+    fn all_builders(mut tree: Gd<SceneTree>) -> Array<Gd<Self>> {
         let nodes = tree.get_nodes_in_group(GROUP_NAME);
-        let mut builders: Vec<Gd<Self>> = vec![];
+        let mut builders: Array<Gd<Self>> = array![];
 
         for node in nodes.iter_shared() {
             match node.try_cast::<Self>() {
-                Ok(isle) => builders.push(isle),
+                Ok(isle) => builders.push(&isle),
                 Err(_none) => {}
             }
         }
@@ -926,8 +1027,7 @@ impl IslandBuilder {
     /// Destroys bakes on **ALL** IslandBuilder nodes within the `"StagToolkit_IslandBuilder"` group in the given SceneTree.
     #[func]
     fn all_destroy_bakes(tree: Gd<SceneTree>) {
-        let mut builders = Self::all_builders(tree);
-        for builder in builders.iter_mut() {
+        for mut builder in Self::all_builders(tree).iter_shared() {
             builder.bind_mut().destroy_bakes();
         }
     }
@@ -935,51 +1035,61 @@ impl IslandBuilder {
     /// Serializes, precomputes and bakes on **ALL** IslandBuilder nodes within the
     /// `"StagToolkit_IslandBuilder"` group in the given SceneTree.
     /// The IslandBuilder will destroy bakes beforehand.
+    /// @experimental: This function is awaiting some fixes `godot-rust` fixes.
     #[func]
     fn all_bake(tree: Gd<SceneTree>) {
-        // First, serialize everything.
-        let mut builders = Self::all_builders(tree);
-        let mut builddata = vec![];
+        println!("IslandBuilder: Building islands in parallel...");
 
-        // Apply settings and serialize all IslandBuilder shapes.
-        println!("IslandBuilder: Serializing islands and copying data!");
-        for builder in builders.iter_mut() {
-            let mut isle = builder.bind_mut();
-            isle.apply_settings();
-            isle.serialize();
+        // Fetch all builder shapes in the scene tree and serialize them
+        let builders = Self::all_builders(tree);
 
-            // Clone data out of IslandBuilder for parallelization.
-            isle.data.mesh = None;
-            builddata.push(isle.data.clone());
+        println!("Builders size {0}", builders.len());
+        // Ensure all Island Builders are serialized before threading
+        for builder in builders.iter_shared() {
+            builder.clone().bind_mut().serialize();
         }
 
-        // Perform net and optimization steps in parallel.
-        println!("IslandBuilder: Performing precompute steps!");
-        builddata.par_iter_mut().for_each(|dat| {
-            dat.nets();
-            dat.optimize_mesh();
-        });
+        // Get callable to our class' static single-island bake method,
+        // and bind our list of working islands to it.
+        let bake_method = Callable::from_local_static(
+            &Self::class_name().to_string_name(),
+            "internal_bake_single",
+        )
+        .bind(&[builders.to_variant()]);
 
-        // Finally, re-apply data and perform bakes
-        println!("IslandBuilder: Performing bakes!");
-        for (idx, builder) in builders.iter_mut().enumerate() {
-            let mut isle = builder.bind_mut();
-            // Apply new island data
-            isle.data = builddata[idx].clone();
+        // Fetch worker pool
+        let mut workerpool = WorkerThreadPool::singleton();
 
-            // Bake mesh
-            isle.target_mesh().set_mesh(&isle.mesh_baked());
-            // Build physics
-            isle.apply_physics();
-            // TODO: navigation
-        }
+        // Allocate and run worker threads
+        let group_id = workerpool
+            .add_group_task_ex(&bake_method, builders.len() as i32)
+            .high_priority(true)
+            .description("StagToolkit > IslandBuilder > bake all islands in scene")
+            .done();
+
+        // Wait for groups to finish
+        workerpool.wait_for_group_task_completion(group_id);
+
         println!("IslandBuilder: Done!");
     }
 
-    /// Emitted upon completing serialization.
-    #[signal]
-    pub fn completed_serialize();
-    /// Emitted upon completing pre-computation step.
-    #[signal]
-    pub fn completed_nets();
+    /// Bakes a single island. Intended for WorkerThreadPool threads.
+    /// @experimental: This function is awaiting some fixes `godot-rust` fixes.
+    #[func]
+    fn internal_bake_single(idx: i32, isles: Array<Gd<Self>>) {
+        // Ensure we don't go out of bounds
+        if idx as usize > isles.len() {
+            return;
+        }
+
+        let mut isle = isles.at(idx as usize).clone();
+        isle.bind_mut().build(true);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // fn test_binds() {
+
+    // }
 }

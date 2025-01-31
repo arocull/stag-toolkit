@@ -5,7 +5,6 @@ const TWEAK_TIMEOUT_THRESHOLD = 10000 ## After 10 seconds, reset the queue
 
 const PRECOMPUTE_REQUIRED_BUTTONS = [
 	"btn_mesh_preview",
-	"btn_finalize",
 	"btn_mesh_bake",
 	"btn_collision",
 	"btn_navigation",
@@ -41,17 +40,10 @@ func _parse_begin(object: Object) -> void:
 		realtime_enabled = false # Disable realtime meshing when re-entering an island builder
 		transforms.clear()
 
-		if is_instance_valid(last_builder):
+		if is_instance_valid(last_builder) and last_builder.is_inside_tree():
 			unbind_realtime(last_builder)
-			if last_builder.completed_serialize.is_connected(_on_serialize):
-				last_builder.completed_serialize.disconnect(_on_serialize)
-			if last_builder.completed_nets.is_connected(_on_precompute):
-				last_builder.completed_nets.disconnect(_on_precompute)
 			if last_builder.get_tree().process_frame.is_connected(_check_transforms):
 				last_builder.get_tree().process_frame.disconnect(_check_transforms)
-
-		builder.completed_serialize.connect(_on_serialize.bind(builder), CONNECT_DEFERRED)
-		builder.completed_nets.connect(_on_precompute.bind(builder), CONNECT_DEFERRED)
 
 		bind_realtime(builder)
 
@@ -103,9 +95,9 @@ func _parse_begin(object: Object) -> void:
 	add_custom_control(panel)
 
 func fetch_builder_ancestor(object: Node) -> IslandBuilder:
-	if object is IslandBuilder and object.has_method("net"):
+	if object is IslandBuilder:
 		return object
-	if not is_instance_valid(object.get_parent()) or object.get_tree().current_scene == self:
+	if not is_instance_valid(object.get_parent()) or object.get_tree().current_scene == object:
 		return null
 	return fetch_builder_ancestor(object.get_parent())
 
@@ -125,19 +117,11 @@ func update_hitpoints(builder: IslandBuilder):
 	panel.get_node("%hitpoints").text = "%.2f HP" % (builder.get_volume() * builder.gameplay_health_density)
 
 func do_serialize(builder: IslandBuilder):
-	var t1 = Time.get_ticks_usec()
 	builder.serialize()
-	var t2 = Time.get_ticks_usec()
-	print("IslandBuilder: Serialized in ", float(t2 - t1) * 0.001, " ms")
-func _on_serialize(builder: IslandBuilder):
 	update_shapecount(builder)
 	update_button_availability(builder)
 func do_precompute(builder: IslandBuilder):
-	var t1 = Time.get_ticks_usec()
 	builder.net()
-	var t2 = Time.get_ticks_usec()
-	print("IslandBuilder: Pre-computation took ", float(t2 - t1) * 0.001, " ms")
-func _on_precompute(builder: IslandBuilder):
 	update_volume(builder)
 	update_mass(builder)
 	update_hitpoints(builder)
@@ -156,48 +140,38 @@ func do_destroy(node: IslandBuilder):
 	update_button_availability(node)
 
 func do_mesh_preview(builder: IslandBuilder):
-	var t1 = Time.get_ticks_usec()
-	builder.target_mesh().mesh = builder.mesh_preview(null)
-	var t2 = Time.get_ticks_usec()
-	print("IslandBuilder: Mesh preview took ", float(t2 - t1) * 0.001, " ms")
+	builder.apply_mesh(builder.generate_preview_mesh(builder.target_mesh().mesh))
 
 func do_mesh_bake(builder: IslandBuilder):
-	var t1 = Time.get_ticks_usec()
-	var mesh: ArrayMesh = builder.mesh_baked()
-	var t2 = Time.get_ticks_usec()
-	print("IslandBuilder: Mesh bake took ", float(t2 - t1) * 0.001, " ms before LOD")
+	var mesh: ArrayMesh = builder.generate_baked_mesh()
 
 	# Set mesh output to baked mesh
-	# TODO: Right now, this has to be baked inside of Godot due to lack of Rust support
 	var importer = ImporterMesh.new()
 	importer.clear()
 	importer.add_surface(Mesh.PRIMITIVE_TRIANGLES, mesh.surface_get_arrays(0), [], {}, builder.material_baked, "island")
-	#importer.generate_lods(builder.lod_normal_merge_angle, builder.lod_normal_split_angle, [])
 	importer.generate_lods(25, 60, [])
 	mesh.clear_surfaces()
-	builder.target_mesh().mesh = importer.get_mesh(mesh)
+	builder.apply_mesh(importer.get_mesh(mesh))
 
 func do_collision(builder: IslandBuilder):
-	var t1 = Time.get_ticks_usec()
-	builder.apply_physics()
-	var t2 = Time.get_ticks_usec()
-	print("IslandBuilder: Collision Hulls took ", float(t2 - t1) * 0.001)
+	var hulls = builder.generate_collision_hulls()
+	builder.apply_collision_hulls(hulls, builder.get_volume())
 
 func do_navigation(builder: IslandBuilder):
-	var out = builder.target()
-	if out.has_method("set_navigation_properties"):
-		var nav_props: NavIslandProperties = builder.navigation_properties()
-		out.set_navigation_properties(nav_props)
+	builder.apply_navigation_properties(builder.generate_navigation_properties())
 
 func do_finalize(builder: IslandBuilder):
 	realtime_enabled = false
 	panel.get_node("%toggle_realtime").button_pressed = false
+
 	var t1 = Time.get_ticks_usec()
-	do_mesh_bake(builder)
-	do_collision(builder)
-	do_navigation(builder)
+	builder.build(false)
 	var t2 = Time.get_ticks_usec()
-	print("IslandBuilder: FINALIZE ALL took ", float(t2 - t1) * 0.001, " ms")
+	print("IslandBuilder: FINALIZE took ", float(t2 - t1) * 0.001, " ms")
+
+	# Hide builder if not target
+	if builder.target() != builder:
+		builder.visible = false
 
 ## DESTROY ALL BAKES ##
 func _destroy_all_bakes():
@@ -207,9 +181,22 @@ func _destroy_all_bakes():
 		update_shapecount(last_builder)
 		update_button_availability(last_builder)
 
+func _bake_test(idx: int, isles: Array[IslandBuilder]):
+	IslandBuilder.internal_bake_single(idx, isles)
 func _bake_everything():
 	if is_instance_valid(last_builder):
-		IslandBuilder.all_bake(last_builder.get_tree())
+		print("IslandBuilder: Fetching and serializing all islands...")
+		var isles = IslandBuilder.all_builders(last_builder.get_tree())
+		for isle in isles:
+			isle.serialize()
+		var group_id = WorkerThreadPool.add_group_task(_bake_test.bind(isles), isles.size())
+
+		print("\tstarted group task...")
+		WorkerThreadPool.wait_for_group_task_completion(group_id)
+		print("\tall done!")
+
+		# TODO: Await bind fixes in godot-rust
+		#IslandBuilder.all_bake(last_builder.get_tree())
 
 		update_shapecount(last_builder)
 		update_volume(last_builder)

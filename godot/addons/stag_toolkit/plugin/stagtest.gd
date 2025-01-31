@@ -332,8 +332,8 @@ func __format_assertion_message(message: String):
 
 ## Takes a time duration in microseconds, formatting it to a string.
 func __format_duration(t: float) -> String:
-	if t > 1e8:
-		return "%4.4f s" % (t/1e8)
+	if t > 1e6:
+		return "%4.4f s" % (t/1e6)
 	if t > 1e4:
 		return "%4.4f ms" % (t/1e4)
 	return "%4.4f μs" % t

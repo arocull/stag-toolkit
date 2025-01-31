@@ -1,5 +1,6 @@
 use glam::{FloatExt, Mat4, Vec3};
 use noise::{NoiseFn, Perlin, Seedable};
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 
 /// Perlin noise implementation that generates a 3D output value
 #[derive(Clone, Copy)]
@@ -66,10 +67,23 @@ impl PerlinField {
 // ...but constant-size ones are case dependent?
 /// A container for storing volume data
 pub struct VolumeData<T> {
-    data: Vec<T>,
+    /// Internal data for voxel grid.
+    pub data: Vec<T>,
     dim: [u32; 3],
     strides: [u32; 3],
     size: usize,
+}
+
+/// Utilized for handling
+pub struct VolumeWorker<T> {
+    /// Volume data being utilized inside the worker.
+    pub data: Vec<T>,
+    /// Minimum bound of the worker data.
+    pub range_min: u32,
+    /// Maximum bound of the worker data.
+    pub range_max: u32,
+    /// Width of the worker data.
+    pub range_width: u32,
 }
 
 impl VolumeData<f32> {
@@ -100,11 +114,15 @@ impl VolumeData<f32> {
 
     /// Returns the linearized index of the given value.
     pub fn linearize(&self, x: u32, y: u32, z: u32) -> u32 {
-        let x_clamp = x.clamp(0, self.dim[0] - 1);
-        let y_clamp = y.clamp(0, self.dim[1] - 1);
-        let z_clamp = z.clamp(0, self.dim[2] - 1);
+        x.min(self.dim[0] - 1)
+            + self.strides[1].wrapping_mul(y.min(self.dim[1] - 1))
+            + self.strides[2].wrapping_mul(z.min(self.dim[2] - 1))
+    }
 
-        x_clamp + self.strides[1].wrapping_mul(y_clamp) + self.strides[2].wrapping_mul(z_clamp)
+    /// Returns the linearized index of the given value.
+    /// **Does not perform checks to ensure the coordinates are within bounds.**
+    pub fn linearize_fast(&self, x: u32, y: u32, z: u32) -> u32 {
+        x + self.strides[1].wrapping_mul(y) + self.strides[2].wrapping_mul(z)
     }
 
     /// Returns true if the given coordinates are within the cell padding margin.
@@ -125,30 +143,40 @@ impl VolumeData<f32> {
         [x, y, z]
     }
 
-    /// Creates box-blurred data in a new volume grid with the given blur radius.
-    pub fn blur(&self, radius: u32, weight: f32) -> Self {
-        let mut out = Self::new(1.0, self.dim);
+    /// Outputs box-blurred data into the given volume grid with the given blur radius.
+    pub fn blur(&self, radius: u32, weight: f32, group_size: u32, out: &mut Self) {
+        let coverage = radius * 2 + 1;
+        let inv_cvg_cubed = 1.0 / (coverage * coverage * coverage) as f32;
 
-        for i in 0usize..self.size {
-            let [x, y, z] = self.delinearize(i as u32);
+        let max_x = self.dim[0] - 1;
+        let max_y = self.dim[1] - 1;
+        let max_z = self.dim[2] - 1;
 
-            let mut avg: f32 = 0.0;
-            for tx in x - radius..=x + radius {
-                for ty in y - radius..=y + radius {
-                    for tz in z - radius..=z + radius {
-                        let j = self.linearize(tx, ty, tz);
-                        avg += self.data[j as usize];
+        let mut workers = self.to_workers(group_size, false);
+
+        out.data = workers
+            .par_iter_mut()
+            .flat_map(|worker| -> Vec<f32> {
+                for i in 0u32..worker.range_width {
+                    let idx = i + worker.range_min;
+                    let [x, y, z] = self.delinearize(idx);
+
+                    let mut avg: f32 = 0.0;
+                    for tx in (x - radius)..=(x + radius).min(max_x) {
+                        for ty in (y - radius)..=(y + radius).min(max_y) {
+                            for tz in (z - radius)..=(z + radius).min(max_z) {
+                                avg += self.data[self.linearize_fast(tx, ty, tz) as usize];
+                            }
+                        }
                     }
+
+                    worker.data[i as usize] =
+                        self.data[idx as usize].lerp(avg * inv_cvg_cubed, weight);
                 }
-            }
 
-            let coverage = radius * 2 + 1;
-            avg /= (coverage * coverage * coverage) as f32;
-
-            out.data[i] = self.data[i].lerp(avg, weight);
-        }
-
-        out
+                worker.data.clone()
+            })
+            .collect();
     }
 
     /// Sets the minimum SDF distance at the bordering cell margin to +10.0.
@@ -171,6 +199,42 @@ impl VolumeData<f32> {
 
             self.data[i] += (noise.sample_single(sample_pos, w) as f32) * amplitude;
         }
+    }
+
+    /// Splits the Volume into a set of worker data for parallel operations.
+    /// If `preserve_data` is true, the data of the volume copied over into the vector.
+    pub fn to_workers(&self, group_size: u32, preserve_data: bool) -> Vec<VolumeWorker<f32>> {
+        let worker_count = (self.size as f64 / group_size as f64).ceil() as u32;
+
+        let mut workers: Vec<VolumeWorker<f32>> = vec![];
+        workers.reserve_exact(worker_count as usize);
+
+        for i in 0..worker_count {
+            let range_min = i * group_size;
+            let range_max = ((i + 1) * group_size).min(self.size as u32);
+            let range_width = range_max - range_min;
+
+            let mut worker_data: Vec<f32>;
+            if preserve_data {
+                worker_data = Vec::from_iter(
+                    self.data[range_min as usize..range_max as usize]
+                        .iter()
+                        .cloned(),
+                );
+            } else {
+                worker_data = vec![];
+                worker_data.resize(range_width as usize, 0.0);
+            }
+
+            workers.push(VolumeWorker {
+                data: worker_data,
+                range_min,
+                range_max,
+                range_width,
+            });
+        }
+
+        workers
     }
 }
 

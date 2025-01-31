@@ -131,21 +131,21 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Mesh Bake"
+text = "Bake Mesh"
 
 [node name="btn_collision" type="Button" parent="baking"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Gen Collision Hulls"
+text = "Build Collision"
 
 [node name="btn_navigation" type="Button" parent="baking"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Calc Navigation"
+text = "Calc Nav Properties"
 
 [node name="separator3" type="HSeparator" parent="."]
 layout_mode = 2

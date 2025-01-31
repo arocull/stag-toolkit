@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::math::{
     projection::{plane, Plane},
     types::*,
@@ -56,6 +58,8 @@ pub trait TriangleOperations {
     fn has_edge(&self, edge: &Edge) -> bool;
     /// Returns the centerpoint of the triangle.
     fn centerpoint(&self, positions: &Vec<Vec3>) -> Vec3;
+    /// Returns a face-winded list of edges on this triangle.
+    fn edges(&self) -> [Edge; 3];
 }
 
 impl TriangleOperations for Triangle {
@@ -152,6 +156,10 @@ impl TriangleOperations for Triangle {
     fn centerpoint(&self, positions: &Vec<Vec3>) -> Vec3 {
         (positions[self[0]] + positions[self[1]] + positions[self[2]]) * Vec3::splat(1.0 / 3.0)
     }
+
+    fn edges(&self) -> [Edge; 3] {
+        [[self[0], self[1]], [self[1], self[2]], [self[2], self[0]]]
+    }
 }
 
 // MESHES //
@@ -236,6 +244,7 @@ impl TriangleMesh {
     }
 
     /// Returns the first left and right faces of an edge, if they exist.
+    /// Note: very slow, prefer using `edge_map` instead if handling many edges.
     pub fn tris_for_edge(&self, edge: &Edge) -> (Option<Triangle>, Option<Triangle>) {
         let mut left: Option<Triangle> = None;
         let mut right: Option<Triangle> = None;
@@ -276,47 +285,35 @@ impl TriangleMesh {
         indices
     }
 
-    /// Creates and returns a list of all unique edges inside the mesh.
-    pub fn edges(&self) -> Vec<Edge> {
-        let mut edges: Vec<Edge> = vec![];
-        edges.reserve_exact(self.triangles.len() * 3);
+    /// Returns a hash map of edges.
+    /// For each edge, the left and right face index is returned, in order.
+    /// The mesh is assumed to be manifold (each edge has exactly two faces).
+    pub fn edge_map(&self) -> HashMap<Edge, [usize; 2]> {
+        let mut edges = HashMap::<Edge, [usize; 2]>::new();
 
-        for tri in self.triangles.iter() {
-            let edge1: Edge = [tri[0], tri[1]];
-            let edge2: Edge = [tri[1], tri[2]];
-            let edge3: Edge = [tri[2], tri[0]];
+        for (idx, tri) in self.triangles.iter().enumerate() {
+            for edge in tri.edges() {
+                // Check for reverse-edge first
+                let flip = edge.flip();
 
-            if !(edges.contains(&edge1) || edges.contains(&edge1.flip())) {
-                edges.push(edge1);
-            }
-            if !(edges.contains(&edge2) || edges.contains(&edge2.flip())) {
-                edges.push(edge2);
-            }
-            if !(edges.contains(&edge3) || edges.contains(&edge3.flip())) {
-                edges.push(edge3);
+                // If we found a key already existing for our reverse edge,
+                // fill in our face index as the right face
+                if let Some(faces) = edges.get_mut(&flip) {
+                    faces[1] = idx;
+                } else {
+                    // Otherwise, insert a key with this face for our edge
+                    edges.insert(edge, [idx, 0]);
+                }
             }
         }
 
         edges
     }
 
-    /// Calculates the angle between two faces on a given edge.
-    /// If the edge does not exist, returns f32::MAX.
-    pub fn edge_angle(&self, edge: &Edge) -> f32 {
-        // Get the two triangles for the edge
-        let (left, right) = self.tris_for_edge(edge);
-
-        // If neither triangle exists, the edge is invalid
-        if left.is_none() || right.is_none() {
-            return f32::MAX;
-        }
-
-        let left = left.unwrap();
-        let right = right.unwrap();
-
-        // Calculate the cost of collapsing the edge
-        left.normal(&self.positions)
-            .angle_between(right.normal(&self.positions))
+    /// Calculates the angle between two faces.
+    pub fn face_angle(&self, a: &Triangle, b: &Triangle) -> f32 {
+        a.normal(&self.positions)
+            .angle_between(b.normal(&self.positions))
     }
 
     /// Removes an edge from the mesh by merging both vertices into a centerpoint.
@@ -334,7 +331,9 @@ impl TriangleMesh {
     }
 
     /// Decimates the mesh by removing all immediate edges with an angle less than the given threshold.
-    pub fn decimate_planar(&mut self, threshold: f32, iterations: i32) {
+    /// When the amount of triangles removed per decimation falls under the `minimum_dropout` threshold,
+    /// the algorithm stops decimating triangles.
+    pub fn decimate_planar(&mut self, threshold: f32, iterations: i32, minimum_dropout: u32) {
         // Do nothing if invalid.
         if iterations <= 0 {
             return;
@@ -342,12 +341,14 @@ impl TriangleMesh {
 
         for _ in 0..iterations {
             // Get a list of all edges in the trimesh
-            let edges = self.edges();
+            let edges = self.edge_map();
 
             // Collapse all edges below the threshold
             let mut count = 0;
-            for edge in edges.iter() {
-                if self.edge_angle(edge) < threshold {
+            for (edge, [left_idx, right_idx]) in edges.iter() {
+                if self.face_angle(&self.triangles[*left_idx], &self.triangles[*right_idx])
+                    < threshold
+                {
                     self.edge_collapse(edge);
                     count += 1;
                 }
@@ -355,13 +356,14 @@ impl TriangleMesh {
 
             // Clean up mesh after decimation
             self.remove_degenerate();
-            self.remove_unused();
 
             // End decimation if nothing changed
-            if count == 0 {
+            if count <= minimum_dropout {
                 break;
             }
         }
+
+        self.remove_unused();
     }
 
     /// Merges all vertices within the given threshold distance of each other, merging later vertices into earlier ones.
@@ -404,9 +406,9 @@ impl TriangleMesh {
             return;
         }
 
-        for tri in self.triangles.iter_mut() {
-            // Iterate over every swap item
-            for idx_swap in replace.iter() {
+        // Iterate over every swap item
+        for idx_swap in replace.iter() {
+            for tri in self.triangles.iter_mut() {
                 // Update the triangle indices
                 for idx in 0..3 {
                     if tri[idx] == idx_swap.0 {
@@ -513,7 +515,7 @@ impl Iterator for WalkTriangles {
 // UNIT TESTS //
 #[cfg(test)]
 mod tests {
-    use crate::mesh::trimesh::{Edge, Triangle, TriangleOperations};
+    use crate::mesh::trimesh::{Triangle, TriangleOperations};
 
     use glam::{vec3, Vec3};
 
@@ -739,9 +741,6 @@ mod tests {
         let triangles: Vec<Triangle> = vec![[0, 1, 2], [0, 3, 1]];
         let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
 
-        let edge_valid: Edge = [0, 1];
-        let edge_invalid: Edge = [0, 2];
-
         assert_eq!(
             1.0,
             triangles[0].orientation(&positions).signum(),
@@ -755,19 +754,16 @@ mod tests {
 
         assert_eq!(
             0.0,
-            mesh.edge_angle(&edge_valid),
+            mesh.face_angle(&triangles[0], &triangles[1]),
             "faces sharing same plane should have an angle of zero"
         );
-        assert_eq!(
-            f32::MAX,
-            mesh.edge_angle(&edge_invalid),
-            "faces not sharing an edge should have an infinite angle"
-        );
 
-        let edges = mesh.edges();
+        let edges = mesh.edge_map();
         assert_eq!(5, edges.len());
 
-        mesh.decimate_planar(0.1, 10);
+        mesh.decimate_planar(0.1, 10, 0);
         assert_eq!(0, mesh.triangles.len());
     }
+
+    // TODO: edge map test using a manifold cube
 }

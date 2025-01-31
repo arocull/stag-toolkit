@@ -1,6 +1,6 @@
 [package]
 name = "StagToolkit"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,7 +11,7 @@ crate-type = ["cdylib"]  # Compile this crate to a dynamic C library.
 [dependencies]
 fast-surface-nets = "0.2.0"
 glam = { version = "0.29.2", features = ["approx", "mint"] }
-godot = { version = "0.2.1", features = ["api-4-2-2", "experimental-threads"] }
+godot = { version = "0.2.3", features = ["api-4-2-2", "experimental-threads"], git = "https://github.com/godot-rust/gdext.git" }
 mint = "0.5.9"
 ndshape = "0.3.0"
 noise = "0.9.0"

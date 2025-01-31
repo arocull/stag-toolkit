@@ -19,7 +19,7 @@ stag_toolkit/importers/ironpress/enabled=true
 
 config/name="StagToolkit"
 config/description="All-purpose toolkit for Godot game creation."
-config/version="0.1.4"
+config/version="0.1.5"
 config/tags=PackedStringArray("abyss", "plugin", "prototype")
 run/main_scene="res://3d/startup.tscn"
 config/features=PackedStringArray("4.2", "Forward Plus")

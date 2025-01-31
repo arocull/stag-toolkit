@@ -20,8 +20,8 @@ func _ready():
 	StagTest.assert_true(builder_aabb.has_volume(), "IslandBuilder's AABB estimate should have volume")
 
 	# Get preview and finalized meshes
-	var preview_mesh: ArrayMesh = builder.mesh_preview(null)
-	var baked_mesh: ArrayMesh = builder.mesh_baked()
+	var preview_mesh: ArrayMesh = builder.generate_preview_mesh(null)
+	var baked_mesh: ArrayMesh = builder.generate_baked_mesh()
 
 	StagTest.assert_valid(preview_mesh, "preview mesh should be valid")
 	StagTest.assert_valid(baked_mesh, "baked mesh should be valid")
@@ -46,7 +46,7 @@ func _ready():
 		baked_mesh.surface_get_material(0),
 		"baked mesh should have correct surface material")
 
-	var hulls = builder.collision_hulls()
+	var hulls = builder.generate_collision_hulls()
 
 	StagTest.assert_equal(1, hulls.size(), "should be exactly 1 collision hull")
 
@@ -60,8 +60,16 @@ func _ready():
 	StagTest.assert_true(builder.target_mesh().get_layer_mask_value(3), "target mesh should be on layer 3")
 
 	# Destroying bakes
-	builder.target_mesh().mesh = builder.mesh_preview(null)
+	builder.target_mesh().mesh = builder.generate_preview_mesh(null)
 	StagTest.assert_valid(builder.target_mesh(), "target mesh should be instantiated from preview")
 	builder.destroy_bakes()
 	StagTest.assert_valid($body/mesh_island, "target mesh should still exist after destroying bakes")
 	StagTest.assert_equal(null, builder.target_mesh().mesh, "target mesh should have mesh asset cleared")
+
+	var builders = IslandBuilder.all_builders(get_tree())
+	StagTest.assert_equal(1, builders.size(), "should have retrieved 1 IslandBuilder")
+	StagTest.assert_valid(builders[0], "retrieved IslandBuilder should be valid")
+	StagTest.assert_equal(builder, builders[0], "retrieved IslandBuilder")
+
+	# IslandBuilder.all_builders.bind(get_tree())
+	# IslandBuilder.internal_bake_single.bind(builders)
