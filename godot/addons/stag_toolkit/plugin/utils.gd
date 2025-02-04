@@ -37,7 +37,6 @@ static func get_args() -> Dictionary:
 			# Options without an argument will be present in the dictionary,
 			# with the value set to an empty string.
 			arguments[argument.trim_prefix("--")] = ""
-	print(arguments)
 	return arguments
 
 ## Performs a simple factorial of the given integer.
@@ -60,7 +59,7 @@ static func factorial(n: int) -> float:
 ## the value is forcibly converted to that type (applying default when necessary),
 ## unless an [code]override[/code] of the same type is specified, at which point the override is used.
 static func default(dictionary: Dictionary, key: Variant, valuetype: Variant.Type, override: Variant = null) -> Variant:
-	var value: Variant = dictionary.get(key, null) # Fetch value out of dictionary
+	var value: Variant = dictionary.get(key, "") # Fetch value out of dictionary
 	if typeof(value) != valuetype:
 		if typeof(override) == valuetype:
 			return override

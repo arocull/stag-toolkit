@@ -27,3 +27,5 @@ func _ready():
 	StagTest.assert_equal(5, StagUtils.default(d, Vector2.ZERO, TYPE_INT), "non-string keys can be used")
 	StagTest.assert_equal(false, StagUtils.default(d, "deer", TYPE_BOOL), "non-existent keys use the corresponding type fallback")
 	StagTest.assert_equal(true, StagUtils.default(d, "deer", TYPE_BOOL, true), "non-existent keys use overrides when provided")
+	StagTest.assert_equal("", StagUtils.default(d, "deer", TYPE_STRING), "non-existent keys keep empty strings")
+	StagTest.assert_true(typeof(&"") == typeof(StagUtils.default(d, "deer", TYPE_STRING_NAME)), "should retain proper type when loading default")
