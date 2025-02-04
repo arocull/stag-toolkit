@@ -19,6 +19,8 @@ func _ready():
 		"test": "1.0",
 		"coolness": true,
 		Vector2.ZERO: 5,
+		"dumbness": null,
+		"float": 5.0,
 	}
 
 	StagTest.assert_equal(1.0, StagUtils.default(d, "test", TYPE_FLOAT), "invalid types should be converted when possible")
@@ -27,5 +29,16 @@ func _ready():
 	StagTest.assert_equal(5, StagUtils.default(d, Vector2.ZERO, TYPE_INT), "non-string keys can be used")
 	StagTest.assert_equal(false, StagUtils.default(d, "deer", TYPE_BOOL), "non-existent keys use the corresponding type fallback")
 	StagTest.assert_equal(true, StagUtils.default(d, "deer", TYPE_BOOL, true), "non-existent keys use overrides when provided")
-	StagTest.assert_equal("", StagUtils.default(d, "deer", TYPE_STRING), "non-existent keys keep empty strings")
-	StagTest.assert_true(typeof(&"") == typeof(StagUtils.default(d, "deer", TYPE_STRING_NAME)), "should retain proper type when loading default")
+	StagTest.assert_equal("", StagUtils.default(d, "deer", TYPE_STRING), "non-existent keys return empty strings")
+	StagTest.assert_true(typeof(&"") == typeof(StagUtils.default(d, "deer", TYPE_STRING_NAME)),
+		"should retain proper type when loading default")
+
+	StagTest.assert_equal("", StagUtils.default(d, "dumbness", TYPE_STRING),
+		"fetched null values are returned as empty strings")
+	StagTest.assert_equal(&"", StagUtils.default(d, "dumbness", TYPE_STRING_NAME),
+		"fetched null values are returned as empty string names")
+
+	StagTest.assert_equal(5, StagUtils.default(d, "float", TYPE_INT, 1),
+		"numbers within reason are converted")
+	StagTest.assert_equal(1, StagUtils.default(d, "float", TYPE_INT, 1, false),
+		"numbers within reason are not converted without salvage")

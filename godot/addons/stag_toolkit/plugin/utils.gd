@@ -57,11 +57,40 @@ static func factorial(n: int) -> float:
 ## Fetches the given key out of the dictionary, or null if not found.[br]
 ## If the fetched value does not match the specified Variant type ([code]valuetype[/code]),
 ## the value is forcibly converted to that type (applying default when necessary),
-## unless an [code]override[/code] of the same type is specified, at which point the override is used.
-static func default(dictionary: Dictionary, key: Variant, valuetype: Variant.Type, override: Variant = null) -> Variant:
-	var value: Variant = dictionary.get(key, "") # Fetch value out of dictionary
-	if typeof(value) != valuetype:
-		if typeof(override) == valuetype:
-			return override
-		return type_convert(value, valuetype)
-	return value
+## unless an [code]override[/code] of the same type is specified, at which point the override is used.[br]
+## If [code]salvage[/code] is true, similiar types (such as integers and floats)
+## are converted instead of using the provided override.
+## The override is still applied in cases where types are not similiar (such as string and float).
+static func default(
+	dictionary: Dictionary, key: Variant, valuetype: Variant.Type,
+	override: Variant = null, salvage: bool = true
+) -> Variant:
+	# Fetch value out of dictionary, or use null if nothing was returned
+	var value: Variant = dictionary.get(key, null)
+
+	# If our value was valid, use it!
+	if typeof(value) == valuetype:
+		return value
+
+	if salvage:
+		# Attempt to salvage numbers that are of similiar type
+		match valuetype:
+			TYPE_INT, TYPE_FLOAT:
+				match typeof(value):
+					TYPE_INT, TYPE_FLOAT:
+						return type_convert(value, valuetype)
+
+	# If our override matches our expected type, use it in place of our invalid value.
+	if typeof(override) == valuetype:
+		return override
+
+	# Explicit type checks:
+	# Using type_convert from a null to a string, returns "<null>"
+	# Very nice :)
+	match valuetype:
+		TYPE_STRING:
+			return ""
+		TYPE_STRING_NAME:
+			return &""
+		_: # Otherwise, attempt to convert
+			return type_convert(value, valuetype)
