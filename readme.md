@@ -4,6 +4,11 @@ All-purpose toolkit for Godot game creation.
 
 Currently equipped for Godot **4.2.2**+
 
+> [!WARNING]
+> This addon is highly experimental and frequently subject to change based on personal needs.
+> These updates will sometimes require usage to be updated accordingly.
+> Use at your own risk!
+
 *If this tool has helped you, feel free to [send a Kofi](https://ko-fi.com/stagmath) my way, or to anyone listed in the [credits](#credits)*!
 
 ## Feature List

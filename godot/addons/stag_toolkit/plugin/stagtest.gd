@@ -1,12 +1,12 @@
 extends Node
+## Singleton for handling unit and integration tests.
+## @experimental: Fairly solidified, but changes may be made as seen fit.
 
 const DEFAULT_TEST_PATH: String = "res://test/scenarios/"
 const DEFAULT_BENCHMARK_PATH: String = "res://test/benchmarks/"
 const DEFAULT_REPORTS_PATH: String = "res://test/reports/"
 const DEFAULT_TIMEOUT: float = 30.0
 const DEFAULT_TIME_SCALE: float = 1.0
-
-# Singleton for handling tests.
 
 signal test_post_ready() ## Called just after beginning a test.
 signal test_pre_exit() ## Called just before exiting a test.
@@ -325,10 +325,21 @@ func __pass_test_if_not_failed():
 func __has_failed() -> bool:
 	return statistics.get("failures", 0) > 0
 
+## Formats a message with assertion text.
 func __format_assertion_message(message: String):
 	if message.is_empty():
 		return message
 	return ": {0}".format([message])
+
+## Formats an value for better readability in assertion strings.
+func __format_assertion_value(val: Variant) -> String:
+	match typeof(val):
+		TYPE_STRING:
+			return "\"{0}\"".format([val])
+		TYPE_STRING_NAME:
+			return "&\"{0}\"".format([val])
+		_:
+			return str(val)
 
 ## Takes a time duration in microseconds, formatting it to a string.
 func __format_duration(t: float) -> String:
@@ -439,19 +450,27 @@ func assert_true(value: bool, message: String = "") -> void:
 func assert_equal(a: Variant, b: Variant, message: String = "") -> void:
 	test_data["assertions"] += 1
 	if not a == b:
-		fail("assert {0} == {1} wasn't equal{2}".format([a, b, __format_assertion_message(message)]))
+		fail("assert {0} == {1} wasn't equal{2}".format([
+			__format_assertion_value(a),
+			__format_assertion_value(b),
+			__format_assertion_message(message)]))
 
 ## Assert that two values are NOT equal.
 func assert_unequal(a: Variant, b: Variant, message: String = "") -> void:
 	test_data["assertions"] += 1
 	if a == b:
-		fail("assert {0} == {1} was equal{2}".format([a, b, __format_assertion_message(message)]))
+		fail("assert {0} == {1} was equal{2}".format([
+			__format_assertion_value(a),
+			__format_assertion_value(b),
+			__format_assertion_message(message)]))
 
 ## Assert that the given instance is valid.
 func assert_valid(a: Object, message: String = "") -> void:
 	test_data["assertions"] += 1
 	if not is_instance_valid(a):
-		fail("assert {0} was not a valid instance{1}".format([a, __format_assertion_message(message)]))
+		fail("assert {0} was not a valid instance{1}".format([
+			__format_assertion_value(a),
+			__format_assertion_message(message)]))
 
 ## Assert that two values are equal within an epsilon value, that scales with magnitude.
 ## Note: to use a specific delta threshold value, use `StagTest.assert_in_delta(...)` instead.
@@ -460,7 +479,10 @@ func assert_approx_equal(a: Variant, b: Variant, message: String = "") -> void:
 
 	# Ensure types match
 	if typeof(a) != typeof(b):
-		fail("assert {0} ~= {1} had mismatch types".format([a, b, __format_assertion_message(message)]))
+		fail("assert {0} ~= {1} had mismatch types".format([
+			__format_assertion_value(a),
+			__format_assertion_value(b),
+			__format_assertion_message(message)]))
 
 	var approx_equal: bool
 	if a is float or a is int:
@@ -469,7 +491,10 @@ func assert_approx_equal(a: Variant, b: Variant, message: String = "") -> void:
 		a is Quaternion or a is Basis or a is Transform2D or a is Transform3D or a is Plane or a is Color):
 		approx_equal = a.is_equal_approx(b)
 	else:
-		fail("assert {0} ~= {1} were not supported type".format([a, b, __format_assertion_message(message)]))
+		fail("assert {0} ~= {1} were not supported type".format([
+			__format_assertion_value(a),
+			__format_assertion_value(b),
+			__format_assertion_message(message)]))
 
 ## Assert that two values are equal, within a threshold amount.
 ## Use `is_equal_approx()` if you must scale with magnitude.
@@ -478,7 +503,10 @@ func assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: Strin
 
 	# Ensure types match
 	if typeof(a) != typeof(b):
-		fail("assert Δ >= | {0} - {1} | had mismatch types".format([a, b, __format_assertion_message(message)]))
+		fail("assert Δ >= | {0} - {1} | had mismatch types".format([
+			__format_assertion_value(a),
+			__format_assertion_value(b),
+			__format_assertion_message(message)]))
 
 	var diff: float = INF
 	var approximately_equal: bool = is_same(a, b)
@@ -495,14 +523,18 @@ func assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: Strin
 			diff = absi(a.x - b.x) + absi(a.y - b.y) + absi(a.z - b.z) + absi(a.w - b.w)
 		else:
 			fail("assert Δ >= | {0} - {1} | were not a supported type {4}".format([
-				a, b, delta, diff, __format_assertion_message(message)]))
+				__format_assertion_value(a),
+				__format_assertion_value(b),
+				delta, diff, __format_assertion_message(message)]))
 
 		approximately_equal = diff <= delta
 
 	# Return if failed
 	if not approximately_equal:
 		fail("assert Δ >= | {0} - {1} | were not in delta ({2} < {3}) {4}".format([
-			a, b, delta, diff, __format_assertion_message(message)]))
+			__format_assertion_value(a),
+			__format_assertion_value(b),
+			delta, diff, __format_assertion_message(message)]))
 
 
 ## Pass: the signal, a function with as many arguments as the signal takes, plus a callable, that is invoked.

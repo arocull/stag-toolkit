@@ -1,7 +1,7 @@
 extends RefCounted
 class_name StagImportUtils
-
-# Utility functions for use in scene importers.
+## Utility functions for use in scene importers.
+## @experimental
 
 ## Recursively sets scene ownership of the given node.
 static func fix_owner(node: Node, new_owner: Node):
