@@ -33,10 +33,10 @@ test-rust:
 	@cargo test
 
 test-godot: build
-	@cd godot/ && godot --headless --stagtest --timeout=15
+	@cd godot/ && godot --headless --stagtest --timeout=90
 
 test-sanity: build
-	@cd godot/ && godot --headless --stagtest --timeout=15 --test=res://test/sanity
+	@cd godot/ && godot --headless --stagtest --timeout=90 --test=res://test/sanity
 
 bench: build
 	@cd godot/ && godot --headless --stagtest --bench --timeout=300

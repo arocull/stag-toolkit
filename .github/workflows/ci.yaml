@@ -39,9 +39,9 @@ jobs:
           VALIDATE_GROOVY: false
           FIX_GROOVY: false
 
-  test:
+  rust:
     runs-on: ubuntu-latest
-    name: Build and Test
+    name: Test Rust
     permissions:
       id-token: write
       contents: read
@@ -53,15 +53,6 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-
-      #- name: Restore cached Cargo dependencies
-      #id: cache-cargo-restore
-      #uses: actions/cache/restore@v4
-      #with:
-      #path: |
-      #~/.cargo
-      #**/target
-      #key: stag-toolkit-cargo
 
       - name: Install Rust toolchain
         uses: crusty-pie/toolchain@v1
@@ -79,35 +70,57 @@ jobs:
         id: rust-machete
         uses: bnjbvr/cargo-machete@v0.6.2
 
-      # Disabled Clippy temporarily as we're creating libraries for future use, hence unused functions
-      # - name: Clippy
-      #   id: rust-clippy
-      #   run: |
-      #     cargo clippy -- -D warnings
-
       - name: Unit Tests and Code Coverage
         id: tarpaulin
         run: |
           cargo install cargo-tarpaulin
-          cargo tarpaulin --out Stdout
+          cargo tarpaulin -o html --output-dir reports/
 
-      # Not currently supported by Gitea: https://github.com/go-gitea/gitea/issues/31256
-      # - name: Archive Code Coverage Results
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: code-coverage-report
-      #     path: tarpaulin-report.html
+      - name: Archive Coverage Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage-report
+          path: reports/tarpaulin-report.html
 
-      - name: Rust Build
-        id: rust-build
+  godot:
+    runs-on: ubuntu-latest
+    name: Test Godot
+    permissions:
+      id-token: write
+      contents: read
+      actions: write
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Setup StagToolkit
+        uses: ./.gitea/setup
+        with:
+          godot-version: '4.3-stable'
+          cross-compile: false
+          toolkit-path: '.'
+
+      - name: Import Assets
+        shell: bash
         run: |
-          cargo build --release
+          godot godot/project.godot --headless --import
 
-      #- name: Save Cargo Dependencies
-      #id: cache-cargo-save
-      #uses: actions/cache/save@v4
-      #with:
-      #path: |
-      #~/.cargo
-      #**/target
-      #key: ${{ steps.cache-cargo-restore.outputs.cache-primary-key }}
+      - name: Godot Unit Tests
+        shell: bash
+        run: |
+          make test-godot
+
+      # - name: Godot Benchmarks
+      #   shell: bash
+      #   run: |
+      #     make bench
+
+      # - name: Archive Bench Results
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: benchmarks
+      #     path: godot/test/reports/

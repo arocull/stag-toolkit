@@ -1,0 +1,67 @@
+name: 'StagToolkit Setup'
+description: 'Installs necessary toolchains for building StagToolkit and running it inside Godot.'
+# https://docs.github.com/en/actions/sharing-automations/creating-actions/creating-a-composite-action#creating-an-action-metadata-file
+inputs:
+  godot-version:
+    description: 'What version of the Godot editor to install. Set to null for no installation.'
+    required: true
+    default: '4.3-stable'
+  rust-version:
+    description: 'What version of the Rust toolchain to install'
+    required: false
+    default: 1.82.0
+  toolkit-path:
+    description: 'Path to where stag-toolkit is installed'
+    required: false
+    default: 'stag-toolkit'
+  cross-compile:
+    description: 'If true, builds StagToolkit binaries for all supported platforms'
+    required: false
+    default: false
+runs:
+  using: "composite"
+  steps:
+    - name: Install Godot
+      if: ${{ inputs.godot-version != null }}
+      shell: bash
+      env:
+        GODOT_VERSION: ${{ inputs.godot-version }}
+      run: |
+          ${{ inputs.toolkit-path }}/godot-build/install.sh
+          /usr/local/bin/godot --version
+          PATH=$PATH:~/usr/local/bin
+          rc=/tmp/rcfile
+          echo 'shopt -s expand_aliases' > $rc
+          echo 'alias godot="/usr/local/bin/godot" ' >> $rc
+
+    - name: Install MinGW
+      if: ${{ inputs.cross-compile == true }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y mingw-w64
+
+    - name: Install Rust Toolchain
+      uses: crusty-pie/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: ${{ inputs.rust-version }}
+        override: false
+        targets: x86_64-pc-windows-gnu
+
+    - name: Build StagToolkit
+      if: ${{ ! (inputs.cross-compile == true) }}
+      shell: bash
+      run: |
+        cd ${{ inputs.toolkit-path }}
+        echo `ls`
+        echo `pwd`
+        make build
+
+    - name: Build StagToolkit (Cross-Platform)
+      if: ${{ inputs.cross-compile == true }}
+      shell: bash
+      run: |
+        cd ${{ inputs.toolkit-path }}
+        echo `ls`
+        echo `pwd`
+        make build build-windows

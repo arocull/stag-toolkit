@@ -39,9 +39,9 @@ jobs:
           VALIDATE_GROOVY: false
           FIX_GROOVY: false
 
-  build:
+  rust:
     runs-on: ubuntu-latest
-    name: Build and Push
+    name: Test Rust
     permissions:
       id-token: write
       contents: read
@@ -91,17 +91,16 @@ jobs:
           cargo install cargo-tarpaulin
           cargo tarpaulin -o html --output-dir reports/
 
-      # Not currently supported by Gitea: https://github.com/go-gitea/gitea/issues/31256
-      - name: Archive Code Coverage Results
+      - name: Archive Coverage Results
         uses: actions/upload-artifact@v3
         with:
           name: code-coverage-report
           path: reports/tarpaulin-report.html
 
-      - name: Rust Build
-        id: rust-build
-        run: |
-          cargo build --release
+      # - name: Rust Build
+      #   id: rust-build
+      #   run: |
+      #     cargo build --release
 
       # - name: Save Cargo Dependencies
       #   id: cache-cargo-save
@@ -111,3 +110,49 @@ jobs:
       #       ~/.cargo
       #       **/target
       #     key: ${{ steps.cache-cargo-restore.outputs.cache-primary-key }}
+
+  godot:
+    runs-on: ubuntu-latest
+    name: Test Godot
+    permissions:
+      id-token: write
+      contents: read
+      actions: write
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ gitea.head_ref }}
+          fetch-depth: 0
+
+      - name: Setup StagToolkit
+        # uses: https://git.alanocull.com/lonesome-stag/stag-toolkit@${{ gitea.ref }}
+        uses: ./.gitea/setup
+        with:
+          # token: ${{ secrets.ACCESS_TOKEN }}
+          godot-version: '4.3-stable'
+          cross-compile: false
+          toolkit-path: '.'
+          # path: .github/actions/setup@${{ gitea.ref }}
+
+      - name: Import Assets
+        shell: bash
+        run: |
+          godot godot/project.godot --headless --import
+
+      - name: Godot Unit Tests
+        shell: bash
+        run: |
+          make test-godot
+
+      # - name: Godot Benchmarks
+      #   shell: bash
+      #   run: |
+      #     make bench
+
+      # - name: Archive Bench Results
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: benchmarks
+      #     path: godot/test/reports/

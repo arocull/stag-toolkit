@@ -37,12 +37,12 @@ func _ready():
 	StagTest.assert_true(baked_aabb.has_volume(), "baked mesh should have volume")
 
 	StagTest.assert_equal(
-		preload("res://3d/islandbuilder/materials/mat_island_sandy_nobake.tres"),
+		preload("res://3d/islandbuilder/materials/mat_testing_preview.tres"),
 		preview_mesh.surface_get_material(0),
 		"preview mesh should have correct surface material")
 
 	StagTest.assert_equal(
-		preload("res://3d/islandbuilder/materials/mat_island_sandy.tres"),
+		preload("res://3d/islandbuilder/materials/mat_testing_baked.tres"),
 		baked_mesh.surface_get_material(0),
 		"baked mesh should have correct surface material")
 

@@ -2,7 +2,7 @@
 
 All-purpose toolkit for Godot game creation.
 
-Currently equipped for Godot **4.2.2**
+Currently equipped for Godot **4.2.2**+
 
 *If this tool has helped you, feel free to [send a Kofi](https://ko-fi.com/stagmath) my way, or to anyone listed in the [credits](#credits)*!
 
