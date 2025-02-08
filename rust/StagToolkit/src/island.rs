@@ -1,4 +1,5 @@
 use core::f32;
+use godot::classes::ImporterMesh;
 use rayon::prelude::*;
 use std::f32::consts::PI;
 use std::mem::swap;
@@ -450,30 +451,21 @@ impl IslandBuildData {
 /// Navigation properties for Abyss islands.
 /// These are utilized for A* pathing with Character AI.
 #[derive(GodotClass)]
-#[class(base=Resource)]
+#[class(init, base=Resource)]
 pub struct NavIslandProperties {
     #[export]
+    #[init(val=Aabb::new(Vector3::ZERO, Vector3::ZERO))]
     aabb: Aabb,
     #[export]
+    #[init(val=Vector3::ZERO)]
     center: Vector3,
     #[export]
+    #[init(val = 5.0)]
     radius: f32,
     #[export]
+    #[init(val = 1.0)]
     surface_flatness: f32,
     base: Base<Resource>,
-}
-#[godot_api]
-impl IResource for NavIslandProperties {
-    /// Initialize `NavIslandProperties``
-    fn init(base: Base<Resource>) -> Self {
-        Self {
-            aabb: Aabb::new(Vector3::ZERO, Vector3::ZERO),
-            center: Vector3::ZERO,
-            radius: 5.0,
-            surface_flatness: 1.0,
-            base,
-        }
-    }
 }
 
 /// The `IslandBuilder` is used to convert whitebox geometry into game-ready islands using procedural geometry.
@@ -505,7 +497,7 @@ pub struct IslandBuilder {
     #[export(range = (0.0, 1.0))]
     generation_smoothing_weight: f32,
     /// Corner radius, in meters, to use around boxes.
-    #[export(range = (0.0, 2.0))]
+    #[export(range = (0.0, 2.0, or_greater, suffix="m"))]
     generation_edge_radius: f32,
     /// Noise seed to use for generation.
     #[export(range = (0.0, 1000.0, or_greater))]
@@ -681,6 +673,15 @@ impl IslandBuilder {
     }
 
     /// Reads and stores children CSG shapes as whitebox geometry for processing.
+    /// Supports Union, Intersection and Subtraction.
+    ///
+    /// Supported shapes include: [CSGBox3D], [CSGSphere3D], [CSGCylinder3D], and [CSGTorus3D].
+    ///
+    /// **Note**: The IslandBuilder only utilizes convex hulls in order to support Godot's physics implmentation.
+    /// A corresponding hull is generated for each of the provided provided CSG shape Unions.
+    /// Shapes with holes punctured through them via Subtract operations--or the [CSGTorus3D] node--will
+    /// *not* generate accurate collisions, because they are concave.
+    /// These operations are still permitted for cosmetic usage.
     #[func]
     pub fn serialize(&mut self) {
         self.data.whitebox.clear();
@@ -741,11 +742,29 @@ impl IslandBuilder {
         self.apply_settings();
         self.optimize();
 
-        let mut mesh = ArrayMesh::new_gd();
         let arrs_opt = self.data.get_mesh_baked();
         // TODO: generate LODs
         match arrs_opt {
             Some(arrs) => {
+                let mut importer = ImporterMesh::new_gd();
+                importer.add_surface(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
+                importer.generate_lods(25.0, 60.0, &varray![]);
+                importer.set_surface_name(0, "island");
+
+                // If we have a material, assign it!
+                if let Some(mat) = &self.material_baked {
+                    importer.set_surface_material(0, mat);
+                }
+
+                // If we were able to successfully generate a mesh, return it
+                if let Some(mesh) = importer.get_mesh() {
+                    return mesh;
+                }
+
+                // If LOD generation fails, fall back to a plain array mesh
+                godot_warn!("IslandBuilder: LOD generation failed. Returning island with no LODs.");
+
+                let mut mesh = ArrayMesh::new_gd();
                 mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
                 mesh.surface_set_name(0, "island");
 
@@ -755,7 +774,7 @@ impl IslandBuilder {
 
                 mesh
             }
-            _ => mesh,
+            _ => ArrayMesh::new_gd(),
         }
     }
     /// Computes and returns a list of collision hulls for the IslandBuilder shape.
@@ -791,10 +810,13 @@ impl IslandBuilder {
         let size: Vec3 = aabb.size.to_vector3();
         let rad: f32 = (size * Vec3::new(1.0, 0.0, 1.0)).length() / 2.0;
 
-        props.bind_mut().aabb = aabb;
-        props.bind_mut().radius = rad;
-        props.bind_mut().center =
-            (aabb.center() * Vec3Godot::new(1.0, 0.0, 1.0)) + (aabb.support(Vec3Godot::UP));
+        {
+            let mut props_mut = props.bind_mut();
+            props_mut.aabb = aabb;
+            props_mut.radius = rad;
+            props_mut.center =
+                (aabb.center() * Vec3Godot::new(1.0, 0.0, 1.0)) + (aabb.support(Vec3Godot::UP));
+        }
 
         props
     }
@@ -857,19 +879,26 @@ impl IslandBuilder {
         }
     }
 
-    /// Applies the given `NavIslandProperties` to the island output, if possible.
+    /// Applies the given [NavIslandProperties] to the island output or its corresponding parent, if possible.
+    ///
+    /// Searches specifically for an object method `set_navigation_properties(...)` with a single [NavIslandProperties] argument.
     #[func]
     fn apply_navigation_properties(&mut self, props: Gd<NavIslandProperties>) {
-        let mut p = self.base_mut();
+        let mut p = self.target();
+
+        // Apply navigation properties if target has them available
         if p.has_method("set_navigation_properties") {
-            p.call("set_navigation_properties", &[Variant::from(props)]);
+            p.callv("set_navigation_properties", &varray![Variant::from(props)]);
+            return;
+        }
+
+        // Otherwise, apply navigation properties to target's parent
+        if let Some(mut parent) = p.get_parent() {
+            if parent.has_method("set_navigation_properties") {
+                parent.callv("set_navigation_properties", &varray![Variant::from(props)]);
+            }
         }
     }
-
-    // EDITOR HELPERS
-    // TODO: apply preview mesh?
-    // TODO: apply baked mesh?
-    // TODO: apply collision hulls?
 
     /// Fetches the output node for this IslandBuilder.
     /// If no output is specified, uses this node instead.

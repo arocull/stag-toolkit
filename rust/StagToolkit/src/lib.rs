@@ -10,6 +10,8 @@
 
 /// General math utilities and conversions.
 pub mod math {
+    /// Methods for asserting values are within a given delta, for unit tests.
+    pub mod delta;
     /// Ray, plane and point projections.
     pub mod projection;
     /// Signed Distance Field math and shape sampling.

@@ -15,6 +15,5 @@ macos.release.arm64 =    "res://addons/stag_toolkit/bin/release/libStagToolkit.d
 
 [icons]
 IslandBuilder = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
-IslandBuilderShape = "res://addons/stag_toolkit/icons/icon_islandbuildershape.svg"
 NavIslandProperties = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
 QueueFloat = "res://addons/stag_toolkit/icons/icon_queuefloat.svg"

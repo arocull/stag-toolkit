@@ -5,7 +5,7 @@ use crate::math::types::*;
 use godot::builtin::Array;
 use godot::classes::csg_shape_3d::Operation;
 use godot::classes::mesh::ArrayType;
-use godot::classes::{CsgBox3D, CsgSphere3D};
+use godot::classes::{CsgBox3D, CsgCylinder3D, CsgShape3D, CsgSphere3D, CsgTorus3D};
 use godot::obj::IndexEnum;
 use godot::prelude::*;
 
@@ -192,62 +192,71 @@ impl GodotWhitebox {
             self.serialize_walk(parent.clone(), child);
         }
 
-        // First, cast to CSG Box
-        let csg = node.clone().try_cast::<CsgBox3D>();
-        match csg {
-            Ok(csg) => {
-                // If the shape is hidden, don't serialize it!
-                if !csg.is_visible_in_tree() {
-                    return;
-                }
+        let mut transform: Transform3D; // relative transform of node
+        let op: ShapeOperation; // CSG operation of node
 
-                // Get relative transform
-                let transform =
-                    parent.get_global_transform().affine_inverse() * csg.get_global_transform();
-                // Since we have a box, we can pull out the scale
-                let mut scale = transform.basis.scale();
-                // ...and unscale the transform!
-                let transform = transform.scaled_local(Vec3Godot::ONE / scale);
-                // Also, don't forget to factor in the original CSG box scale on top
-                scale *= csg.get_size();
-
-                let op = csg_operation(csg.get_operation());
-
-                // Finally, store shape
-                self.shapes.push(sdf::Shape::rounded_box(
-                    transform.to_transform3d(),
-                    scale.to_vector3(),
-                    self.fetch_edge_radius(csg.upcast::<Node>()),
-                    op,
-                ));
+        // First, do generic cast to get basic Node3D properties
+        if let Ok(shape) = node.clone().try_cast::<CsgShape3D>() {
+            // If the shape is hidden, don't serialize it!
+            if !shape.is_visible_in_tree() {
+                return;
             }
 
-            // If that failed, try casting to CSG Sphere
-            Err(node) => {
-                let csg = node.clone().try_cast::<CsgSphere3D>();
-                match csg {
-                    Ok(csg) => {
-                        // If the shape is hidden, don't serialize it!
-                        if !csg.is_visible_in_tree() {
-                            return;
-                        }
+            // Get relative transform
+            // TODO: use a recursive transform tree until we get to the top-level IslandBuilder,
+            // instead of just using the immediate parent
+            transform =
+                parent.get_global_transform().affine_inverse() * shape.get_global_transform();
 
-                        let op = csg_operation(csg.get_operation());
+            // Get node's CSG operation
+            op = csg_operation(shape.get_operation());
+        } else {
+            // This isn't a valid node!
+            return;
+        }
 
-                        // Get relative transform
-                        let transform = parent.get_global_transform().affine_inverse()
-                            * csg.get_global_transform();
-                        // Finally, store shape
-                        self.shapes.push(sdf::Shape::sphere(
-                            transform.to_transform3d(),
-                            csg.get_radius(),
-                            op,
-                        ));
-                    }
+        // Then, cast to each type of CSG class
+        if let Ok(csg) = node.clone().try_cast::<CsgBox3D>() {
+            // Since we have a box, we can pull out the scale
+            let mut scale = transform.basis.scale();
+            // ...and unscale the transform!
+            transform = transform.scaled_local(Vec3Godot::ONE / scale);
+            // Also, don't forget to factor in the original CSG box scale on top
+            scale *= csg.get_size();
 
-                    Err(_node) => {}
-                }
-            }
+            // Finally, store shape
+            self.shapes.push(sdf::Shape::rounded_box(
+                transform.to_transform3d(),
+                scale.to_vector3(),
+                self.fetch_edge_radius(csg.upcast::<Node>()),
+                op,
+            ));
+        } else if let Ok(csg) = node.clone().try_cast::<CsgSphere3D>() {
+            self.shapes.push(sdf::Shape::sphere(
+                transform.to_transform3d(),
+                csg.get_radius(),
+                op,
+            ));
+        } else if let Ok(csg) = node.clone().try_cast::<CsgCylinder3D>() {
+            let mut scale = transform.basis.scale();
+            transform = transform.scaled_local(Vec3Godot::ONE / Vec3Godot::new(1.0, scale.y, 1.0));
+            scale.y *= csg.get_height();
+
+            self.shapes.push(sdf::Shape::rounded_cylinder(
+                transform.to_transform3d(),
+                scale.y,
+                csg.get_radius(),
+                self.fetch_edge_radius(csg.upcast::<Node>()),
+                op,
+            ));
+        } else if let Ok(csg) = node.clone().try_cast::<CsgTorus3D>() {
+            let thickness = (csg.get_outer_radius() - csg.get_inner_radius()).abs() * 0.5;
+            self.shapes.push(sdf::Shape::torus(
+                transform.to_transform3d(),
+                thickness,
+                (csg.get_outer_radius() - thickness).abs(),
+                op,
+            ));
         }
     }
 

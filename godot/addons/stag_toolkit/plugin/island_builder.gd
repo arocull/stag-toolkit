@@ -143,15 +143,7 @@ func do_mesh_preview(builder: IslandBuilder):
 	builder.apply_mesh(builder.generate_preview_mesh(builder.target_mesh().mesh))
 
 func do_mesh_bake(builder: IslandBuilder):
-	var mesh: ArrayMesh = builder.generate_baked_mesh()
-
-	# Set mesh output to baked mesh
-	var importer = ImporterMesh.new()
-	importer.clear()
-	importer.add_surface(Mesh.PRIMITIVE_TRIANGLES, mesh.surface_get_arrays(0), [], {}, builder.material_baked, "island")
-	importer.generate_lods(25, 60, [])
-	mesh.clear_surfaces()
-	builder.apply_mesh(importer.get_mesh(mesh))
+	builder.apply_mesh(builder.generate_baked_mesh())
 
 func do_collision(builder: IslandBuilder):
 	var hulls = builder.generate_collision_hulls()
@@ -263,12 +255,18 @@ func lint_material(operation: int):
 ## Performs CSG linting on the given node for better readability
 func lint_node(node: Node):
 	if is_instance_valid(last_builder) and last_builder.is_ancestor_of(node):
-		if node is CSGBox3D:
-			node.name = lint_name(node.name, node.operation, "box")
+		if node is CSGShape3D:
 			node.material_override = lint_material(node.operation)
-		if node is CSGSphere3D:
-			node.name = lint_name(node.name, node.operation, "sphere")
-			node.material_override = lint_material(node.operation)
+
+		match node.get_class():
+			"CSGBox3D":
+				node.name = lint_name(node.name, node.operation, "box")
+			"CSGSphere3D":
+				node.name = lint_name(node.name, node.operation, "sphere")
+			"CSGCylinder3D":
+				node.name = lint_name(node.name, node.operation, "cylinder")
+			"CSGTorus3D":
+				node.name = lint_name(node.name, node.operation, "torus")
 
 func lint_node_recursive(node: Node):
 	for child in node.get_children():

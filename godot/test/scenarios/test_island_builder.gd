@@ -2,6 +2,8 @@ extends Node3D
 
 @onready var builder: IslandBuilder = $IslandBuilder
 
+@export var nav_properties: NavIslandProperties = null
+
 func _ready():
 	# Complete test after frame
 	StagTest.teardown.call_deferred()
@@ -46,8 +48,8 @@ func _ready():
 		baked_mesh.surface_get_material(0),
 		"baked mesh should have correct surface material")
 
+	# Generating collision hulls
 	var hulls = builder.generate_collision_hulls()
-
 	StagTest.assert_equal(1, hulls.size(), "should be exactly 1 collision hull")
 
 	# Fetching target
@@ -59,6 +61,17 @@ func _ready():
 	StagTest.assert_true($body.is_ancestor_of(builder.target_mesh()), "target mesh should be child of builder target")
 	StagTest.assert_true(builder.target_mesh().get_layer_mask_value(3), "target mesh should be on layer 3")
 
+
+	# Generating NavIslandProperties (must be serialized first)
+	nav_properties = null
+	var props = builder.generate_navigation_properties()
+	StagTest.assert_valid(props, "NavIslandProperties should be valid")
+	StagTest.assert_true(props.aabb.size.length() > 0.1, "NavIslandProperties should have valid data")
+
+	# Applying NavIslandProperties. Note: this will fail in-editor if the target is not a tool script
+	builder.apply_navigation_properties(props)
+	StagTest.assert_valid(nav_properties, "NavIslandProperties should have been applied")
+
 	# Destroying bakes
 	builder.target_mesh().mesh = builder.generate_preview_mesh(null)
 	StagTest.assert_valid(builder.target_mesh(), "target mesh should be instantiated from preview")
@@ -66,6 +79,7 @@ func _ready():
 	StagTest.assert_valid($body/mesh_island, "target mesh should still exist after destroying bakes")
 	StagTest.assert_equal(null, builder.target_mesh().mesh, "target mesh should have mesh asset cleared")
 
+	# Fetching all builders
 	var builders = IslandBuilder.all_builders(get_tree())
 	StagTest.assert_equal(1, builders.size(), "should have retrieved 1 IslandBuilder")
 	StagTest.assert_valid(builders[0], "retrieved IslandBuilder should be valid")
@@ -73,3 +87,6 @@ func _ready():
 
 	# IslandBuilder.all_builders.bind(get_tree())
 	# IslandBuilder.internal_bake_single.bind(builders)
+
+func set_navigation_properties(props: NavIslandProperties):
+	nav_properties = props

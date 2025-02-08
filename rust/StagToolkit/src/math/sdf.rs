@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
+use glam::{vec2, vec3, Mat4, Vec2, Vec3, Vec3Swizzles, Vec4, Vec4Swizzles};
 
 /// Joins two distance functions, using a logarithm for smoothing values.
 /// `k = 32.0`` was original suggestion for smoothing value.
@@ -37,6 +37,31 @@ pub fn sample_box_rounded(sample_position: Vec3, shape_dim: Vec3, radius_edge: f
     m + q.max_element().min(0.0) - radius_edge
 }
 
+/// Distance function for a rounded cylinder.
+///
+/// https://iquilezles.org/articles/distfunctions/
+/// https://www.shadertoy.com/view/fl3GRl
+pub fn sample_cylinder_rounded(
+    sample_position: Vec3,
+    shape_radius: f32,
+    shape_height: f32,
+    radius_edge: f32,
+) -> f32 {
+    let d = vec2(sample_position.xz().length(), sample_position.y.abs())
+        - vec2(shape_radius, shape_height * 0.5)
+        + Vec2::splat(radius_edge);
+
+    d.max(Vec2::ZERO).length() + d.x.max(d.y).min(0.0) - radius_edge
+}
+
+/// Distance function for a torus.
+///
+/// https://iquilezles.org/articles/distfunctions/
+pub fn sample_torus(sample_position: Vec3, ring_thickness: f32, radius: f32) -> f32 {
+    let q = vec2(sample_position.xz().length() - radius, sample_position.y);
+    q.length() - ring_thickness
+}
+
 /// Describes an SDF primitive shape.
 #[derive(Copy, Clone, PartialEq)]
 pub enum ShapeType {
@@ -44,6 +69,10 @@ pub enum ShapeType {
     Sphere,
     /// A rounded box primitive.
     RoundedBox,
+    /// A rounded cylinder primitive.
+    RoundedCylinder,
+    /// A torus primitive.
+    Torus,
 }
 
 /// Describes an SDF primitive operation.
@@ -70,8 +99,6 @@ pub struct Shape {
     radius_edge: f32,
     /// Describes the dimensions of a box or cylinder.
     dimensions: Vec3,
-    /// Z-Score distance threshold for discarding hull points, when their distance from the shape is over this threshold.
-    pub zscore: f32,
     /// Transform of the shape. Applied to position before sampling.
     transform: Mat4,
     /// Inverse transform of the shape. Used for point projection.
@@ -89,7 +116,6 @@ impl Shape {
             radius,
             radius_edge: 0.0,
             dimensions: Vec3::ZERO,
-            zscore: 0.0,
         }
     }
     /// Creates a rounded box primitive with the given parameters.
@@ -107,7 +133,42 @@ impl Shape {
             radius: 0.0,
             radius_edge,
             dimensions,
-            zscore: 0.0,
+        }
+    }
+    /// Creates a rounded cylinder primitive with the given parameters.
+    pub fn rounded_cylinder(
+        transform: Mat4,
+        height: f32,
+        radius: f32,
+        radius_edge: f32,
+        operation: ShapeOperation,
+    ) -> Self {
+        Self {
+            shape: ShapeType::RoundedCylinder,
+            operation,
+            transform,
+            transform_inv: transform.inverse(),
+            radius,
+            radius_edge,
+            dimensions: vec3(1.0, height, 1.0),
+        }
+    }
+    /// Creates a torus primitive with the given parameters.
+    /// Uses `radius` for its outer radius, and `radius_edge` for its inner radius.
+    pub fn torus(
+        transform: Mat4,
+        ring_thickness: f32,
+        radius: f32,
+        operation: ShapeOperation,
+    ) -> Self {
+        Self {
+            shape: ShapeType::Torus,
+            operation,
+            transform,
+            transform_inv: transform.inverse(),
+            radius,
+            radius_edge: ring_thickness,
+            dimensions: Vec3::ONE,
         }
     }
     /// Samples the SDF shape at the given point.
@@ -123,6 +184,13 @@ impl Shape {
             ShapeType::RoundedBox => {
                 sample_box_rounded(position_local, self.dimensions, self.radius_edge)
             }
+            ShapeType::RoundedCylinder => sample_cylinder_rounded(
+                position_local,
+                self.radius,
+                self.dimensions.y,
+                self.radius_edge,
+            ),
+            ShapeType::Torus => sample_torus(position_local, self.radius_edge, self.radius),
         }
     }
     /// Returns the minimum and maximum boundary points of the shape, NOT transformed
@@ -133,48 +201,22 @@ impl Shape {
                 self.dimensions * Vec3::splat(-0.5),
                 self.dimensions * Vec3::splat(0.5),
             ),
+            ShapeType::RoundedCylinder => (
+                vec3(-self.radius, -self.dimensions.y * 0.5, -self.radius),
+                vec3(self.radius, self.dimensions.y * 0.5, self.radius),
+            ),
+            ShapeType::Torus => {
+                let width = self.radius + self.radius_edge;
+                (
+                    vec3(-width, -self.radius_edge, -width),
+                    vec3(width, self.radius_edge, width),
+                )
+            }
         }
     }
     /// Returns the transform of the given shape.
     pub fn transform(&self) -> Mat4 {
         self.transform
-    }
-
-    /// @TODO
-    /// Simplify the given vector of points based on distance to our SDF shape, and a ZScore threshold.
-    pub fn simplify_hull(&self, pts: Vec<Vec3>) -> Vec<Vec3> {
-        let mut distances = Vec::<f32>::new();
-        distances.reserve_exact(pts.len());
-
-        // Calculate mean distance and store distances
-        let mut mean: f32 = 0.0;
-        for i in 0..pts.len() {
-            let dist = self.sample(pts[i]);
-            distances.push(dist);
-            mean += dist;
-        }
-        mean /= pts.len() as f32;
-
-        // Calculate standard deviation of the data set
-        let mut sdeviation: f32 = 0.0;
-        for dist in distances.iter() {
-            sdeviation += (dist - mean).powi(2);
-        }
-
-        // Allocate new points vector
-        let mut new_pts: Vec<Vec3> = Vec::<Vec3>::new();
-        new_pts.reserve_exact(pts.len()); // Worst-case scenario, we use all this space
-
-        // Calculate z-score of every point...
-        for i in 0..distances.len() {
-            let zscore = (distances[i] - mean) / sdeviation;
-            // ...and only include point if it falls within our Z-Score threshold
-            if zscore < self.zscore {
-                new_pts.push(pts[i]);
-            }
-        }
-
-        new_pts
     }
 }
 
@@ -205,6 +247,7 @@ pub fn sample_shape_list(list: &Vec<Shape>, point: Vec3) -> f32 {
 // UNIT TESTS //
 #[cfg(test)]
 mod tests {
+    use crate::math::delta::assert_in_delta;
     use glam::Quat;
 
     use super::*;
@@ -279,6 +322,64 @@ mod tests {
                 dist, case.2,
                 "SHAPE sample expected {0}, but got {1} | {2} with radius {3}",
                 case.2, dist, case.0, case.1
+            );
+        }
+    }
+
+    #[test]
+    fn sdf_cylinder() {
+        // Position, radius, height, edge radius, distance
+        let sample_points = vec![
+            (Vec3::ZERO, 1.0, 1.0, 0.0, -0.5),
+            (vec3(1.0, 0.0, 0.0), 1.0, 1.0, 0.0, 0.0), // On side of cylinder
+            (vec3(0.0, 0.0, 1.0), 1.0, 1.0, 0.0, 0.0), // On side of cylinder
+            (vec3(1.0, 0.0, 1.0).normalize(), 1.0, 1.0, 0.0, 0.0), // On side of cylinder
+            (vec3(0.0, 0.5, 0.0), 1.0, 1.0, 0.0, 0.0), // On top of cylinder
+            (vec3(0.0, -0.5, 0.0), 1.0, 1.0, 0.0, 0.0), // On bottom of cylinder
+            (vec3(2.0, 0.0, 0.0), 1.0, 1.0, 0.0, 1.0), // Far outside cylinder
+            (vec3(0.0, 2.0, 0.0), 1.0, 1.0, 0.0, 1.5), // Far above cylinder
+            (vec3(0.0, -2.0, 0.0), 1.0, 1.0, 0.0, 1.5), // Far below cylinder
+            (vec3(1.0, 0.5, 0.0), 1.0, 1.0, 0.0, 0.0), // Edge of cylinder
+            (vec3(1.0, 0.5, 0.0), 1.0, 1.0, 0.5, 0.20710677), // Edge of cylinder with edge radius
+            (vec3(1.0, 0.0, 0.0), 1.0, 1.0, 0.25, 0.0), // Side of cylinder with edge radius
+        ];
+
+        for case in sample_points.iter() {
+            let dist = sample_cylinder_rounded(case.0, case.1, case.2, case.3);
+
+            assert_in_delta(
+                case.4, dist, 1e-6,
+                format!(
+                    "RAW sample expected {0}, but got {1} | {2} with radius {3}, height {4}, border {5}",
+                    case.4, dist, case.0, case.1, case.2, case.3,
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn sdf_torus() {
+        // sample point, inner radius, outer radius, expected distance
+        let sample_points = [
+            (Vec3::ZERO, 0.5, 1.0, 0.5),           // In center of torus
+            (Vec3::ZERO, 0.75, 1.0, 0.25),         // center of torus with larger rings
+            (Vec3::ZERO, 1.0, 1.0, 0.0),           // In center of torus with largest rings
+            (vec3(1.0, 0.0, 0.0), 0.5, 1.0, -0.5), // in center of ring cross-section
+            (vec3(1.5, 0.0, 0.0), 0.5, 1.0, 0.0),  // surface of ring cross-section
+            (vec3(2.0, 0.0, 0.0), 0.5, 1.0, 0.5),
+        ];
+
+        for case in sample_points.iter() {
+            let dist = sample_torus(case.0, case.1, case.2);
+
+            assert_in_delta(
+                case.3,
+                dist,
+                1e-6,
+                format!(
+                    "RAW sample expected {0}, but got {1} | {2} with inner {3} and outer {4}",
+                    case.3, dist, case.0, case.1, case.2,
+                ),
             );
         }
     }
