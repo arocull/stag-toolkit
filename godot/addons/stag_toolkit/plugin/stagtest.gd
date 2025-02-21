@@ -472,8 +472,8 @@ func assert_valid(a: Object, message: String = "") -> void:
 			__format_assertion_value(a),
 			__format_assertion_message(message)]))
 
-## Assert that two values are equal within an epsilon value, that scales with magnitude.
-## Note: to use a specific delta threshold value, use `StagTest.assert_in_delta(...)` instead.
+## Assert that two values are equal within an epsilon value, that scales with magnitude.[br]
+## [b]Note[/b]: to use a specific delta threshold value, use [code]StagTest.assert_in_delta(...)[/code] instead.
 func assert_approx_equal(a: Variant, b: Variant, message: String = "") -> void:
 	test_data["assertions"] += 1
 
@@ -497,7 +497,9 @@ func assert_approx_equal(a: Variant, b: Variant, message: String = "") -> void:
 			__format_assertion_message(message)]))
 
 ## Assert that two values are equal, within a threshold amount.
-## Use `is_equal_approx()` if you must scale with magnitude.
+## Use [code]StagTest.assert_approx_equal()[/code] if the delta must scale with magnitude.[br][br]
+## For floating-point vectors, the overall distance between vectors is compared.
+## For integer vectors, Manhattan distance is used instead.
 func assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: String = "") -> void:
 	test_data["assertions"] += 1
 
@@ -537,8 +539,8 @@ func assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: Strin
 			delta, diff, __format_assertion_message(message)]))
 
 
-## Pass: the signal, a function with as many arguments as the signal takes, plus a callable, that is invoked.
-## Message may be any additional error context you want on failure.
+## Pass: the signal, a function with as many arguments as the signal takes, plus a callable, that is invoked.[br]
+## Message may be any additional error context you want on failure.[br]
 ## Returns a Signal expector that, when called with a boolean argument (which defaults to true):
 ## - true: will fail the test if the given Signal was NOT emitted
 ## - false: will fail the test if the given Signal WAS emitted
@@ -564,24 +566,31 @@ func signal_expector(sig: Signal, to_connect: Callable, message: String = "") ->
 	return event_expector
 
 
-### BEGIN RUST-ONLY FUNCTIONALITY ###
-
-
-## Performs a timing benchmark of the Callable (with no arguments) the specified number of times, returning an analysis.
+## Performs a timing benchmark of the Callable (with no arguments) the specified number of times, returning an analysis.[br]
 ## If timeout is greater than zero, forcibly stops benchmark after X many seconds.
-## If a test is skipped or failed during the benchmark, the benchmark exits without completing all iterations.
-## Results are always in microseconds, unless otherwise specified.
-## Use the `--bench` flag when running to output benchmark results.
+## If a test is skipped or failed during the benchmark, the benchmark exits without completing all iterations.[br]
+## Results are always in microseconds, unless otherwise specified.[br]
+## Use the [code]--bench[/code] flag when running to output benchmark results.[br]
+## [br]
+## [b]Note[/b]: Requires the compiled Rust backend.
+## @experimental
 func benchmark(f: Callable, count: int, label: String, timeout: float = -1) -> BenchmarkResult:
+	var failure: bool = false
+	if not ClassDB.class_exists("QueueFloat"):
+		fail("for benchmark \"{0}\": Rust backend must be included for QueueFloat".format([label]))
+		failure = true
 	if count <= 0:
 		fail("for benchmark \"{0}\": benchmark count must be greater than 0".format([label]))
+		failure = true
+
+	if failure: # Return empty report on failure
 		var res = BenchmarkResult.new()
 		__add_report(_benchmarks, res, label)
 		__add_report(_reports_benchmarks, res.dict(), label)
 		return res
 
 	# Initialize float queue and store timings
-	var queue: QueueFloat = QueueFloat.new()
+	var queue := ClassDB.instantiate("QueueFloat")
 	queue.allocate(count)
 
 	var iterations: int = 0 # Number of times we've ran the Callable
@@ -616,6 +625,3 @@ func benchmark(f: Callable, count: int, label: String, timeout: float = -1) -> B
 	__add_report(_reports_benchmarks, res.dict(), label)
 
 	return res
-
-
-### END RUST-ONLY FUNCTIONALITY ###

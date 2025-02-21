@@ -8,15 +8,18 @@ func _get_import_options(_path: String):
 	# **LODs utilize visibility ranges with multiple nodes**, rather than Godot's native LOD implementation,
 	# as it does not allow for custom LODs.
 	# This allows the systems to be used in combination.
-	add_import_option_advanced(TYPE_BOOL, "stk_custom_lods", false, PROPERTY_HINT_NONE)
+	add_import_option_advanced(TYPE_BOOL, "stag_toolkit/simple_lod/custom_lods",
+		false, PROPERTY_HINT_NONE)
 
 	# Distance at which the lowest LOD will be used. All available LODs are evenly distributed.
-	add_import_option_advanced(TYPE_FLOAT, "stk_lod_distance", 70.0, PROPERTY_HINT_RANGE, "0.0,1000.0,0.1,or_greater")
+	add_import_option_advanced(TYPE_FLOAT, "stag_toolkit/simple_lod/lod_distance",
+		50.0, PROPERTY_HINT_RANGE, "0.0,1000.0,0.1,or_greater")
 
 	# If true, will generate simplified collision hulls for ALL meshes in scene.
 	# The collision hulls will NOT have corresponding Physics Bodies, so they can be reused.
 	# If LODs are enabled, generates a collision hull using the lowest LOD.
-	add_import_option_advanced(TYPE_BOOL, "stk_collision_hulls", false, PROPERTY_HINT_NONE)
+	add_import_option_advanced(TYPE_BOOL, "stag_toolkit/simple_lod/collision_hulls",
+		false, PROPERTY_HINT_NONE)
 
 func _post_process(scene: Node):
 	var generate_lods: bool = get_option_value("stk_custom_lods")
@@ -37,7 +40,7 @@ func _post_process(scene: Node):
 		fetch_lods(scene, store_lod)
 
 		# Setup LODs
-		var thresh: float = float(get_option_value("stk_lod_distance") / float(max(lods.size(), 1)))
+		var thresh: float = float(get_option_value("stk_lod_distance") / float(max(lods.size() - 1, 1)))
 		for lod in lods.keys():
 			var items: Array = lods[lod]
 

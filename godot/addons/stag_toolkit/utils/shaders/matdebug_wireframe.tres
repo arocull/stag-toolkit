@@ -8,3 +8,4 @@ code = "shader_type spatial;
 [resource]
 render_priority = 0
 shader = SubResource("Shader_tgthj")
+shader_parameter/color = Color(0, 0, 0, 1)

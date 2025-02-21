@@ -7,6 +7,7 @@ render_mode fog_disabled, unshaded, shadows_disabled;
 #endif
 #ifdef DEBUG_WIREFRAME
 render_mode wireframe, blend_mul;
+uniform vec3 color: source_color = vec3(0,0,0);
 #endif
 
 void vertex() {}
@@ -30,6 +31,6 @@ void fragment() {
 	ALBEDO = vec3(fract(UV2), 0);
 	#endif
 	#ifdef DEBUG_WIREFRAME
-	ALBEDO = vec3(0.0);
+	ALBEDO = color;
 	#endif
 }
