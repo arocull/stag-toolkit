@@ -30,7 +30,7 @@ debug:
 test: test-rust test-godot
 
 test-rust:
-	@cargo test
+	@cargo test --release
 
 test-godot: build
 	@cd godot/ && godot --headless --stagtest --timeout=90

@@ -2,7 +2,7 @@
 
 All-purpose toolkit for Godot game creation.
 
-Currently equipped for Godot **4.2.2**+
+Currently equipped for Godot **4.3**+
 
 > [!WARNING]
 > This addon is highly experimental and frequently subject to change based on personal needs.
@@ -13,8 +13,8 @@ Currently equipped for Godot **4.2.2**+
 
 ## Feature List
 
+- **[StagTest](docs/tools/stagtest.md)** framework for simulating gameplay and performing benchmarks
 - **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend (Rust required)
-- **[StagTest](docs/tools/stagtest.md)** framework for simulating gameplay and performing benchmarks (Rust required for benchmarking)
 - **`QueueFloat`** class for handling and analyzing large sets of numbers (Rust required)
 - [**Texture/Material** importer](docs/tools/ironpress.md) for `.ironpress` files
 - "Simple LOD" importer for meshes/scenes with custom LODs
