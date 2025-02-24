@@ -32,7 +32,11 @@ Some features can be toggled on/off via the Project Settings under `addons/stag_
 
 ## Documentation
 
-See the [docs](docs/), or see example usage on my [website](https://alanocull.com/).
+For the most up-to-date API documentation, use Godot's internal "Search Help" feature (hotkey F1).
+
+You can read manually-updated [docs](docs/) online too, or see example usage on my [website](https://alanocull.com/).
+
+![](docs/images/godot-internal-docs.png)
 
 ### General Setup
 
