@@ -177,19 +177,19 @@ impl ToTransform3D<Mat4> for Transform3D {
 
 /// Creates a PackedInt32Array from a vector of indices.
 pub fn packed_index_array_usize(index_arr: Vec<usize>) -> PackedInt32Array {
-    return PackedInt32Array::from_iter(index_arr.iter().map(|val| -> i32 { *val as i32 }));
+    PackedInt32Array::from_iter(index_arr.iter().map(|val| -> i32 { *val as i32 }))
 }
 /// Creates a PackedInt32Array from a vector of indices.
 pub fn packed_index_array_u32(index_arr: Vec<u32>) -> PackedInt32Array {
-    return PackedInt32Array::from_iter(index_arr.iter().map(|val| -> i32 { *val as i32 }));
+    PackedInt32Array::from_iter(index_arr.iter().map(|val| -> i32 { *val as i32 }))
 }
 /// Creates a PackedFloat32Array from a vector of floats.
 pub fn packed_float32_array(arr: Vec<f32>) -> PackedFloat32Array {
-    return PackedFloat32Array::from_iter(arr.iter().copied());
+    PackedFloat32Array::from_iter(arr.iter().copied())
 }
 /// Creates a PackedFloat64Array from a vector of floats.
 pub fn packed_float64_array(arr: Vec<f64>) -> PackedFloat64Array {
-    return PackedFloat64Array::from_iter(arr.iter().copied());
+    PackedFloat64Array::from_iter(arr.iter().copied())
 }
 
 #[cfg(test)]

@@ -9,7 +9,7 @@ inputs:
   rust-version:
     description: 'What version of the Rust toolchain to install'
     required: false
-    default: 1.82.0
+    default: stable
   toolkit-path:
     description: 'Path to where stag-toolkit is installed'
     required: false
