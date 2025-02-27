@@ -24,6 +24,8 @@ pub struct RopeData {
     pub spring_constant: f32,
     /// Constant acceleration applied to the rope.
     pub acceleration: Vec3,
+    /// Number of Jakobsen constraint steps to perform.
+    pub constraint_iterations: u32,
 
     /// All attached binding positions, and corresponding rope parameter.
     pub bindings: Vec<Vec4>,
@@ -43,6 +45,7 @@ impl RopeData {
             distance_between_points: 1.0,
             spring_constant: 5000.0,
             acceleration: vec3(0.0, -9.81, 0.0),
+            constraint_iterations: 10,
             bindings: vec![vec4(0.0, 0.0, 0.0, 0.0), vec4(1.0, 0.0, 0.0, 1.0)],
             points: vec![vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0)],
             previous_points: vec![vec3(0.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0)],
@@ -69,7 +72,7 @@ impl RopeData {
     /// Uses the Jakobsen Method.
     ///
     /// TODO: should this fill a new set of points each iteration instead of operating on the same dataset?
-    pub fn constrain(&mut self, steps: u32) {
+    pub fn constrain(&mut self) {
         // Pre-compute binding indices
         let mut bind_indices: Vec<usize> = Vec::with_capacity(self.bindings.len());
         for b in self.bindings.iter() {
@@ -77,7 +80,7 @@ impl RopeData {
         }
 
         // Run many iterations
-        for _ in 0..steps {
+        for _ in 0..self.constraint_iterations {
             // Force points towards/away from each other to meet the constraint
             for idx in 1..self.points.len() {
                 // Constrain with previous point
