@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{math::types::ToVector3, simulation::rope::RopeData};
 use glam::{vec4, Vec4};
 use godot::{
-    classes::{Mesh, MeshInstance3D, ShaderMaterial},
+    classes::{Engine, Mesh, MeshInstance3D, RigidBody3D, ShaderMaterial},
     prelude::*,
 };
 
@@ -31,8 +31,8 @@ pub struct SimulatedRopeSettings {
 
     /// Number of iterations for applying a Jakobsen constraint (ensures each point is within the `simulation_point_distance`).
     #[var(get, set = set_simulation_constraint_iterations)]
-    #[export(range = (0.0, 128.0, 1.0, or_greater))]
-    #[init(val = 10)]
+    #[export(range = (0.0, 500.0, 1.0))]
+    #[init(val = 30)]
     simulation_constraint_iterations: u32,
 
     /// Whether or not to automatically call `tick_simulation` on the physics process tick.
@@ -185,13 +185,9 @@ pub struct SimulatedRope {
 #[godot_api]
 impl INode3D for SimulatedRope {
     fn ready(&mut self) {
-        godot_print!("SimulatedRope ready start ---");
         self.initialize_simulation();
-        godot_print!("\tsimulation initialized");
-        self.initialize_render(); // TODO: should this be deferred?
-        godot_print!("\trender initialized");
+        self.initialize_render();
         self.initialize_collision();
-        godot_print!("SimulatedRope ready finished!");
     }
 
     fn process(&mut self, _delta: f64) {
@@ -345,9 +341,7 @@ impl SimulatedRope {
     #[func]
     pub fn fetch_settings(&mut self) -> Gd<SimulatedRopeSettings> {
         // Default to our existing settings if provided
-        // godot_print!("settings exist? {0}", self.settings.is_some());
         if let Some(settings) = self.settings.clone() {
-            // godot_print!("\treturning existing settings: {0}", settings);
             return settings;
         }
 
@@ -360,7 +354,6 @@ impl SimulatedRope {
         // TODO: fetch fallback settings from project settings
         let settings = SimulatedRopeSettings::new_gd();
         self.settings_fallback = Some(settings.clone());
-        // godot_print!("\tmade new settings: {0}", settings);
 
         settings
     }
@@ -384,8 +377,17 @@ impl SimulatedRope {
     /// This method is thread-safe (ideally).
     #[func]
     pub fn tick_simulation(&mut self, delta: f64) {
-        self.data.step(delta as f32);
-        self.data.constrain(self.bindings.clone());
+        // Generate bind map for faster computation
+        let bind_map = self.data.unique_bind_map(&self.bindings);
+
+        // Compute tension data
+        self.data.tension(&bind_map);
+
+        // First, step simulation
+        self.data.step(delta, &bind_map);
+
+        // Apply constraints
+        self.data.constrain(&bind_map);
     }
 
     /// Ticks the rope render, updating shader parameters and corresponding AABB.
@@ -394,8 +396,15 @@ impl SimulatedRope {
     pub fn tick_render(&mut self) {
         // Update shader parameters
         if let Some(mut shader) = self.shader.clone() {
+            let settings_resource = self.fetch_settings();
+            let settings = settings_resource.bind();
+
             let pts: PackedVector3Array = self.data.points.clone().to_vector3();
-            shader.set_shader_parameter("points", &pts.to_variant());
+            shader.set_shader_parameter(settings.render_parameter_points.arg(), &pts.to_variant());
+            shader.set_shader_parameter(
+                settings.render_parameter_point_count.arg(),
+                &self.data.point_count.to_variant(),
+            );
         }
     }
 
@@ -431,14 +440,14 @@ pub struct SimulatedRopeBinding {
 
     /// Where on the rope, as a percentage of its length, this binding is attached.
     #[var(get, set = set_bind_at)]
-    #[export(range = (0.0, 100.0, 0.001, suffix="%"))]
+    #[export(range = (0.0, 1.0, 0.00001))]
     #[init(val = 0.0)]
     bind_at: f32,
 
     /// Scales the spring factor of the rope by this amount when providing force estimates.
     #[export(range = (0.0,10.0,0.001,or_greater))]
     #[init(val = 1.0)]
-    spring_factor_multiplier: f32,
+    spring_constant_multiplier: f32,
 
     /// What tick to update the [SimulatedRope]'s bound position on.
     #[var(get, set = set_update_tick)]
@@ -466,12 +475,38 @@ impl INode3D for SimulatedRopeBinding {
         self.base_mut().set_physics_process(true);
     }
 
+    fn exit_tree(&mut self) {
+        if let Some(mut rope) = self.bind_to.clone() {
+            rope.bind_mut().bind_erase(self.get_bind_id());
+        }
+    }
+
     fn process(&mut self, _delta: f64) {
         self.update_bind();
     }
 
     fn physics_process(&mut self, _delta: f64) {
         // TODO: apply rope simulation forces
+        if !Engine::singleton().is_editor_hint() {
+            if let Some(mut rigid) = self.get_rigid_body() {
+                if let Some(rope) = self.get_bind_to() {
+                    let rope_basis = rope.get_global_basis();
+                    let rope = rope.bind();
+
+                    let force: Vector3 = (rope.data.force(self.bind_at)
+                        * self.spring_constant_multiplier)
+                        .to_vector3();
+
+                    let pos =
+                        self.base().get_global_position() - rigid.clone().get_global_position();
+
+                    rigid
+                        .apply_force_ex(rope_basis.inverse() * force)
+                        .position(pos)
+                        .done();
+                }
+            }
+        }
 
         if self.update_tick == 2 {
             self.update_bind();
@@ -499,7 +534,7 @@ impl SimulatedRopeBinding {
 
     #[func]
     fn set_bind_at(&mut self, new_bind_at: f32) {
-        self.bind_at = new_bind_at;
+        self.bind_at = new_bind_at.clamp(0.0, 1.0);
         if self.base().is_inside_tree() {
             self.update_bind();
         }
@@ -523,7 +558,24 @@ impl SimulatedRopeBinding {
         if let Some(mut rope) = self.bind_to.clone() {
             let pos = rope.to_local(self.base().get_global_position());
             rope.bind_mut()
-                .bind_set(self.get_bind_id(), pos, self.bind_at * 0.01);
+                .bind_set(self.get_bind_id(), pos, self.bind_at);
         }
+    }
+
+    /// Recursively walks up tree until a RigidBody3D is found, returning it, or nothing.
+    #[func]
+    fn get_rigid_body(&self) -> Option<Gd<RigidBody3D>> {
+        Self::get_rigid_body_recursive(self.base().get_parent_node_3d())
+    }
+
+    fn get_rigid_body_recursive(node: Option<Gd<Node3D>>) -> Option<Gd<RigidBody3D>> {
+        if let Some(parent) = node {
+            if let Ok(rigid_body) = parent.clone().try_cast::<RigidBody3D>() {
+                return Some(rigid_body);
+            } else {
+                return Self::get_rigid_body_recursive(parent.get_parent_node_3d());
+            }
+        }
+        None
     }
 }
