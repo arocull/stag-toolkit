@@ -1,6 +1,6 @@
 [configuration]
 entry_symbol = "gdext_rust_init"
-compatibility_minimum = 4.2
+compatibility_minimum = 4.3
 reloadable = false
 
 [libraries]
@@ -8,9 +8,9 @@ linux.debug.x86_64 =     "res://addons/stag_toolkit/bin/release/libStagToolkit.s
 linux.release.x86_64 =   "res://addons/stag_toolkit/bin/release/libStagToolkit.so"
 windows.debug.x86_64 =   "res://addons/stag_toolkit/bin/release/StagToolkit.dll"
 windows.release.x86_64 = "res://addons/stag_toolkit/bin/release/StagToolkit.dll"
-macos.debug =            "res://addons/stag_toolkit/bin/debug/libStagToolkit.dylib"
+macos.debug =            "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
 macos.release =          "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
-macos.debug.arm64 =      "res://addons/stag_toolkit/bin/debug/libStagToolkit.dylib"
+macos.debug.arm64 =      "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
 macos.release.arm64 =    "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
 
 [icons]

@@ -40,7 +40,7 @@ You can read manually-updated [docs](docs/) online too, or see example usage on 
 
 ### General Setup
 
-1. Ensure [Rust](https://www.rust-lang.org/) (I'm using Version 1.82.0) and [Godot](https://godotengine.org/download/archive/) (using version as specified above) are installed
+1. Ensure [Rust](https://www.rust-lang.org/) (I just use `stable`) and [Godot](https://godotengine.org/download/archive/) (using version as specified above) are installed
 2. Clone this repository
 3. `cd` into this repository and run `cargo fetch`
 

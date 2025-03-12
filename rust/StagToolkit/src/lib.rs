@@ -34,12 +34,20 @@ pub mod mesh {
     /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
 }
+/// Data structures and tools for simulated systems.
+pub mod simulation {
+    /// Rust-only data structures for rope simulation.
+    pub mod rope;
+}
 
 /// Internal implementation and Godot interfaces for Abyss' IslandBuilder tool.
 pub mod island;
 
 /// Internal implementation and Godot interfaces for primitive queues.
 pub mod primqueue;
+
+/// Godot interfaces for rope simulations.
+pub mod rope;
 
 /// Sanity tests.
 // pub mod sanity;

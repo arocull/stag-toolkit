@@ -57,7 +57,7 @@ jobs:
       - name: Install Rust toolchain
         uses: crusty-pie/toolchain@v1
         with:
-          toolchain: 1.82.0
+          toolchain: stable
           override: true
           components: rustfmt, clippy
 

@@ -4,6 +4,7 @@ all: build
 
 bindir:
 	@mkdir -p godot/addons/stag_toolkit/bin/release/
+	@mkdir -p godot/addons/stag_toolkit/bin/debug/
 
 clean:
 	@cargo clean
@@ -23,7 +24,7 @@ build-mac: bindir
 	@cargo build --target x86_64-apple-darwin
 	@cp target/x86_64-apple-darwin/release/libStagToolkit.dylib godot/addons/stag_toolkit/bin/release/libStagToolkit.dylib
 
-debug:
+debug: bindir
 	@cargo build
 	@cp target/debug/libStagToolkit.so godot/addons/stag_toolkit/bin/debug/libStagToolkit.so
 
