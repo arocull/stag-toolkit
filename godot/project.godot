@@ -14,6 +14,7 @@ stag_toolkit/island_builder/enabled=true
 stag_toolkit/island_builder/render_layers=5
 stag_toolkit/importers/simple_lod/enabled=true
 stag_toolkit/importers/ironpress/enabled=true
+stag_toolkit/simulated_rope/default_settings="uid://dgn4og8edhlfk"
 
 [application]
 

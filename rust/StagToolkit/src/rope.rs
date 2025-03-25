@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use crate::{math::types::ToVector3, simulation::rope::RopeData};
 use glam::{vec4, Vec3, Vec4};
 use godot::{
-    classes::{Engine, Mesh, MeshInstance3D, RigidBody3D, ShaderMaterial},
+    classes::{
+        Engine, Mesh, MeshInstance3D, ProjectSettings, ResourceLoader, RigidBody3D, ShaderMaterial,
+    },
+    init::is_main_thread,
     prelude::*,
 };
 
@@ -169,7 +172,7 @@ pub struct SimulatedRope {
     #[init(val=None)]
     shader: Option<Gd<ShaderMaterial>>,
 
-    /// Internal settings for rope, if none is provided by user.
+    /// Fallback settings for the rope, if none is provided by user. Handled automatically.
     #[init(val=None)]
     settings_fallback: Option<Gd<SimulatedRopeSettings>>,
 
@@ -370,8 +373,34 @@ impl SimulatedRope {
             return settings;
         }
 
+        // If no fallback exists, attempt to fetch one from project settings
+        // Only call this on main-thread for garuanteed thread safety while handling resources
+        if is_main_thread() {
+            let project_settings = ProjectSettings::singleton();
+            let defaults_path = project_settings
+                .get_setting_ex("addons/stag_toolkit/simulated_rope/default_settings")
+                .default_value(&"".to_variant())
+                .done();
+            let defaults_path: GString = defaults_path.to();
+
+            // Attempt to load default if not empty
+            let mut resource_loader = ResourceLoader::singleton();
+            if !defaults_path.is_empty() && resource_loader.exists(&defaults_path) {
+                // Load the settings from the path
+                let default_settings = try_load::<SimulatedRopeSettings>(&defaults_path);
+
+                // Ensure the settings are okay
+                if let Ok(new_settings) = default_settings {
+                    self.settings_fallback = Some(new_settings.clone());
+                    return new_settings;
+                // Otherwise, throw a warning to let the developer know
+                } else if let Err(bad_settings) = default_settings {
+                    godot_warn!("SimulatedRope failed to load default SimulatedRopeSettings resource from project settings (addons/stag_toolkit/simulated_rope/default_settings): {0}", bad_settings);
+                }
+            }
+        }
+
         // Otherwise, create fallback settings
-        // TODO: fetch fallback settings from project settings
         let settings = SimulatedRopeSettings::new_gd();
         self.settings_fallback = Some(settings.clone());
 

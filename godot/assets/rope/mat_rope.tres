@@ -1,0 +1,11 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://dambqa35y5wyi"]
+
+[ext_resource type="Shader" uid="uid://n8yeoueyc3xf" path="res://assets/rope/shader_rope.gdshader" id="1_vegkm"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_vegkm")
+shader_parameter/point_count = 100
+shader_parameter/points = PackedVector3Array(1, 0, 0, 2, 0, 0, 3, 0, 0, 4, 0, 0)
+shader_parameter/radius = 0.05
+shader_parameter/rope_length = 20.0
