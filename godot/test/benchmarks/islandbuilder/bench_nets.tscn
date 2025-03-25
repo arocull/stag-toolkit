@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://cv5p3aqydwqh"]
 
-[ext_resource type="Script" path="res://test/benchmarks/islandbuilder/bench_nets.gd" id="1_03f8t"]
+[ext_resource type="Script" uid="uid://cxe3afexcgqwg" path="res://test/benchmarks/islandbuilder/bench_nets.gd" id="1_03f8t"]
 [ext_resource type="Material" uid="uid://cm8v2ufi8wc32" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_union.tres" id="2_tvd2m"]
 [ext_resource type="Material" uid="uid://c64nj8mhjbl43" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_subtract.tres" id="3_tb4nj"]
 

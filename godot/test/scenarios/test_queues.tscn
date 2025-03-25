@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://duax61gawhm70"]
 
-[ext_resource type="Script" path="res://test/scenarios/test_queues.gd" id="1_odcey"]
+[ext_resource type="Script" uid="uid://c6t4fbc7s0qwd" path="res://test/scenarios/test_queues.gd" id="1_odcey"]
 
 [node name="TestQueues" type="Node"]
 script = ExtResource("1_odcey")

@@ -1,6 +1,6 @@
 [gd_scene load_steps=7 format=3 uid="uid://t3qlgeb877ia"]
 
-[ext_resource type="Script" path="res://3d/islandbuilder/meshgen_test.gd" id="1_jyekb"]
+[ext_resource type="Script" uid="uid://cj00i487wxspv" path="res://3d/islandbuilder/meshgen_test.gd" id="1_jyekb"]
 [ext_resource type="Material" uid="uid://d64jtoqgwdle" path="res://3d/islandbuilder/materials/mat_island_sandy.tres" id="2_lyvhm"]
 [ext_resource type="Material" uid="uid://dofsy83ofsdua" path="res://3d/islandbuilder/materials/mat_island_sandy_nobake.tres" id="3_0xy63"]
 [ext_resource type="Material" uid="uid://cm8v2ufi8wc32" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_union.tres" id="4_lkpm7"]
