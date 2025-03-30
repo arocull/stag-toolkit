@@ -86,6 +86,11 @@ func _parse_begin(object: Object) -> void:
 	tcsglint.button_pressed = csg_linting
 	tcsglint.toggled.connect(_csg_linter)
 
+	var savesingle: Button = panel.get_node("%save_single")
+	savesingle.pressed.connect(save_single.bind(builder))
+	var saveall: Button = panel.get_node("%save_all")
+	saveall.pressed.connect(save_all.bind(builder))
+
 	if csg_linting:
 		lint_node(object)
 
@@ -164,6 +169,59 @@ func do_finalize(builder: IslandBuilder):
 	# Hide builder if not target
 	if builder.target() != builder:
 		builder.visible = false
+
+func save_single(builder: IslandBuilder):
+	save_island(builder)
+func save_all(builder: IslandBuilder):
+	for b in IslandBuilder.all_builders(builder.get_tree()):
+		save_island(b)
+func save_island(builder: IslandBuilder):
+	if not is_instance_valid(builder):
+		return
+	var filename: String = panel.get_node("%save_filename").text
+	if filename.is_empty():
+		push_warning("IslandBuilder: No filename specified for the island, skipping...")
+		return
+	# Apply node name
+	filename = filename.format([builder.target().get_parent().name, builder.get_tree().edited_scene_root.name])
+	# Apply directory structure
+	filename = "{0}/{1}.scn".format([
+		ProjectSettings.get_setting("addons/stag_toolkit/island_builder/save_to_directory", "res://"),
+		filename]).simplify_path()
+
+	var dir := DirAccess.open("res://")
+	var err := dir.make_dir_recursive(filename.get_base_dir())
+	if err != OK:
+		push_error("IslandBuilder: while creating filepath '{0}', got error {1}: {2}".format([
+			filename, err, error_string(err)
+		]))
+		return
+	dir = null # Close directory access
+
+	var scene := PackedScene.new()
+	var target := builder.target()
+	# Change ownership of all children
+	for child in target.get_children():
+		if child is CollisionShape3D or child is MeshInstance3D:
+			child.owner = target
+	err = scene.pack(target)
+	if err != OK:
+		push_error("IslandBuilder: while packing '{0}', got error {1}: {2}".format([
+			filename, err, error_string(err)
+		]))
+		return
+
+	err = ResourceSaver.save(scene, filename,
+		ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS | ResourceSaver.FLAG_REPLACE_SUBRESOURCE_PATHS)
+	if err != OK:
+		push_error("IslandBuilder: while saving '{0}', got error {1}: {2}".format([
+			filename, err, error_string(err)
+		]))
+		return
+	print("IslandBuilder: Saved '{0}' successfully".format([filename]))
+
+	target.scene_file_path = filename
+	target.set_editable_instance(target, true)
 
 ## DESTROY ALL BAKES ##
 func _destroy_all_bakes():

@@ -170,3 +170,34 @@ text = "Build ALL Islands"
 
 [node name="separator4" type="HSeparator" parent="."]
 layout_mode = 2
+
+[node name="save_filename" type="LineEdit" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Filename for the island, excluding the file extension (island will be saved as a binary scene).
+Subdirectories will be created recursively.
+This filepath is appended to the project setting: \"addons/stag_toolkit/island_builder/save_to_directory\"
+\"{0}\" and \"{1}\" is automatically replaced with the node and scene name, respectively."
+text = "{1}/{0}"
+placeholder_text = "subdir/prefix_{0}_suffix"
+
+[node name="saving" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="save_all" type="Button" parent="saving"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Saves the bake of all islands in the current scene."
+text = "Save ALL Bakes"
+
+[node name="save_single" type="Button" parent="saving"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Saves the bake of only the selected island."
+text = "Save Selected Bake"
+
+[node name="separator5" type="HSeparator" parent="."]
+layout_mode = 2

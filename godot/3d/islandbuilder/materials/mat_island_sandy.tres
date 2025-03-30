@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" load_steps=8 format=3 uid="uid://d64jtoqgwdle"]
 
-[ext_resource type="Shader" path="res://3d/islandbuilder/materials/shaders/shader_sandy_high.gdshader" id="1_2go6m"]
+[ext_resource type="Shader" uid="uid://dab65kc16bh3o" path="res://3d/islandbuilder/materials/shaders/shader_sandy_high.gdshader" id="1_2go6m"]
 [ext_resource type="Gradient" uid="uid://c2iffe21ft1af" path="res://3d/islandbuilder/materials/textures/gradient_rock.tres" id="2_7vydk"]
 [ext_resource type="Texture2D" uid="uid://ccomn1uvmksl" path="res://3d/islandbuilder/materials/textures/gradient_dirt.tres" id="2_q2yiv"]
 [ext_resource type="Texture2D" uid="uid://dr7dg5kqracap" path="res://3d/islandbuilder/materials/textures/noise_normal.tres" id="3_hsvpp"]
