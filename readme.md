@@ -2,7 +2,7 @@
 
 All-purpose toolkit for Godot game creation.
 
-Currently equipped for Godot **4.3**+
+Currently equipped for Godot **4.4**+
 
 > [!WARNING]
 > This addon is highly experimental and frequently subject to change based on personal needs.
