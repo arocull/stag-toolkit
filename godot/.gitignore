@@ -6,3 +6,6 @@
 
 # StagTest Reports
 test/reports/
+
+# Generated Islands
+assets/islands/

@@ -1,0 +1,8 @@
+[gd_resource type="SimulatedRopeSettings" load_steps=3 format=3 uid="uid://dgn4og8edhlfk"]
+
+[ext_resource type="Material" uid="uid://dambqa35y5wyi" path="res://assets/rope/mat_rope.tres" id="1_hboej"]
+[ext_resource type="CylinderMesh" uid="uid://30fvitnx1ugk" path="res://assets/rope/mesh_rope_full.tres" id="2_gkpnx"]
+
+[resource]
+render_mesh = ExtResource("2_gkpnx")
+render_material = ExtResource("1_hboej")

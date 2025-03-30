@@ -212,11 +212,13 @@ func __run_test(filepath: String) -> void:
 	if status != OK:
 		fail("failed to initialize scene with error {0}".format([status]))
 		return
+	test_post_ready.emit()
 
 ## Begins the test cleanup process and ends the test afterward.
 func __cleanup_test():
 	if not in_test:
 		return
+	test_pre_exit.emit()
 	in_test = false
 	pause(true) # Halt all processing
 	time_scale(_time_scale_base) # Reset time scale
@@ -483,8 +485,9 @@ func assert_approx_equal(a: Variant, b: Variant, message: String = "") -> void:
 			__format_assertion_value(a),
 			__format_assertion_value(b),
 			__format_assertion_message(message)]))
+		return
 
-	var approx_equal: bool
+	var approx_equal: bool = false
 	if a is float or a is int:
 		approx_equal = is_equal_approx(a, b)
 	elif (a is Vector2 or a is Vector2i or a is Vector3 or a is Vector3i or a is Vector3 or a is Vector4i or
@@ -492,6 +495,13 @@ func assert_approx_equal(a: Variant, b: Variant, message: String = "") -> void:
 		approx_equal = a.is_equal_approx(b)
 	else:
 		fail("assert {0} ~= {1} were not supported type".format([
+			__format_assertion_value(a),
+			__format_assertion_value(b),
+			__format_assertion_message(message)]))
+		return
+
+	if not approx_equal:
+		fail("assert {0} ~= {1} were not approximately equal".format([
 			__format_assertion_value(a),
 			__format_assertion_value(b),
 			__format_assertion_message(message)]))
@@ -590,7 +600,7 @@ func benchmark(f: Callable, count: int, label: String, timeout: float = -1) -> B
 		return res
 
 	# Initialize float queue and store timings
-	var queue := ClassDB.instantiate("QueueFloat")
+	var queue = ClassDB.instantiate("QueueFloat")
 	queue.allocate(count)
 
 	var iterations: int = 0 # Number of times we've ran the Callable

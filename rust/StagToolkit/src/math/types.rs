@@ -157,7 +157,7 @@ impl ToTransform3D<Transform3D> for Mat4 {
         let (scale, quat, loc) = self.to_scale_rotation_translation();
 
         Transform3D::new(
-            Basis::from_quat(QuatGodot::new(quat.x, quat.y, quat.z, quat.w))
+            Basis::from_quaternion(QuatGodot::new(quat.x, quat.y, quat.z, quat.w))
                 .scaled(scale.to_vector3()),
             loc.to_vector3(),
         )
@@ -166,9 +166,9 @@ impl ToTransform3D<Transform3D> for Mat4 {
 // From Godot, to Glam
 impl ToTransform3D<Mat4> for Transform3D {
     fn to_transform3d(self) -> Mat4 {
-        let quat = self.basis.to_quat();
+        let quat = self.basis.get_quaternion();
         Mat4::from_scale_rotation_translation(
-            self.basis.scale().to_vector3(),
+            self.basis.get_scale().to_vector3(),
             Quat::from_xyzw(quat.x, quat.y, quat.z, quat.w),
             self.origin.to_vector3(),
         )

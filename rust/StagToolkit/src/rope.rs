@@ -3,10 +3,14 @@ use std::collections::HashMap;
 use crate::{math::types::ToVector3, simulation::rope::RopeData};
 use glam::{vec4, Vec3, Vec4};
 use godot::{
-    classes::{Engine, Mesh, MeshInstance3D, RigidBody3D, ShaderMaterial},
+    classes::{
+        Engine, Mesh, MeshInstance3D, ProjectSettings, ResourceLoader, RigidBody3D, ShaderMaterial,
+    },
+    init::is_main_thread,
     prelude::*,
 };
 
+const GROUP_NAME_ROPE: &str = "StagToolkit_SimulatedRope";
 const GROUP_NAME_ROPEBINDING: &str = "StagToolkit_SimulatedRopeBinding";
 const MESH_NAME: &str = "mesh_rope";
 
@@ -169,7 +173,7 @@ pub struct SimulatedRope {
     #[init(val=None)]
     shader: Option<Gd<ShaderMaterial>>,
 
-    /// Internal settings for rope, if none is provided by user.
+    /// Fallback settings for the rope, if none is provided by user. Handled automatically.
     #[init(val=None)]
     settings_fallback: Option<Gd<SimulatedRopeSettings>>,
 
@@ -193,6 +197,12 @@ pub struct SimulatedRope {
 #[godot_api]
 impl INode3D for SimulatedRope {
     fn ready(&mut self) {
+        // Add to node group for rope
+        self.base_mut()
+            .add_to_group_ex(GROUP_NAME_ROPE)
+            .persistent(true)
+            .done();
+
         self.initialize_simulation();
         self.initialize_render();
         self.initialize_collision();
@@ -370,8 +380,34 @@ impl SimulatedRope {
             return settings;
         }
 
+        // If no fallback exists, attempt to fetch one from project settings
+        // Only call this on main-thread for garuanteed thread safety while handling resources
+        if is_main_thread() {
+            let project_settings = ProjectSettings::singleton();
+            let defaults_path = project_settings
+                .get_setting_ex("addons/stag_toolkit/simulated_rope/default_settings")
+                .default_value(&"".to_variant())
+                .done();
+            let defaults_path: GString = defaults_path.to();
+
+            // Attempt to load default if not empty
+            let mut resource_loader = ResourceLoader::singleton();
+            if !defaults_path.is_empty() && resource_loader.exists(&defaults_path) {
+                // Load the settings from the path
+                let default_settings = try_load::<SimulatedRopeSettings>(&defaults_path);
+
+                // Ensure the settings are okay
+                if let Ok(new_settings) = default_settings {
+                    self.settings_fallback = Some(new_settings.clone());
+                    return new_settings;
+                // Otherwise, throw a warning to let the developer know
+                } else if let Err(bad_settings) = default_settings {
+                    godot_warn!("SimulatedRope failed to load default SimulatedRopeSettings resource from project settings (addons/stag_toolkit/simulated_rope/default_settings): {0}", bad_settings);
+                }
+            }
+        }
+
         // Otherwise, create fallback settings
-        // TODO: fetch fallback settings from project settings
         let settings = SimulatedRopeSettings::new_gd();
         self.settings_fallback = Some(settings.clone());
 
@@ -466,7 +502,7 @@ impl SimulatedRope {
 
     /// Returns the rope factor of the nearest rope point at the given global space position.
     #[func]
-    pub fn get_rope_factor(&self, position: Vector3) -> f64 {
+    pub fn get_rope_factor(&self, position: Vector3) -> f32 {
         let local: Vec3 = self.base().to_local(position).to_vector3();
 
         let mut closest_idx: usize = 0;
@@ -479,7 +515,7 @@ impl SimulatedRope {
             }
         }
 
-        (closest_idx as f64) / (self.data.points.len() as f64)
+        self.data.bind_factor(closest_idx)
     }
 
     /// Returns the global space rope position at the given rope factor.
@@ -487,6 +523,49 @@ impl SimulatedRope {
     pub fn get_rope_position(&self, factor: f64) -> Vector3 {
         let idx = self.data.bind_index(factor as f32);
         self.base().to_global(self.data.points[idx].to_vector3())
+    }
+
+    /// Returns the distance to the nearest rope point at the given global space position.
+    #[func]
+    pub fn get_rope_distance(&self, position: Vector3) -> f32 {
+        let local: Vec3 = self.base().to_local(position).to_vector3();
+
+        let mut closest_dist: f32 = f32::MAX;
+        for pt in self.data.points.iter() {
+            let d = local.distance_squared(*pt);
+            if local.distance_squared(*pt) < closest_dist {
+                closest_dist = d;
+            }
+        }
+
+        closest_dist.sqrt()
+    }
+
+    /// Returns the amount of slack in the rope, in a range of 0 to 1, at the given rope factor.
+    #[func]
+    pub fn get_rope_slack(&self, factor: f32) -> f32 {
+        self.data.slack(self.data.bind_index(factor))
+    }
+
+    /// Returns the AVERAGED forward direction ("forward" meaning the direction FROM a factor of 0 TOWARD a factor of 1),
+    /// sampling all points between the given `factor` and `factor + factor width`.
+    /// If desired, factor width can be determined via a sample distance and the rope's length: `sample_distance / rope.ideal_length`.
+    #[func]
+    pub fn get_rope_slide_direction(&self, factor: f32, factor_width: f32) -> Vector3 {
+        let bind_min: usize = self.data.bind_index(factor.clamp(0.0, 1.0)).max(1);
+        let bind_max: usize = self
+            .data
+            .bind_index((factor + factor_width).clamp(0.0, 1.0));
+
+        let mut dir: Vec3 = Vec3::ZERO;
+
+        for i in bind_min..bind_max {
+            dir += (self.data.points[i - 1] - self.data.points[i]).normalize_or_zero();
+        }
+
+        (dir / (bind_max - bind_min) as f32)
+            .normalize_or_zero()
+            .to_vector3()
     }
 }
 
@@ -621,7 +700,7 @@ impl SimulatedRopeBinding {
         }
     }
 
-    /// Recursively walks up tree until a RigidBody3D is found, returning it, or nothing.
+    /// Recursively walks up tree until a RigidBody3D is found, returning it, or `null` if not found.
     #[func]
     fn get_rigid_body(&self) -> Option<Gd<RigidBody3D>> {
         Self::get_rigid_body_recursive(self.base().get_parent_node_3d())
@@ -636,5 +715,43 @@ impl SimulatedRopeBinding {
             }
         }
         None
+    }
+
+    /// Slides the binding's factor forward or back by the given amount, halting before the next binding.
+    #[func]
+    fn slide_bind_at(&mut self, factor_amount: f32) {
+        let mut new_factor: f32;
+        if let Some(rope) = self.bind_to.clone() {
+            let sim = rope.bind();
+
+            let idx_current = sim.data.bind_index(self.bind_at);
+
+            // Get bounds for binding
+            let bind_map = sim.data.unique_bind_map(&sim.bindings);
+            let (smallest, has_smallest, largest, has_largest) = sim
+                .data
+                .get_surrounding_bind_indices(idx_current, &bind_map);
+
+            // Construct new bind index
+            new_factor = self.bind_at + factor_amount;
+            let mut new_bind_index = sim.data.bind_index(new_factor);
+
+            // Clamp bind index to the given bounds, if present
+            if has_smallest {
+                new_bind_index = new_bind_index.max(smallest + 1);
+            }
+            if has_largest {
+                new_bind_index = new_bind_index.min(largest - 1);
+            }
+
+            // Finally, update bind
+            new_factor = sim.data.bind_factor(new_bind_index);
+
+            // godot_print!("Smallest: {0} {1}\tLargest: {2} {3}\tFinal: {4} {5}", smallest, has_smallest, largest, has_largest, new_bind_index, new_factor);
+        } else {
+            new_factor = (self.bind_at + factor_amount).clamp(0.0, 1.0);
+        }
+
+        self.set_bind_at(new_factor);
     }
 }

@@ -34,6 +34,20 @@ var settings: Array[Dictionary] = [
 		"hint": PROPERTY_HINT_LAYERS_3D_RENDER,
 		"description": "What render layers that newly generated IslandBuilder meshes will appear on.",
 		"default": 5,
+	},
+	{
+		"name": "addons/stag_toolkit/island_builder/save_to_directory",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_DIR,
+		"description": "Top-level directory to save built Islands in.",
+		"default": "art/islands/generated",
+	},
+	{
+		"name": "addons/stag_toolkit/simulated_rope/default_settings",
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_FILE,
+		"description": "Default SimulatedRopeSettings resource when one is not defined by the project developer.",
+		"default": "",
 	}
 ]
 

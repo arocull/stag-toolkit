@@ -111,6 +111,11 @@ impl RopeData {
         (param * ((self.points.len() - 1) as f32)).round() as usize
     }
 
+    /// Returns the rope factor based off the given bind index.
+    pub fn bind_factor(&self, index: usize) -> f32 {
+        index as f32 / (self.points.len() - 1) as f32
+    }
+
     /// Returns the calculated slack at the given index.
     /// 1 is fully slack, 0 is fully stretched.
     pub fn slack(&self, index: usize) -> f32 {
@@ -169,44 +174,65 @@ impl RopeData {
         unique
     }
 
+    /// Returns the immediate indices of the binds smaller and greater than the given index, if present.
+    pub fn get_surrounding_bind_indices(
+        &self,
+        idx: usize,
+        binding_map: &HashMap<usize, Vec3>,
+    ) -> (usize, bool, usize, bool) {
+        // Figure out binding indices bounding this section
+        let mut next_smallest: usize = 0;
+        let mut next_largest: usize = self.points.len() - 1;
+        let mut has_smallest: bool = false;
+        let mut has_largest: bool = false;
+
+        // First, find smallest index
+        for (bind_idx, _) in binding_map.iter() {
+            if *bind_idx < idx && *bind_idx >= next_smallest {
+                has_smallest = true;
+                next_smallest = *bind_idx;
+            }
+        }
+
+        // Then, find largest index, ensuring it's larger than the smallest
+        for (bind_idx, _) in binding_map.iter() {
+            if *bind_idx > idx && *bind_idx <= next_largest && *bind_idx > next_smallest {
+                has_largest = true;
+                next_largest = *bind_idx;
+            }
+        }
+
+        (next_smallest, has_smallest, next_largest, has_largest)
+    }
+
     /// Recomputes the rope tension system.
     pub fn tension(&mut self, binding_map: &HashMap<usize, Vec3>) {
         // First find first and last bind indices
         for idx in 0..self.tension.len() {
             // Figure out binding indices bounding this section
-            let mut next_smallest: usize = 0;
-            let mut next_largest: usize = self.tension.len() - 1;
-
-            // First, find smallest index
-            for (bind_idx, _) in binding_map.iter() {
-                if *bind_idx < idx && *bind_idx > next_smallest {
-                    next_smallest = *bind_idx;
-                }
-            }
-
-            // Then, find largest index, ensuring it's larger than the smallest
-            for (bind_idx, _) in binding_map.iter() {
-                if *bind_idx >= idx && *bind_idx < next_largest && *bind_idx > next_smallest {
-                    next_largest = *bind_idx;
-                }
-            }
+            let (next_smallest, has_smallest, next_largest, has_largest) =
+                self.get_surrounding_bind_indices(idx, binding_map);
 
             // Find actual point positions
             let point_previous: Vec3;
-            if let Some(prev) = binding_map.get(&next_smallest) {
+            if !has_smallest {
+                point_previous = self.points[idx];
+            } else if let Some(prev) = binding_map.get(&next_smallest) {
                 point_previous = *prev;
             } else {
                 point_previous = self.points[next_smallest];
             }
 
             let point_next: Vec3;
-            if let Some(next) = binding_map.get(&next_largest) {
+            if !has_largest {
+                point_next = self.points[idx];
+            } else if let Some(next) = binding_map.get(&next_largest) {
                 point_next = *next;
             } else {
                 point_next = self.points[next_largest];
             }
 
-            let tension_direction: Vec3 = (point_next - point_previous).normalize();
+            let tension_direction: Vec3 = (point_next - point_previous).normalize_or_zero();
 
             let section_distance: f32 = point_previous.distance(point_next);
             let max_section_distance: f32 =
@@ -302,5 +328,45 @@ impl RopeData {
 impl Default for RopeData {
     fn default() -> Self {
         Self::new(1.0, 0.1)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RopeData;
+
+    #[test]
+    fn binds_and_factor_conversion() {
+        let rope = RopeData::new(10.0, 0.1);
+        assert_eq!(0.0, rope.bind_factor(0));
+        assert_eq!(1.0, rope.bind_factor(99));
+
+        assert_eq!(0, rope.bind_index(0.0));
+        assert_eq!(99, rope.bind_index(1.0));
+
+        assert_eq!(50, rope.bind_index(0.5050505));
+        assert_eq!(0.5050505, rope.bind_factor(50));
+
+        let settings = vec![(10.0, 0.1), (25.0, 0.2), (45.7, 0.05)];
+        for s in settings {
+            // Rope with 100 points
+            let rope = RopeData::new(s.0, s.1);
+
+            for i in 0..rope.points.len() {
+                let factor = rope.bind_factor(i);
+                let idx = rope.bind_index(factor);
+
+                assert_eq!(
+                    i, idx,
+                    "iteration {0} with length {1} and distance {2}",
+                    i, s.0, s.1
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn find_bounds() {
+        // let rope = RopeData::new(10.0, 0.1);
     }
 }
