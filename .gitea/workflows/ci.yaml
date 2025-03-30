@@ -131,7 +131,7 @@ jobs:
         uses: ./.gitea/setup
         with:
           # token: ${{ secrets.ACCESS_TOKEN }}
-          godot-version: '4.4-stable'
+          godot-version: '4.4.1-stable'
           cross-compile: false
           toolkit-path: '.'
           # path: .github/actions/setup@${{ gitea.ref }}
