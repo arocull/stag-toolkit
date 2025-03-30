@@ -10,6 +10,7 @@ use godot::{
     prelude::*,
 };
 
+const GROUP_NAME_ROPE: &str = "StagToolkit_SimulatedRope";
 const GROUP_NAME_ROPEBINDING: &str = "StagToolkit_SimulatedRopeBinding";
 const MESH_NAME: &str = "mesh_rope";
 
@@ -196,6 +197,12 @@ pub struct SimulatedRope {
 #[godot_api]
 impl INode3D for SimulatedRope {
     fn ready(&mut self) {
+        // Add to node group for rope
+        self.base_mut()
+            .add_to_group_ex(GROUP_NAME_ROPE)
+            .persistent(true)
+            .done();
+
         self.initialize_simulation();
         self.initialize_render();
         self.initialize_collision();
@@ -508,7 +515,7 @@ impl SimulatedRope {
             }
         }
 
-        (closest_idx as f64) / (self.data.points.len() as f64)
+        (closest_idx as f64) / (self.data.points.len() - 1) as f64
     }
 
     /// Returns the global space rope position at the given rope factor.
@@ -516,6 +523,22 @@ impl SimulatedRope {
     pub fn get_rope_position(&self, factor: f64) -> Vector3 {
         let idx = self.data.bind_index(factor as f32);
         self.base().to_global(self.data.points[idx].to_vector3())
+    }
+
+    /// Returns the distance to the nearest rope point at the given global space position.
+    #[func]
+    pub fn get_rope_distance(&self, position: Vector3) -> f32 {
+        let local: Vec3 = self.base().to_local(position).to_vector3();
+
+        let mut closest_dist: f32 = f32::MAX;
+        for pt in self.data.points.iter() {
+            let d = local.distance_squared(*pt);
+            if local.distance_squared(*pt) < closest_dist {
+                closest_dist = d;
+            }
+        }
+
+        closest_dist.sqrt()
     }
 }
 

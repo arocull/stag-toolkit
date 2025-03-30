@@ -176,37 +176,45 @@ impl RopeData {
             // Figure out binding indices bounding this section
             let mut next_smallest: usize = 0;
             let mut next_largest: usize = self.tension.len() - 1;
+            let mut has_smallest: bool = false;
+            let mut has_largest: bool = false;
 
             // First, find smallest index
             for (bind_idx, _) in binding_map.iter() {
-                if *bind_idx < idx && *bind_idx > next_smallest {
+                if *bind_idx < idx && *bind_idx >= next_smallest {
+                    has_smallest = true;
                     next_smallest = *bind_idx;
                 }
             }
 
             // Then, find largest index, ensuring it's larger than the smallest
             for (bind_idx, _) in binding_map.iter() {
-                if *bind_idx >= idx && *bind_idx < next_largest && *bind_idx > next_smallest {
+                if *bind_idx >= idx && *bind_idx <= next_largest && *bind_idx > next_smallest {
+                    has_largest = true;
                     next_largest = *bind_idx;
                 }
             }
 
             // Find actual point positions
             let point_previous: Vec3;
-            if let Some(prev) = binding_map.get(&next_smallest) {
+            if !has_smallest {
+                point_previous = self.points[idx];
+            } else if let Some(prev) = binding_map.get(&next_smallest) {
                 point_previous = *prev;
             } else {
                 point_previous = self.points[next_smallest];
             }
 
             let point_next: Vec3;
-            if let Some(next) = binding_map.get(&next_largest) {
+            if !has_largest {
+                point_next = self.points[idx];
+            } else if let Some(next) = binding_map.get(&next_largest) {
                 point_next = *next;
             } else {
                 point_next = self.points[next_largest];
             }
 
-            let tension_direction: Vec3 = (point_next - point_previous).normalize();
+            let tension_direction: Vec3 = (point_next - point_previous).normalize_or_zero();
 
             let section_distance: f32 = point_previous.distance(point_next);
             let max_section_distance: f32 =
