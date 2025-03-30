@@ -21,7 +21,7 @@ stag_toolkit/island_builder/save_to_directory="res://assets/islands"
 
 config/name="StagToolkit"
 config/description="All-purpose toolkit for Godot game creation."
-config/version="0.2.1"
+config/version="0.2.0"
 config/tags=PackedStringArray("abyss", "plugin", "prototype")
 run/main_scene="res://3d/startup.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
