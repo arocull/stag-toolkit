@@ -218,7 +218,7 @@ impl GodotWhitebox {
         // Then, cast to each type of CSG class
         if let Ok(csg) = node.clone().try_cast::<CsgBox3D>() {
             // Since we have a box, we can pull out the scale
-            let mut scale = transform.basis.scale();
+            let mut scale = transform.basis.get_scale();
             // ...and unscale the transform!
             transform = transform.scaled_local(Vec3Godot::ONE / scale);
             // Also, don't forget to factor in the original CSG box scale on top
@@ -238,7 +238,7 @@ impl GodotWhitebox {
                 op,
             ));
         } else if let Ok(csg) = node.clone().try_cast::<CsgCylinder3D>() {
-            let mut scale = transform.basis.scale();
+            let mut scale = transform.basis.get_scale();
             transform = transform.scaled_local(Vec3Godot::ONE / Vec3Godot::new(1.0, scale.y, 1.0));
             scale.y *= csg.get_height();
 

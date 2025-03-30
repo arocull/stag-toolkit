@@ -502,7 +502,7 @@ impl SimulatedRope {
 
     /// Returns the rope factor of the nearest rope point at the given global space position.
     #[func]
-    pub fn get_rope_factor(&self, position: Vector3) -> f64 {
+    pub fn get_rope_factor(&self, position: Vector3) -> f32 {
         let local: Vec3 = self.base().to_local(position).to_vector3();
 
         let mut closest_idx: usize = 0;
@@ -515,7 +515,7 @@ impl SimulatedRope {
             }
         }
 
-        (closest_idx as f64) / (self.data.points.len() - 1) as f64
+        self.data.bind_factor(closest_idx)
     }
 
     /// Returns the global space rope position at the given rope factor.
@@ -539,6 +539,33 @@ impl SimulatedRope {
         }
 
         closest_dist.sqrt()
+    }
+
+    /// Returns the amount of slack in the rope, in a range of 0 to 1, at the given rope factor.
+    #[func]
+    pub fn get_rope_slack(&self, factor: f32) -> f32 {
+        self.data.slack(self.data.bind_index(factor))
+    }
+
+    /// Returns the AVERAGED forward direction ("forward" meaning the direction FROM a factor of 0 TOWARD a factor of 1),
+    /// sampling all points between the given `factor` and `factor + factor width`.
+    /// If desired, factor width can be determined via a sample distance and the rope's length: `sample_distance / rope.ideal_length`.
+    #[func]
+    pub fn get_rope_slide_direction(&self, factor: f32, factor_width: f32) -> Vector3 {
+        let bind_min: usize = self.data.bind_index(factor.clamp(0.0, 1.0)).max(1);
+        let bind_max: usize = self
+            .data
+            .bind_index((factor + factor_width).clamp(0.0, 1.0));
+
+        let mut dir: Vec3 = Vec3::ZERO;
+
+        for i in bind_min..bind_max {
+            dir += (self.data.points[i - 1] - self.data.points[i]).normalize_or_zero();
+        }
+
+        (dir / (bind_max - bind_min) as f32)
+            .normalize_or_zero()
+            .to_vector3()
     }
 }
 
@@ -673,7 +700,7 @@ impl SimulatedRopeBinding {
         }
     }
 
-    /// Recursively walks up tree until a RigidBody3D is found, returning it, or nothing.
+    /// Recursively walks up tree until a RigidBody3D is found, returning it, or `null` if not found.
     #[func]
     fn get_rigid_body(&self) -> Option<Gd<RigidBody3D>> {
         Self::get_rigid_body_recursive(self.base().get_parent_node_3d())
@@ -688,5 +715,43 @@ impl SimulatedRopeBinding {
             }
         }
         None
+    }
+
+    /// Slides the binding's factor forward or back by the given amount, halting before the next binding.
+    #[func]
+    fn slide_bind_at(&mut self, factor_amount: f32) {
+        let mut new_factor: f32;
+        if let Some(rope) = self.bind_to.clone() {
+            let sim = rope.bind();
+
+            let idx_current = sim.data.bind_index(self.bind_at);
+
+            // Get bounds for binding
+            let bind_map = sim.data.unique_bind_map(&sim.bindings);
+            let (smallest, has_smallest, largest, has_largest) = sim
+                .data
+                .get_surrounding_bind_indices(idx_current, &bind_map);
+
+            // Construct new bind index
+            new_factor = self.bind_at + factor_amount;
+            let mut new_bind_index = sim.data.bind_index(new_factor);
+
+            // Clamp bind index to the given bounds, if present
+            if has_smallest {
+                new_bind_index = new_bind_index.max(smallest + 1);
+            }
+            if has_largest {
+                new_bind_index = new_bind_index.min(largest - 1);
+            }
+
+            // Finally, update bind
+            new_factor = sim.data.bind_factor(new_bind_index);
+
+            // godot_print!("Smallest: {0} {1}\tLargest: {2} {3}\tFinal: {4} {5}", smallest, has_smallest, largest, has_largest, new_bind_index, new_factor);
+        } else {
+            new_factor = (self.bind_at + factor_amount).clamp(0.0, 1.0);
+        }
+
+        self.set_bind_at(new_factor);
     }
 }
