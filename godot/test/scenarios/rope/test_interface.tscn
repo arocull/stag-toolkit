@@ -1,0 +1,51 @@
+[gd_scene load_steps=5 format=3 uid="uid://dpdohmsdc33td"]
+
+[ext_resource type="Script" uid="uid://c2nc8hdslcvis" path="res://test/scenarios/rope/test_interface.gd" id="1_wcqu1"]
+[ext_resource type="Material" uid="uid://dambqa35y5wyi" path="res://assets/rope/mat_rope.tres" id="2_21xmb"]
+[ext_resource type="CylinderMesh" uid="uid://30fvitnx1ugk" path="res://assets/rope/mesh_rope_full.tres" id="3_hmmsn"]
+
+[sub_resource type="SimulatedRopeSettings" id="SimulatedRopeSettings_rnc56"]
+render_mesh = ExtResource("3_hmmsn")
+render_material = ExtResource("2_21xmb")
+
+[node name="TestRopeInterface" type="Node3D"]
+script = ExtResource("1_wcqu1")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.866025, -0.433013, 0.25, 0, 0.5, 0.866025, -0.5, 0.75, -0.433013, 0, 0, 0)
+shadow_enabled = true
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 0, 6)
+
+[node name="bind_default1" type="SimulatedRopeBinding" parent="." node_paths=PackedStringArray("bind_to") groups=["StagToolkit_SimulatedRopeBinding"]]
+bind_to = NodePath("../rope_default")
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, 0)
+
+[node name="bind_default2" type="SimulatedRopeBinding" parent="." node_paths=PackedStringArray("bind_to") groups=["StagToolkit_SimulatedRopeBinding"]]
+bind_to = NodePath("../rope_default")
+bind_at = 1.0
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, 0)
+
+[node name="rope_default" type="SimulatedRope" parent="." groups=["StagToolkit_SimulatedRope"]]
+unique_name_in_owner = true
+process_physics_priority = 1
+
+[node name="bind_custom1" type="SimulatedRopeBinding" parent="." node_paths=PackedStringArray("bind_to") groups=["StagToolkit_SimulatedRopeBinding"]]
+bind_to = NodePath("../rope_custom")
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -5)
+
+[node name="bind_custom2" type="SimulatedRopeBinding" parent="." node_paths=PackedStringArray("bind_to") groups=["StagToolkit_SimulatedRopeBinding"]]
+bind_to = NodePath("../rope_custom")
+bind_at = 1.0
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3, 0, -5)
+
+[node name="rope_custom" type="SimulatedRope" parent="." groups=["StagToolkit_SimulatedRope"]]
+settings = SubResource("SimulatedRopeSettings_rnc56")
+unique_name_in_owner = true
+process_physics_priority = 1
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)

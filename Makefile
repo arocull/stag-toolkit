@@ -44,9 +44,9 @@ bench: build
 
 # Builds Godot Linux export template with encryption for Abyss
 godot-abyss-release:
-	@./godot-build/build.sh abyss release 4.2.2-stable
+	@./godot-build/build.sh abyss release 4.4.1-stable 12
 godot-abyss-debug:
-	@./godot-build/build.sh abyss debug 4.2.2-stable
+	@./godot-build/build.sh abyss debug 4.4.1-stable 12
 
 bundle: clean build build-windows
 	@mkdir -p build/

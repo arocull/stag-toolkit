@@ -2,6 +2,7 @@
 TARGET=release
 PROJECT=$1
 VERSION=$3
+THREADS=$4
 
 BUILD_SETTINGS=`pwd`/godot-build
 BUILD_OUTPUT=`pwd`/build
@@ -34,15 +35,15 @@ git checkout $VERSION
 # https://docs.godotengine.org/en/stable/contributing/development/compiling/introduction_to_the_buildsystem.html#optimization-level
 if [ "$TARGET" = "debug" ]; then
     echo "--- starting DEBUG build..."
-    scons target=template_debug optimize=debug build_feature_profile="$BUILD_SETTINGS/$PROJECT.build" extra_suffix="$PROJECT_DEBUG"
+    scons -j$THREADS target=template_debug optimize=debug build_feature_profile="$BUILD_SETTINGS/$PROJECT.build" extra_suffix="$PROJECT_DEBUG" platform=linuxbsd
 else
     echo "--- starting RELEASE build..."
-    scons target=template_release lto=full optimize=speed build_feature_profile="$BUILD_SETTINGS/$PROJECT.build" extra_suffix="$PROJECT"
+    scons -j$THREADS target=template_release platform=linuxbsd production=yes lto=full optimize=speed build_feature_profile="$BUILD_SETTINGS/$PROJECT.build" extra_suffix="$PROJECT"
 fi
 
 echo `pwd`
 mkdir -p $BUILD_OUTPUT
-mv $(pwd)/bin/$OUTPUT_FILENAME $BUILD_OUTPUT/$OUTPUT_FILENAME.$PROJECT
+mv $(pwd)/bin/$OUTPUT_FILENAME.$PROJECT $BUILD_OUTPUT/$OUTPUT_FILENAME.$PROJECT
 
 # Strip debug symbols from binary to optimize size. Note: this makes crash backtraces impossible to find
 strip $BUILD_OUTPUT/$OUTPUT_FILENAME.$PROJECT

@@ -213,10 +213,10 @@ impl INode3D for SimulatedRope {
 
         // Update AABB after X many seconds
         self.aabb_timer += delta;
-        if let Some(settings) = self.get_settings() {
-            if self.aabb_timer >= settings.bind().render_aabb_update_rate {
-                self.tick_render_aabb();
-            }
+
+        let settings = self.fetch_settings();
+        if self.aabb_timer >= settings.bind().render_aabb_update_rate {
+            self.tick_render_aabb();
         }
     }
 
