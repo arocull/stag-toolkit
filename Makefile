@@ -1,16 +1,23 @@
-.PHONY: all clean debug bindir build build-windows build-mac test test-rust test-godot test-sanity bench bundle godot-abyss-release godot-abyss-debug
+.PHONY: all clean clean-bin derust debug bindir build build-windows build-mac test test-rust test-godot test-sanity bench bundle godot-abyss-release godot-abyss-debug
 
 all: build
 
 bindir:
+	@mkdir -p godot/addons/stag_toolkit/bin/
+	@touch godot/addons/stag_toolkit/bin/.gdignore
 	@mkdir -p godot/addons/stag_toolkit/bin/release/
 	@mkdir -p godot/addons/stag_toolkit/bin/debug/
 
-clean:
+clean: clean-bin
 	@cargo clean
+
+clean-bin:
 	@rm -rf godot/addons/stag_toolkit/bin/
-	@mkdir -p godot/addons/stag_toolkit/bin/
-	@touch godot/addons/stag_toolkit/bin/.gdignore
+
+derust:
+	@rm godot/addons/stag_toolkit/*.gdext*
+	@rm godot/addons/stag_toolkit/plugin/island_builder.*
+	@rm -rf godot/addons/stag_toolkit/plugin/ui/
 
 build: bindir
 	@cargo build --release

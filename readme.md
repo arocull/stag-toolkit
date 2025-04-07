@@ -2,7 +2,7 @@
 
 All-purpose toolkit for Godot game creation.
 
-Currently equipped for Godot **4.4**+
+Currently equipped for Godot **4.4**+ on Windows and Linux.
 
 > [!WARNING]
 > This addon is highly experimental and frequently subject to change based on personal needs.
@@ -30,6 +30,10 @@ Some features can be toggled on/off via the Project Settings under `addons/stag_
 
 - [Abyss](https://stagmath.itch.io/abyss-demo), an action platformer game (in development)
 
+## Installation
+
+The latest stable versions are published in the [releases tab](https://github.com/arocull/stag-toolkit/releases). Download and extract the zip archive, and copy the `addons/stag_toolkit` directory into your project's `addons` directory.
+
 ## Documentation
 
 For the most up-to-date API documentation, use Godot's internal "Search Help" feature (hotkey F1).
@@ -38,25 +42,16 @@ You can read manually-updated [docs](docs/) online too, or see example usage on 
 
 ![](docs/images/godot-internal-docs.png)
 
-### General Setup
+## Building Manually
 
-1. Ensure [Rust](https://www.rust-lang.org/) (I just use `stable`) and [Godot](https://godotengine.org/download/archive/) (using version as specified above) are installed
+1. Ensure [Godot](https://godotengine.org/download/archive/) (using version as specified above) and [Rust](https://www.rust-lang.org/) (I use the `stable` version) are installed
 2. Clone this repository
 3. `cd` into this repository and run `cargo fetch`
+4. Run `$ make` if on Linux, or `$ build.cmd` if on Windows
+5. Open the addon project in Godot to verify that it works: `cd godot/ && godot project.godot`
+6. Copy the `godot/addons/stag_toolkit/` directory into your project as `addons/stag_toolkit/`
 
-#### Windows
-
-1. Run `$ build.cmd` to build the addon
-2. Open the addon project (in `godot/` subdirectory) inside Godot to verify that it works
-3. Copy the `godot/addons/stag_toolkit/` directory into your project as `addons/stag_toolkit/`
-4. Done!
-
-#### Linux
-
-1. `$ make all` to build the addon
-2. Open the addon project in Godot to verify that it works: `cd godot/ && godot project.godot`
-3. Copy the `godot/addons/stag_toolkit/` directory into your project as `addons/stag_toolkit/`
-4. Done!
+If desired, you can run `$ make derust` on Linux to remove any Rust-dependent stuff from the addon.
 
 ### Cross Compiling
 
