@@ -15,7 +15,8 @@ Currently equipped for Godot **4.4**+ on Windows and Linux.
 
 - **[StagTest](docs/tools/stagtest.md)** framework for simulating gameplay and performing benchmarks
 - **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend (Rust required)
-- **`QueueFloat`** class for handling and analyzing large sets of numbers (Rust required)
+- **SimulatedRope** and **SimulatedRopeBinding** nodes for performing and interacting with rope simulations (Rust required)
+- **QueueFloat** object for handling and analyzing large sets of numbers (Rust required)
 - [**Texture/Material** importer](docs/tools/ironpress.md) for `.ironpress` files
 - "Simple LOD" importer for meshes/scenes with custom LODs
 - Shader includes and debug shaders

@@ -22,8 +22,8 @@ func _get_import_options(_path: String):
 		false, PROPERTY_HINT_NONE)
 
 func _post_process(scene: Node):
-	var generate_lods: bool = get_option_value("stk_custom_lods")
-	var generate_hulls: bool = get_option_value("stk_collision_hulls")
+	var generate_lods: bool = get_option_value("stag_toolkit/simple_lod/custom_lods")
+	var generate_hulls: bool = get_option_value("stag_toolkit/simple_lod/collision_hulls")
 
 	# List of LODs
 	var lods: Dictionary = {}
@@ -40,7 +40,7 @@ func _post_process(scene: Node):
 		fetch_lods(scene, store_lod)
 
 		# Setup LODs
-		var thresh: float = float(get_option_value("stk_lod_distance") / float(max(lods.size() - 1, 1)))
+		var thresh: float = float(get_option_value("stag_toolkit/simple_lod/lod_distance") / float(max(lods.size() - 1, 1)))
 		for lod in lods.keys():
 			var items: Array = lods[lod]
 
