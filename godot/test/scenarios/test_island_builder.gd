@@ -85,7 +85,7 @@ func _ready():
 	StagTest.assert_valid(builders[0], "retrieved IslandBuilder should be valid")
 	StagTest.assert_equal(builder, builders[0], "retrieved IslandBuilder")
 
-	# IslandBuilder.all_builders.bind(get_tree())
+	IslandBuilder.all_bake(get_tree())
 	# IslandBuilder.internal_bake_single.bind(builders)
 
 func set_navigation_properties(props: NavIslandProperties):

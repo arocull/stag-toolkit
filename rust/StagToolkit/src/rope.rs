@@ -122,20 +122,20 @@ impl SimulatedRopeSettings {
     #[func]
     fn set_simulation_point_distance(&mut self, new_point_distance: f32) {
         self.simulation_point_distance = new_point_distance.max(0.01);
-        self.base_mut().emit_signal("simulation_changed", &[]);
+        self.signals().simulation_changed().emit();
     }
 
     #[func]
     fn set_simulation_spring_constant(&mut self, new_spring_constant: f32) {
         self.simulation_spring_constant = new_spring_constant.max(0.0);
-        self.base_mut().emit_signal("simulation_changed", &[]);
+        self.signals().render_changed().emit();
     }
 
     #[func]
     fn set_simulation_constraint_iterations(&mut self, new_constraint_iterations: i64) {
         self.simulation_constraint_iterations =
             (new_constraint_iterations.unsigned_abs() as u32).max(1);
-        self.base_mut().emit_signal("simulation_changed", &[]);
+        self.signals().simulation_changed().emit();
     }
 
     /// Emitted when any simulation setting changes, requiring re-generation of the internal rope data.
