@@ -1,3 +1,4 @@
+@icon("res://addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg")
 extends EditorScenePostImportPlugin
 
 func _get_import_options(_path: String):

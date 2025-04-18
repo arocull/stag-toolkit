@@ -1,4 +1,5 @@
 @tool
+@icon("res://addons/stag_toolkit/icons/icon_stagtoolkit.svg")
 extends EditorPlugin
 
 # StagToolkit © Alan O'Cull 2024
@@ -34,6 +35,12 @@ var settings: Array[Dictionary] = [
 		"hint": PROPERTY_HINT_LAYERS_3D_RENDER,
 		"description": "What render layers that newly generated IslandBuilder meshes will appear on.",
 		"default": 5,
+	},
+	{
+		"name": "addons/stag_toolkit/island_builder/collision_color",
+		"type": TYPE_COLOR,
+		"description": "Debug draw color for generated IslandBuilder collision shapes.",
+		"default": Color("#ff00abff"),
 	},
 	{
 		"name": "addons/stag_toolkit/island_builder/save_to_directory",

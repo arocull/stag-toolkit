@@ -1,9 +1,10 @@
+@icon("res://addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg")
 extends RefCounted
 class_name StagImportUtils
 ## Utility functions for use in scene importers.
 ## @experimental
 
-## Recursively sets scene ownership of the given node.
+## Recursively sets scene ownership of the given node and all of its children, to the new owner.
 static func fix_owner(node: Node, new_owner: Node):
 	for child in node.get_children():
 		fix_owner(child, new_owner)

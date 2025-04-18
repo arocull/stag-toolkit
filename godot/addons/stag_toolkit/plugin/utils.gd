@@ -1,3 +1,4 @@
+@icon("res://addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg")
 class_name StagUtils
 extends RefCounted
 ## Utility constants and functions that are not bundled with Godot, but I wish were.
@@ -27,8 +28,8 @@ const INT32_MAX: int = 2147483647 ## Maximum value for a 32-bit integer.
 ##    "timeout": "60"
 ##}
 ##[/codeblock]
-static func get_args() -> Dictionary:
-	var arguments = {}
+static func get_args() -> Dictionary[String,String]:
+	var arguments: Dictionary[String,String] = {}
 	for argument in OS.get_cmdline_args():
 		if argument.contains("="):
 			var key_value = argument.split("=")

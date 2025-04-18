@@ -1,3 +1,4 @@
+@icon("res://addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg")
 extends EditorInspectorPlugin
 
 const TWEAK_TIMER_THRESHOLD = 1000 ## After 1 second idle time, update preview

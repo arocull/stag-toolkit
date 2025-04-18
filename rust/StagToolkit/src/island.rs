@@ -845,11 +845,18 @@ impl IslandBuilder {
             }
         }
 
+        // let settings = ProjectSettings::singleton();
+        // let debug_color = settings
+        //     .get_setting_ex("addons/stag_toolkit/island_builder/collision_color")
+        //     .default_value(&Variant::from(Color::from_rgba(1.0, 0.0, 0.667, 1.0)))
+        //     .done();
+
         // Get collision hulls
         for (idx, hull) in hulls.iter_shared().enumerate() {
             let mut shape = CollisionShape3D::new_alloc();
             shape.set_shape(&hull);
             shape.set_name(&format!("collis{0}", idx));
+            // shape.set_debug_color(&debug_color); // TODO: wait for Godot 4.4 crate feature
             target.add_child(&shape); // Add shape to scene
 
             // Set shape owner so it is included and saved within the scene

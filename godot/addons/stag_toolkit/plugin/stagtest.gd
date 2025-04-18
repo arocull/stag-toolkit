@@ -1,3 +1,4 @@
+@icon("res://addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg")
 extends Node
 ## Singleton for handling unit and integration tests.
 ## @experimental: Fairly solidified, but changes may be made as seen fit.
@@ -19,27 +20,27 @@ enum ExitCodes {
 
 class BenchmarkResult extends RefCounted:
 	var count: int = 0 ## Number of times benchmark Callable was ran
-	var min: float = 0 ## Minimum completion time, in milliseconds
-	var max: float = 0 ## Maximum completion time, in milliseconds
+	var minimum: float = 0 ## Minimum completion time, in milliseconds
+	var maximum: float = 0 ## Maximum completion time, in milliseconds
 	var mean: float = 0 ## Average completion time, in milliseconds
 	var median: float = 0 ## Median completion time, in milliseconds
 	var standard_deviation: float = 0 ## Standard deviation of completion time, in milliseconds
 	## Converts the benchmark result into a dictionary.
-	func dict() -> Dictionary:
+	func dict() -> Dictionary[String,Variant]:
 		return {
 			"count": self.count,
 			"mean": self.mean,
 			"median": self.median,
 			"standard_deviation": self.standard_deviation,
-			"min": self.min,
-			"max": self.max,
+			"minimum": self.minimum,
+			"maximum": self.maximum,
 		}
 	func _to_string() -> String:
 		return "n={0}\tmean={1}\trange=[{2}, {3}]\tmedian={4}\tσ={5}".format([
 			self.count,
 			StagTest.__format_duration(self.mean),
-			StagTest.__format_duration(self.min),
-			StagTest.__format_duration(self.max),
+			StagTest.__format_duration(self.minimum),
+			StagTest.__format_duration(self.maximum),
 			StagTest.__format_duration(self.median),
 			StagTest.__format_duration(self.standard_deviation),
 		])
@@ -626,9 +627,9 @@ func benchmark(f: Callable, count: int, label: String, timeout: float = -1) -> B
 	res.count = iterations
 	res.mean = queue.mean()
 	res.median = queue.median()
-	var range: Vector2 = queue.range()
-	res.min = range.x
-	res.max = range.y
+	var timerange: Vector2 = queue.range()
+	res.minimum = timerange.x
+	res.maximum = timerange.y
 	res.standard_deviation = queue.standard_deviation()
 
 	__add_report(_benchmarks, res, label)

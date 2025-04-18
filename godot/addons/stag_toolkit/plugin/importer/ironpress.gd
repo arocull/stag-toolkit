@@ -1,4 +1,5 @@
 @tool
+@icon("res://addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg")
 extends EditorImportPlugin
 
 const EXT_MATERIAL = "tres"

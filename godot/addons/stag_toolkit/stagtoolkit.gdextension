@@ -17,3 +17,6 @@ macos.release.arm64 =    "res://addons/stag_toolkit/bin/release/libStagToolkit.d
 IslandBuilder = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
 NavIslandProperties = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
 QueueFloat = "res://addons/stag_toolkit/icons/icon_queuefloat.svg"
+SimulatedRope = "res://addons/stag_toolkit/icons/icon_simulatedrope.svg"
+SimulatedRopeBinding = "res://addons/stag_toolkit/icons/icon_simulatedropebinding.svg"
+SimulatedRopeSettings = "res://addons/stag_toolkit/icons/icon_simulatedropesettings.svg"

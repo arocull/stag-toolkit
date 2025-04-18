@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c3xii4o8yjif2"
-path="res://.godot/imported/icon_queuefloat.svg-80d89415e0111e8ce1e4a1b8166cea42.ctex"
+uid="uid://bro3fnoqle51k"
+path="res://.godot/imported/icon_simulatedropebinding.svg-a41828a8ad7cc375fa56a052f6015aa9.ctex"
 metadata={
 "has_editor_variant": true,
 "vram_texture": false
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://addons/stag_toolkit/icons/icon_queuefloat.svg"
-dest_files=["res://.godot/imported/icon_queuefloat.svg-80d89415e0111e8ce1e4a1b8166cea42.ctex"]
+source_file="res://addons/stag_toolkit/icons/icon_simulatedropebinding.svg"
+dest_files=["res://.godot/imported/icon_simulatedropebinding.svg-a41828a8ad7cc375fa56a052f6015aa9.ctex"]
 
 [params]
 

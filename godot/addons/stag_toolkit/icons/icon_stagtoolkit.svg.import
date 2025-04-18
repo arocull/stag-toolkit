@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c3xii4o8yjif2"
-path="res://.godot/imported/icon_queuefloat.svg-80d89415e0111e8ce1e4a1b8166cea42.ctex"
+uid="uid://j40ccamp6yms"
+path="res://.godot/imported/icon_stagtoolkit.svg-a72f703aed2fe5218361282b3a99439a.ctex"
 metadata={
 "has_editor_variant": true,
 "vram_texture": false
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://addons/stag_toolkit/icons/icon_queuefloat.svg"
-dest_files=["res://.godot/imported/icon_queuefloat.svg-80d89415e0111e8ce1e4a1b8166cea42.ctex"]
+source_file="res://addons/stag_toolkit/icons/icon_stagtoolkit.svg"
+dest_files=["res://.godot/imported/icon_stagtoolkit.svg-a72f703aed2fe5218361282b3a99439a.ctex"]
 
 [params]
 
@@ -35,4 +35,4 @@ process/size_limit=0
 detect_3d/compress_to=0
 svg/scale=1.0
 editor/scale_with_editor_scale=true
-editor/convert_colors_with_editor_theme=true
+editor/convert_colors_with_editor_theme=false

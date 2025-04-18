@@ -16,12 +16,13 @@ stag_toolkit/importers/simple_lod/enabled=true
 stag_toolkit/importers/ironpress/enabled=true
 stag_toolkit/simulated_rope/default_settings="uid://dgn4og8edhlfk"
 stag_toolkit/island_builder/save_to_directory="res://assets/islands"
+stag_toolkit/island_builder/collision_color=Color(1, 0, 0.670588, 1)
 
 [application]
 
 config/name="StagToolkit"
 config/description="All-purpose toolkit for Godot game creation."
-config/version="0.2.0"
+config/version="0.2.1"
 config/tags=PackedStringArray("abyss", "plugin", "prototype")
 run/main_scene="res://3d/startup.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
