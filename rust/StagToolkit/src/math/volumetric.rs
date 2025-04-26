@@ -162,9 +162,9 @@ impl VolumeData<f32> {
                     let [x, y, z] = self.delinearize(idx);
 
                     let mut avg: f32 = 0.0;
-                    for tx in (x - radius)..=(x + radius).min(max_x) {
-                        for ty in (y - radius)..=(y + radius).min(max_y) {
-                            for tz in (z - radius)..=(z + radius).min(max_z) {
+                    for tx in x.saturating_sub(radius)..=(x + radius).min(max_x) {
+                        for ty in y.saturating_sub(radius)..=(y + radius).min(max_y) {
+                            for tz in z.saturating_sub(radius)..=(z + radius).min(max_z) {
                                 avg += self.data[self.linearize_fast(tx, ty, tz) as usize];
                             }
                         }

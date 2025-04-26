@@ -87,12 +87,6 @@ source = "git+https://github.com/godot-rust/godot4-prebuilt?branch=releases#0943
 
 [[package]]
 name = "glam"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "779ae4bf7e8421cf91c0b3b64e7e8b40b862fba4d393f59150042de7c4965a94"
-
-[[package]]
-name = "glam"
 version = "0.29.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8babf46d4c1c9d92deac9f7be466f76dfc4482b6452fc5024b5e8daf6ffeb3ee"
@@ -110,7 +104,7 @@ dependencies = [
 [[package]]
 name = "godot"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#02896379af22d31ad6dd828bf12cc1491599a448"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#b0be794c1bd2eff2c3158c1a6fc1e9a5b215c2c4"
 dependencies = [
  "godot-core",
  "godot-macros",
@@ -119,7 +113,7 @@ dependencies = [
 [[package]]
 name = "godot-bindings"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#02896379af22d31ad6dd828bf12cc1491599a448"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#b0be794c1bd2eff2c3158c1a6fc1e9a5b215c2c4"
 dependencies = [
  "gdextension-api",
 ]
@@ -127,12 +121,12 @@ dependencies = [
 [[package]]
 name = "godot-cell"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#02896379af22d31ad6dd828bf12cc1491599a448"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#b0be794c1bd2eff2c3158c1a6fc1e9a5b215c2c4"
 
 [[package]]
 name = "godot-codegen"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#02896379af22d31ad6dd828bf12cc1491599a448"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#b0be794c1bd2eff2c3158c1a6fc1e9a5b215c2c4"
 dependencies = [
  "godot-bindings",
  "heck",
@@ -145,9 +139,9 @@ dependencies = [
 [[package]]
 name = "godot-core"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#02896379af22d31ad6dd828bf12cc1491599a448"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#b0be794c1bd2eff2c3158c1a6fc1e9a5b215c2c4"
 dependencies = [
- "glam 0.28.0",
+ "glam 0.30.2",
  "godot-bindings",
  "godot-cell",
  "godot-codegen",
@@ -157,7 +151,7 @@ dependencies = [
 [[package]]
 name = "godot-ffi"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#02896379af22d31ad6dd828bf12cc1491599a448"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#b0be794c1bd2eff2c3158c1a6fc1e9a5b215c2c4"
 dependencies = [
  "godot-bindings",
  "godot-codegen",
@@ -168,7 +162,7 @@ dependencies = [
 [[package]]
 name = "godot-macros"
 version = "0.2.4"
-source = "git+https://github.com/godot-rust/gdext.git?branch=master#02896379af22d31ad6dd828bf12cc1491599a448"
+source = "git+https://github.com/godot-rust/gdext.git?branch=master#b0be794c1bd2eff2c3158c1a6fc1e9a5b215c2c4"
 dependencies = [
  "godot-bindings",
  "libc",
@@ -202,9 +196,9 @@ dependencies = [
 
 [[package]]
 name = "markdown"
-version = "1.0.0-alpha.21"
+version = "1.0.0-alpha.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6491e6c702bf7e3b24e769d800746d5f2c06a6c6a2db7992612e0f429029e81"
+checksum = "9047e0a37a596d4e15411a1ffbdabe71c328908cb90a721cb9bf8dcf3434e6d2"
 dependencies = [
  "unicode-id",
 ]
@@ -223,18 +217,18 @@ checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
 
 [[package]]
 name = "nanoserde"
-version = "0.1.37"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de9cf844ab1e25a0353525bd74cb889843a6215fa4a0d156fd446f4857a1b99"
+checksum = "a36fb3a748a4c9736ed7aeb5f2dfc99665247f1ce306abbddb2bf0ba2ac530a4"
 dependencies = [
  "nanoserde-derive",
 ]
 
 [[package]]
 name = "nanoserde-derive"
-version = "0.1.22"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e943b2c21337b7e3ec6678500687cdc741b7639ad457f234693352075c082204"
+checksum = "a846cbc04412cf509efcd8f3694b114fc700a035fb5a37f21517f9fb019f1ebc"
 
 [[package]]
 name = "ndshape"

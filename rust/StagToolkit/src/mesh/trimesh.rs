@@ -72,7 +72,14 @@ impl TriangleOperations for Triangle {
     fn normal(&self, positions: &Vec<Vec3>) -> Vec3 {
         let u = positions[self[1]] - positions[self[0]];
         let v = positions[self[2]] - positions[self[0]];
-        u.cross(v).normalize()
+        let c = u.cross(v);
+
+        if c.length() <= 1e-6 {
+            // Default to up
+            return Vec3::Y;
+        }
+
+        c.normalize()
     }
 
     fn plane(&self, positions: &Vec<Vec3>) -> Vec4 {
@@ -515,11 +522,9 @@ impl Iterator for WalkTriangles {
 // UNIT TESTS //
 #[cfg(test)]
 mod tests {
-    use crate::mesh::trimesh::{Triangle, TriangleOperations};
-
-    use glam::{vec3, Vec3};
-
     use super::TriangleMesh;
+    use crate::mesh::trimesh::{Triangle, TriangleOperations};
+    use glam::{vec3, Vec3};
 
     const MAX_DIFFERENCE: f32 = 1e-7;
 
@@ -552,6 +557,11 @@ mod tests {
             TestFaceNormal {
                 vertices: vec![Vec3::NEG_X, Vec3::X, Vec3::Z],
                 normal: Vec3::NEG_Y,
+            },
+            // Degenerate/non-manifold geometry simply returns an up vector
+            TestFaceNormal {
+                vertices: vec![Vec3::ZERO, Vec3::ZERO, Vec3::ZERO],
+                normal: Vec3::Y,
             },
         ];
 

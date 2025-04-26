@@ -845,7 +845,6 @@ impl IslandBuilder {
             }
         }
 
-
         // TODO: wait for set_debug_color to be added to CollisionShape3D
         // Fetch color for debug drawing
         let settings = ProjectSettings::singleton();
@@ -858,16 +857,17 @@ impl IslandBuilder {
         // Ensure variant is of proper type
         if let Ok(color) = debug_color_variant.try_to::<Color>() {
             debug_color = color;
-        } else { // Otherwise, use default
+        } else {
+            // Otherwise, use default
             debug_color = Color::from_rgba(1.0, 0.0, 0.667, 1.0);
         }
-
 
         // Get collision hulls
         for (idx, hull) in hulls.iter_shared().enumerate() {
             let mut shape = CollisionShape3D::new_alloc();
             shape.set_shape(&hull);
             shape.set_name(&format!("collis{0}", idx));
+            // shape.set_debug_color(debug_color);
 
             // shape.set_debug_color(debug_color); // Apply debug draw color
             target.add_child(&shape); // Add shape to scene

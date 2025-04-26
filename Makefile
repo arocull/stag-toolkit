@@ -35,9 +35,12 @@ debug: bindir
 	@cargo build
 	@cp target/debug/libStagToolkit.so godot/addons/stag_toolkit/bin/debug/libStagToolkit.so
 
-test: test-rust test-godot
+test: test-rust-release test-godot
 
 test-rust:
+	@cargo test
+
+test-rust-release:
 	@cargo test --release
 
 test-godot: build

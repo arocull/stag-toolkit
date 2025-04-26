@@ -66,12 +66,25 @@ impl PointCloud for Vec<Vec3> {
     }
 
     fn distant_line(&self, from: Vec3, to: Vec3) -> usize {
+        // These points are the same!
+        if from.abs_diff_eq(to, 1e-6) {
+            return 0;
+        }
+
         let mut max: f32 = 0.0;
         let mut i: usize = 0;
-        let relative = from - to;
+        let relative = (from - to).normalize();
 
         for (idx, pt) in self.iter().enumerate() {
-            let normal = relative.cross(from - *pt).cross(relative).normalize();
+            // Cross product between our line direction and the direction from the segment start to the point,
+            // then cross it with the line direction again to isolate the axis
+            let cc = relative.cross(from - *pt).cross(relative);
+            // Skip points that fall directly on our line
+            if cc.abs_diff_eq(Vec3::ZERO, 1e-6) {
+                continue;
+            }
+
+            let normal = cc.normalize();
             let d: f32 = (normal.dot(from) - normal.dot(*pt)).abs();
 
             if d > max {
