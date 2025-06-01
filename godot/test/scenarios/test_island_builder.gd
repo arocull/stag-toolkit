@@ -4,15 +4,18 @@ extends Node3D
 
 @export var nav_properties: NavIslandProperties = null
 
-func _ready():
-	# Complete test after frame
+func teardown():
 	StagTest.teardown.call_deferred()
+
+func _ready():
+	# Complete test after two frames
+	teardown.call_deferred()
 
 	StagTest.assert_valid(builder, "IslandBuilder should be valid")
 
 	# Serialize IslandBuilder to get shapes
 	builder.serialize()
-	StagTest.assert_equal(builder.get_shape_count(), 3, "should serialize all visible CSG nodes")
+	StagTest.assert_equal(builder.get_shape_count(), 4, "should serialize all visible CSG nodes")
 
 	# Calculate surface nets
 	builder.net()
@@ -50,7 +53,7 @@ func _ready():
 
 	# Generating collision hulls
 	var hulls = builder.generate_collision_hulls()
-	StagTest.assert_equal(1, hulls.size(), "should be exactly 1 collision hull")
+	StagTest.assert_equal(2, hulls.size(), "should be exactly 2 collision hulls")
 
 	# Fetching target
 	StagTest.assert_valid(builder.target(), "builder target should always be valid")
@@ -85,8 +88,18 @@ func _ready():
 	StagTest.assert_valid(builders[0], "retrieved IslandBuilder should be valid")
 	StagTest.assert_equal(builder, builders[0], "retrieved IslandBuilder")
 
-	# IslandBuilder.all_builders.bind(get_tree())
-	# IslandBuilder.internal_bake_single.bind(builders)
+	# Destroying ALL bakes
+	IslandBuilder.all_destroy_bakes(get_tree())
+	StagTest.assert_valid($body/mesh_island, "target mesh should still exist after destroying ALL bakes")
+	StagTest.assert_equal(null, builder.target_mesh().mesh,
+		"target mesh should have mesh asset cleared after destroying ALL bakes")
+
+	# Baking ALL islands
+	IslandBuilder.all_bake(get_tree())
+	await builder.applied_build_data # Wait for build data to be applied
+	StagTest.assert_equal(3, builder.target().get_child_count(),
+		"IslandBuilder.all_bake should have built collision for the target")
+	StagTest.assert_valid(builder.target_mesh().mesh, "IslandBuilder.all_bake should have created a mesh resource")
 
 func set_navigation_properties(props: NavIslandProperties):
 	nav_properties = props

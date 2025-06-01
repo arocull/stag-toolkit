@@ -49,7 +49,7 @@ pub mod primqueue;
 /// Godot interfaces for rope simulations.
 pub mod rope;
 
-/// Sanity tests.
+// Sanity tests.
 // pub mod sanity;
 
 // IMPORTS //
@@ -58,4 +58,5 @@ use godot::prelude::*;
 struct StagToolkit;
 
 #[gdextension]
+#[allow(non_snake_case)]
 unsafe impl ExtensionLibrary for StagToolkit {}

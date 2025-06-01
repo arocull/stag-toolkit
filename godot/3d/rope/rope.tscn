@@ -1,0 +1,66 @@
+[gd_scene load_steps=10 format=3 uid="uid://bas45qf7qdy3c"]
+
+[ext_resource type="Material" uid="uid://dambqa35y5wyi" path="res://assets/rope/mat_rope.tres" id="1_v6vik"]
+[ext_resource type="CylinderMesh" uid="uid://30fvitnx1ugk" path="res://assets/rope/mesh_rope_full.tres" id="2_ru7g4"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_6y06x"]
+sky_top_color = Color(0.443806, 0.4453, 0.447379, 1)
+sky_horizon_color = Color(0.596646, 0.59702, 0.597539, 1)
+ground_bottom_color = Color(0.105966, 0.105966, 0.105966, 1)
+ground_horizon_color = Color(0.596646, 0.59702, 0.597539, 1)
+
+[sub_resource type="Sky" id="Sky_kagll"]
+sky_material = SubResource("ProceduralSkyMaterial_6y06x")
+
+[sub_resource type="Environment" id="Environment_v6vik"]
+background_mode = 2
+sky = SubResource("Sky_kagll")
+
+[sub_resource type="SimulatedRopeSettings" id="SimulatedRopeSettings_6y06x"]
+render_mesh = ExtResource("2_ru7g4")
+render_material = ExtResource("1_v6vik")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kagll"]
+size = Vector3(1, 1, 5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ru7g4"]
+albedo_color = Color(1, 0, 0, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_v6vik"]
+material = SubResource("StandardMaterial3D_ru7g4")
+size = Vector3(1, 1, 5)
+
+[node name="Rope" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_v6vik")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.848972, 0.517082, -0.108966, 0, 0.206204, 0.978509, 0.528438, -0.830726, 0.175061, 0, 0, 0)
+shadow_enabled = true
+
+[node name="SimulatedRope" type="SimulatedRope" parent="." groups=["StagToolkit_SimulatedRope"]]
+ideal_length = 10.0
+settings = SubResource("SimulatedRopeSettings_6y06x")
+process_physics_priority = 1
+
+[node name="SimulatedRopeBinding" type="SimulatedRopeBinding" parent="." node_paths=PackedStringArray("bind_to") groups=["StagToolkit_SimulatedRopeBinding"]]
+bind_to = NodePath("../SimulatedRope")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, 0)
+
+[node name="SimulatedRopeBinding2" type="SimulatedRopeBinding" parent="." node_paths=PackedStringArray("bind_to") groups=["StagToolkit_SimulatedRopeBinding"]]
+bind_to = NodePath("../SimulatedRope")
+bind_at = 1.0
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 0)
+
+[node name="StaticBody3D" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.4, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="StaticBody3D"]
+shape = SubResource("BoxShape3D_kagll")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="StaticBody3D"]
+mesh = SubResource("BoxMesh_v6vik")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.852366, 0.522945, 0, -0.522945, 0.852366, 0, 0.320228, 1.67947)

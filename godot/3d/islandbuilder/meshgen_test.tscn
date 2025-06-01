@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://t3qlgeb877ia"]
+[gd_scene load_steps=8 format=3 uid="uid://t3qlgeb877ia"]
 
 [ext_resource type="Script" uid="uid://cj00i487wxspv" path="res://3d/islandbuilder/meshgen_test.gd" id="1_jyekb"]
 [ext_resource type="Material" uid="uid://d64jtoqgwdle" path="res://3d/islandbuilder/materials/mat_island_sandy.tres" id="2_lyvhm"]
@@ -6,7 +6,6 @@
 [ext_resource type="Material" uid="uid://cm8v2ufi8wc32" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_union.tres" id="4_lkpm7"]
 [ext_resource type="Material" uid="uid://6ggm7dshiami" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_intersect.tres" id="5_j6ril"]
 [ext_resource type="Material" uid="uid://c64nj8mhjbl43" path="res://addons/stag_toolkit/utils/shaders/matdebug_csg_subtract.tres" id="6_mqddq"]
-[ext_resource type="PackedScene" uid="uid://cu7wshau6jpl5" path="res://assets/islands/MeshgenTest/island_test.scn" id="7_23xmi"]
 
 [sub_resource type="NavIslandProperties" id="NavIslandProperties_rd51c"]
 aabb = AABB(-10.7904, -9.02179, -10.1561, 21.5808, 18.0436, 20.3122)
@@ -163,7 +162,11 @@ outer_radius = 10.7904
 [node name="mesh_island" type="MeshInstance3D" parent="island_test/IslandBuilder"]
 layers = 5
 
-[node name="body" parent="island_test" instance=ExtResource("7_23xmi")]
+[node name="body" type="RigidBody3D" parent="island_test"]
+axis_lock_linear_y = true
+axis_lock_angular_x = true
+axis_lock_angular_z = true
+mass = 35492.0
 
 [node name="aabb_checker" type="GPUParticles3D" parent="."]
 emitting = false

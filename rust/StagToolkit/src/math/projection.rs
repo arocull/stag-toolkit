@@ -46,7 +46,7 @@ impl Plane for Vec4 {
 }
 
 /// Finds the index of the point furthest in a given direction from a set of points.
-pub fn furthest_point(points: &Vec<Vec3>, plane_normal: Vec3, plane_point: Vec3) -> usize {
+pub fn furthest_point(points: &[Vec3], plane_normal: Vec3, plane_point: Vec3) -> usize {
     let mut max_distance = f32::NEG_INFINITY;
     let mut furthest_index = 0;
 

@@ -15,7 +15,7 @@ pub trait EdgeOperations {
     /// Returns a new, flipped edge by changing vertex order.
     fn flip(&self) -> Self;
     /// Returns the calculated length of an edge.
-    fn length(&self, positions: &Vec<Vec3>) -> f32;
+    fn length(&self, positions: &[Vec3]) -> f32;
 }
 
 impl EdgeOperations for Edge {
@@ -23,7 +23,7 @@ impl EdgeOperations for Edge {
         [self[1], self[0]]
     }
 
-    fn length(&self, positions: &Vec<Vec3>) -> f32 {
+    fn length(&self, positions: &[Vec3]) -> f32 {
         positions[self[0]].distance(positions[self[1]])
     }
 }
@@ -37,19 +37,19 @@ pub type Triangle = [usize; 3];
 pub trait TriangleOperations {
     /// Returns a positive value if the triangle's points are oriented counter-clockwise,
     /// negative if clockwise, and zero if they are collinear.
-    fn orientation(&self, positions: &Vec<Vec3>) -> f32;
+    fn orientation(&self, positions: &[Vec3]) -> f32;
     /// Returns the calculated normal of the given face using a counter-clockwise wound triangle.
-    fn normal(&self, positions: &Vec<Vec3>) -> Vec3;
+    fn normal(&self, positions: &[Vec3]) -> Vec3;
     /// Returns the face plane.
-    fn plane(&self, positions: &Vec<Vec3>) -> Vec4;
+    fn plane(&self, positions: &[Vec3]) -> Vec4;
     /// Projects the given point onto the triangle.
-    fn project(&self, positions: &Vec<Vec3>, point: Vec3) -> Vec3;
+    fn project(&self, positions: &[Vec3], point: Vec3) -> Vec3;
     /// Calculates the projected barycentric coordinates of a point `p` relative to this triangle.
-    fn barycentric(&self, positions: &Vec<Vec3>, project: Vec3) -> Vec3;
+    fn barycentric(&self, positions: &[Vec3], project: Vec3) -> Vec3;
     /// Returns true if the given Barycentric point is contained by the triangle.
     fn contains_barycentric(&self, barycentric_point: Vec3) -> bool;
     /// Returns true if the given point is behind the surface of the triangle.
-    fn is_point_behind(&self, positions: &Vec<Vec3>, project: Vec3) -> bool;
+    fn is_point_behind(&self, positions: &[Vec3], project: Vec3) -> bool;
     /// Returns true if two triangles are the same.
     fn equals(&self, other: &Triangle) -> bool;
     /// Returns a new, flipped triangle by changing vertex order.
@@ -57,29 +57,38 @@ pub trait TriangleOperations {
     /// Returns true if the triangle has this edge in its specified direction. False otherwise.
     fn has_edge(&self, edge: &Edge) -> bool;
     /// Returns the centerpoint of the triangle.
-    fn centerpoint(&self, positions: &Vec<Vec3>) -> Vec3;
+    fn centerpoint(&self, positions: &[Vec3]) -> Vec3;
     /// Returns a face-winded list of edges on this triangle.
     fn edges(&self) -> [Edge; 3];
 }
 
 impl TriangleOperations for Triangle {
-    fn orientation(&self, positions: &Vec<Vec3>) -> f32 {
+    fn orientation(&self, positions: &[Vec3]) -> f32 {
         (positions[self[1]] - positions[self[0]])
             .cross(positions[self[2]] - positions[self[0]])
             .dot(Vec3::ONE)
     }
 
-    fn normal(&self, positions: &Vec<Vec3>) -> Vec3 {
+    fn normal(&self, positions: &[Vec3]) -> Vec3 {
         let u = positions[self[1]] - positions[self[0]];
         let v = positions[self[2]] - positions[self[0]];
-        u.cross(v).normalize()
+        let c = u.cross(v);
+
+        let len = c.length_squared();
+
+        if len <= 1e-6 {
+            // Make sure vector isn't zero-length
+            return Vec3::Y; // Default to up if so
+        }
+
+        c / len.sqrt() // Return normalized vector
     }
 
-    fn plane(&self, positions: &Vec<Vec3>) -> Vec4 {
+    fn plane(&self, positions: &[Vec3]) -> Vec4 {
         plane(positions[self[0]], self.normal(positions))
     }
 
-    fn project(&self, positions: &Vec<Vec3>, point: Vec3) -> Vec3 {
+    fn project(&self, positions: &[Vec3], point: Vec3) -> Vec3 {
         // Get plane normal
         let norm = self.normal(positions);
         // Create a plane
@@ -89,7 +98,7 @@ impl TriangleOperations for Triangle {
         pl.ray_intersection(point, -norm).0
     }
 
-    fn barycentric(&self, positions: &Vec<Vec3>, project: Vec3) -> Vec3 {
+    fn barycentric(&self, positions: &[Vec3], project: Vec3) -> Vec3 {
         let a = positions[self[0]];
         let b = positions[self[1]];
         let c = positions[self[2]];
@@ -122,7 +131,7 @@ impl TriangleOperations for Triangle {
             && barycentric_point.z <= 1.0
     }
 
-    fn is_point_behind(&self, positions: &Vec<Vec3>, project: Vec3) -> bool {
+    fn is_point_behind(&self, positions: &[Vec3], project: Vec3) -> bool {
         let p = self.plane(positions);
         // If our point is above the plane or parallel to it, it is not in front of us
         let d = p.signed_distance(project);
@@ -153,7 +162,7 @@ impl TriangleOperations for Triangle {
         false
     }
 
-    fn centerpoint(&self, positions: &Vec<Vec3>) -> Vec3 {
+    fn centerpoint(&self, positions: &[Vec3]) -> Vec3 {
         (positions[self[0]] + positions[self[1]] + positions[self[2]]) * Vec3::splat(1.0 / 3.0)
     }
 
@@ -178,17 +187,11 @@ pub struct TriangleMesh {
 impl TriangleMesh {
     /// Creates a new TriangleMesh from the given mesh data.
     pub fn new(triangles: Vec<Triangle>, positions: Vec<Vec3>, normals: Option<Vec<Vec3>>) -> Self {
-        // Default normals to an empty vector if not included
-        let norms: Vec<Vec3>;
-        match normals {
-            Some(normals_list) => norms = normals_list,
-            None => norms = vec![],
-        }
-
         Self {
             triangles,
             positions,
-            normals: norms,
+            // Default normals to an empty vector if not included
+            normals: normals.unwrap_or_default(),
         }
     }
 
@@ -210,17 +213,11 @@ impl TriangleMesh {
             tris.push([indices[i * 3], indices[i * 3 + 1], indices[i * 3 + 2]]);
         }
 
-        // Default normals to an empty vector if not included
-        let norms: Vec<Vec3>;
-        match normals {
-            Some(normals_list) => norms = normals_list,
-            None => norms = vec![],
-        }
-
         Self {
             triangles: tris,
             positions,
-            normals: norms,
+            // Default normals to an empty vector if not included
+            normals: normals.unwrap_or_default(),
         }
     }
 
@@ -410,9 +407,9 @@ impl TriangleMesh {
         for idx_swap in replace.iter() {
             for tri in self.triangles.iter_mut() {
                 // Update the triangle indices
-                for idx in 0..3 {
-                    if tri[idx] == idx_swap.0 {
-                        tri[idx] = idx_swap.1;
+                for idx in tri.iter_mut() {
+                    if idx_swap.0 == *idx {
+                        *idx = idx_swap.1;
                     }
                 }
             }
@@ -456,8 +453,7 @@ impl TriangleMesh {
         });
 
         // Create an array for remapping vertex index values
-        let mut remapped: Vec<usize> = vec![];
-        remapped.resize(used.len(), 0);
+        let mut remapped: Vec<usize> = vec![0; used.len()];
         let mut new_idx: usize = 0; // Current available index
         for (idx, used) in used.iter().enumerate() {
             if *used {
@@ -515,11 +511,9 @@ impl Iterator for WalkTriangles {
 // UNIT TESTS //
 #[cfg(test)]
 mod tests {
-    use crate::mesh::trimesh::{Triangle, TriangleOperations};
-
-    use glam::{vec3, Vec3};
-
     use super::TriangleMesh;
+    use crate::mesh::trimesh::{Triangle, TriangleOperations};
+    use glam::{vec3, Vec3};
 
     const MAX_DIFFERENCE: f32 = 1e-7;
 
@@ -552,6 +546,11 @@ mod tests {
             TestFaceNormal {
                 vertices: vec![Vec3::NEG_X, Vec3::X, Vec3::Z],
                 normal: Vec3::NEG_Y,
+            },
+            // Degenerate/non-manifold geometry simply returns an up vector
+            TestFaceNormal {
+                vertices: vec![Vec3::ZERO, Vec3::ZERO, Vec3::ZERO],
+                normal: Vec3::Y,
             },
         ];
 
@@ -626,8 +625,7 @@ mod tests {
             },
         ];
 
-        let mut idx = 0;
-        for case in test_cases.iter() {
+        for (idx, case) in test_cases.iter().enumerate() {
             let tri: Triangle = [0, 1, 2];
             let was_behind = tri.is_point_behind(&case.tri, case.pt);
 
@@ -638,8 +636,6 @@ mod tests {
                 idx,
                 tri.normal(&case.tri)
             );
-
-            idx += 1;
         }
     }
 

@@ -222,7 +222,7 @@ mod tests {
             "Glam transform failed to convert to Godot"
         );
         assert!(
-            trangodot_glam.abs_diff_eq(tranglam, std::f32::EPSILON),
+            trangodot_glam.abs_diff_eq(tranglam, f32::EPSILON),
             "Godot failed to convert to Glam"
         );
     }

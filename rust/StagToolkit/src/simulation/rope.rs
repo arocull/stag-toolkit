@@ -67,7 +67,7 @@ pub struct RopeData {
     pub points: Vec<Vec3>,
 
     /// All current simulated rope positions.
-    pub points_simulated: Vec<Vec3>,
+    // pub points: Vec<Vec3>,
 
     /// All previous simulated rope positions.
     pub points_simulated_previous: Vec<Vec3>,
@@ -99,7 +99,7 @@ impl RopeData {
             constraint_iterations: 50,
 
             points: points.clone(),
-            points_simulated: points.clone(),
+            // points: points.clone(),
             points_simulated_previous: points,
             tension,
         }
@@ -141,24 +141,13 @@ impl RopeData {
 
     /// Steps the simulation forward by many X seconds using Verlet integration.
     /// Does NOT apply constraints.
-    pub fn step(&mut self, delta_time: f64, binding_map: &HashMap<usize, Vec3>) {
+    pub fn step(&mut self, delta_time: f64) {
         let delta_time_squared: f32 = (delta_time * delta_time) as f32;
-        for idx in 0..self.points.len() {
-            let slack = self.slack(idx);
-
-            // Perform a basic point simulation
-            let p = self.points_simulated[idx];
-            let mut simulated_pos = 2.0 * p - self.points_simulated_previous[idx]
+        for (idx, point) in self.points.iter_mut().enumerate() {
+            // Perform a Verlet integration of the given point
+            let p = *point;
+            *point = 2.0 * p - self.points_simulated_previous[idx]
                 + self.acceleration * delta_time_squared;
-            self.points_simulated[idx] = simulated_pos;
-
-            // Automatically interpolate position with a straight line based on our rope slack
-            // However, keep this data separate from the simulation
-            if let Some(tense_point) = self.fetch_linear_point(idx, binding_map) {
-                simulated_pos = simulated_pos.lerp(tense_point, 1.0 - slack);
-            }
-
-            self.points[idx] = simulated_pos;
             self.points_simulated_previous[idx] = p;
         }
     }
@@ -175,10 +164,10 @@ impl RopeData {
     }
 
     /// Returns the immediate indices of the binds smaller and greater than the given index, if present.
-    pub fn get_surrounding_bind_indices(
+    pub fn get_surrounding_bind_indices<T>(
         &self,
         idx: usize,
-        binding_map: &HashMap<usize, Vec3>,
+        binding_map: &HashMap<usize, T>,
     ) -> (usize, bool, usize, bool) {
         // Figure out binding indices bounding this section
         let mut next_smallest: usize = 0;
@@ -254,12 +243,6 @@ impl RopeData {
     ///
     /// TODO: should this fill a new set of points each iteration instead of operating on the same dataset?
     pub fn constrain(&mut self, binding_map: &HashMap<usize, Vec3>) {
-        // Enforce binding positions, if any are present
-        for (idx, b) in binding_map.iter() {
-            self.points[*idx] = *b;
-            self.points_simulated[*idx] = *b;
-        }
-
         // Run many iterations
         for _ in 0..self.constraint_iterations {
             // Force points towards/away from each other to meet the constraint
@@ -271,28 +254,34 @@ impl RopeData {
                     continue;
                 }
                 if lock_a {
-                    self.points_simulated[idx - 1] = jakobsen_constraint_single(
-                        self.points_simulated[idx],
-                        self.points_simulated[idx - 1],
+                    self.points[idx - 1] = jakobsen_constraint_single(
+                        self.points[idx],
+                        self.points[idx - 1],
                         self.distance_between_points,
                     );
                     continue;
                 }
                 if lock_b {
-                    self.points_simulated[idx] = jakobsen_constraint_single(
-                        self.points_simulated[idx - 1],
-                        self.points_simulated[idx],
+                    self.points[idx] = jakobsen_constraint_single(
+                        self.points[idx - 1],
+                        self.points[idx],
                         self.distance_between_points,
                     );
                     continue;
                 }
 
                 // Constrain with previous point
-                (self.points_simulated[idx], self.points_simulated[idx - 1]) = jakobsen_constraint(
-                    self.points_simulated[idx],
-                    self.points_simulated[idx - 1],
+                (self.points[idx], self.points[idx - 1]) = jakobsen_constraint(
+                    self.points[idx],
+                    self.points[idx - 1],
                     self.distance_between_points,
                 );
+            }
+
+            // Enforce binding positions, if any are present
+            for (idx, b) in binding_map.iter() {
+                // self.points[*idx] = *b;
+                self.points[*idx] = *b;
             }
         }
     }

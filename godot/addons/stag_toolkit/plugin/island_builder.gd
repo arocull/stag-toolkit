@@ -232,22 +232,14 @@ func _destroy_all_bakes():
 		update_shapecount(last_builder)
 		update_button_availability(last_builder)
 
-func _bake_test(idx: int, isles: Array[IslandBuilder]):
-	IslandBuilder.internal_bake_single(idx, isles)
 func _bake_everything():
 	if is_instance_valid(last_builder):
-		print("IslandBuilder: Fetching and serializing all islands...")
-		var isles = IslandBuilder.all_builders(last_builder.get_tree())
-		for isle in isles:
-			isle.serialize()
-		var group_id = WorkerThreadPool.add_group_task(_bake_test.bind(isles), isles.size())
+		print("IslandBuilder: Building all islands...")
+		IslandBuilder.all_bake(last_builder.get_tree())
+		print("\t...all done!")
 
-		print("\tstarted group task...")
-		WorkerThreadPool.wait_for_group_task_completion(group_id)
-		print("\tall done!")
-
-		# TODO: Await bind fixes in godot-rust
-		#IslandBuilder.all_bake(last_builder.get_tree())
+		# Wait for build data to be applied before updating statistics
+		await last_builder.applied_build_data
 
 		update_shapecount(last_builder)
 		update_volume(last_builder)

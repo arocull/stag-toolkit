@@ -222,7 +222,7 @@ impl Shape {
 
 /// Iterates through a shape list, sampling each shape at the given point
 /// and smooth unioning the shapes together, returning a distance.
-pub fn sample_shape_list(list: &Vec<Shape>, point: Vec3) -> f32 {
+pub fn sample_shape_list(list: &[Shape], point: Vec3) -> f32 {
     let mut d: f32 = 1.0;
 
     for shape in list.iter() {

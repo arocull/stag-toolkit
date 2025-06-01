@@ -60,11 +60,6 @@ impl PerlinField {
     }
 }
 
-// TODO: Figure out a good method for managing volumes of data
-// ...possibly need dynamic in some cases (simulations)
-// ...but constant in others (island builder)
-// ...maybe we make a generic specific for dynamic ones,
-// ...but constant-size ones are case dependent?
 /// A container for storing volume data
 pub struct VolumeData<T> {
     /// Internal data for voxel grid.
@@ -86,9 +81,9 @@ pub struct VolumeWorker<T> {
     pub range_width: u32,
 }
 
-impl VolumeData<f32> {
+impl<T: Clone + Copy + Default> VolumeData<T> {
     /// Creates a new volumetric of the given size with the default value.
-    pub fn new(default: f32, dim: [u32; 3]) -> Self {
+    pub fn new(default: T, dim: [u32; 3]) -> Self {
         let size = (dim[0] * dim[1] * dim[2]) as usize;
 
         let mut dat = vec![];
@@ -103,12 +98,12 @@ impl VolumeData<f32> {
     }
 
     /// Sets the value at the given linear index
-    pub fn set_linear(&mut self, i: usize, val: f32) {
+    pub fn set_linear(&mut self, i: usize, val: T) {
         self.data[i] = val;
     }
 
     /// Returns the value at the given linear index
-    pub fn get_linear(&self, i: usize) -> f32 {
+    pub fn get_linear(&self, i: usize) -> T {
         self.data[i]
     }
 
@@ -143,6 +138,56 @@ impl VolumeData<f32> {
         [x, y, z]
     }
 
+    /// Sets the value at the bordering cell margin to the given value.
+    /// With the Island Builder, this should be minimum SDF distance (suggested: +10.0).
+    pub fn set_padding(&mut self, cell_padding: u32, to: T) {
+        for i in 0usize..self.size {
+            let [x, y, z] = self.delinearize(i as u32);
+
+            if self.is_margin(x, y, z, cell_padding) {
+                self.set_linear(i, to);
+            }
+        }
+    }
+
+    /// Splits the Volume into a set of worker data for parallel operations.
+    /// If `preserve_data` is true, the data of the volume is copied into the vector.
+    pub fn to_workers(&self, group_size: u32, preserve_data: bool) -> Vec<VolumeWorker<T>> {
+        let worker_count = (self.size as f64 / group_size as f64).ceil() as u32;
+
+        let mut workers: Vec<VolumeWorker<T>> = vec![];
+        workers.reserve_exact(worker_count as usize);
+
+        for i in 0..worker_count {
+            let range_min = i * group_size;
+            let range_max = ((i + 1) * group_size).min(self.size as u32);
+            let range_width = range_max - range_min;
+
+            let mut worker_data: Vec<T>;
+            if preserve_data {
+                worker_data = Vec::from_iter(
+                    self.data[range_min as usize..range_max as usize]
+                        .iter()
+                        .cloned(),
+                );
+            } else {
+                worker_data = vec![];
+                worker_data.resize(range_width as usize, T::default());
+            }
+
+            workers.push(VolumeWorker {
+                data: worker_data,
+                range_min,
+                range_max,
+                range_width,
+            });
+        }
+
+        workers
+    }
+}
+
+impl VolumeData<f32> {
     /// Outputs box-blurred data into the given volume grid with the given blur radius.
     pub fn blur(&self, radius: u32, weight: f32, group_size: u32, out: &mut Self) {
         let coverage = radius * 2 + 1;
@@ -162,9 +207,9 @@ impl VolumeData<f32> {
                     let [x, y, z] = self.delinearize(idx);
 
                     let mut avg: f32 = 0.0;
-                    for tx in (x - radius)..=(x + radius).min(max_x) {
-                        for ty in (y - radius)..=(y + radius).min(max_y) {
-                            for tz in (z - radius)..=(z + radius).min(max_z) {
+                    for tx in x.saturating_sub(radius)..=(x + radius).min(max_x) {
+                        for ty in y.saturating_sub(radius)..=(y + radius).min(max_y) {
+                            for tz in z.saturating_sub(radius)..=(z + radius).min(max_z) {
                                 avg += self.data[self.linearize_fast(tx, ty, tz) as usize];
                             }
                         }
@@ -179,17 +224,6 @@ impl VolumeData<f32> {
             .collect();
     }
 
-    /// Sets the minimum SDF distance at the bordering cell margin to +10.0.
-    pub fn trim_padding(&mut self, cell_padding: u32) {
-        for i in 0usize..self.size {
-            let [x, y, z] = self.delinearize(i as u32);
-
-            if self.is_margin(x, y, z, cell_padding) {
-                self.set_linear(i, 10.0);
-            }
-        }
-    }
-
     /// In-place adds noise to the volumetric.
     pub fn noise_add(&mut self, noise: &PerlinField, transform: Mat4, w: f64, amplitude: f32) {
         for i in 0usize..self.size {
@@ -199,42 +233,6 @@ impl VolumeData<f32> {
 
             self.data[i] += (noise.sample_single(sample_pos, w) as f32) * amplitude;
         }
-    }
-
-    /// Splits the Volume into a set of worker data for parallel operations.
-    /// If `preserve_data` is true, the data of the volume copied over into the vector.
-    pub fn to_workers(&self, group_size: u32, preserve_data: bool) -> Vec<VolumeWorker<f32>> {
-        let worker_count = (self.size as f64 / group_size as f64).ceil() as u32;
-
-        let mut workers: Vec<VolumeWorker<f32>> = vec![];
-        workers.reserve_exact(worker_count as usize);
-
-        for i in 0..worker_count {
-            let range_min = i * group_size;
-            let range_max = ((i + 1) * group_size).min(self.size as u32);
-            let range_width = range_max - range_min;
-
-            let mut worker_data: Vec<f32>;
-            if preserve_data {
-                worker_data = Vec::from_iter(
-                    self.data[range_min as usize..range_max as usize]
-                        .iter()
-                        .cloned(),
-                );
-            } else {
-                worker_data = vec![];
-                worker_data.resize(range_width as usize, 0.0);
-            }
-
-            workers.push(VolumeWorker {
-                data: worker_data,
-                range_min,
-                range_max,
-                range_width,
-            });
-        }
-
-        workers
     }
 }
 

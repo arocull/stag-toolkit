@@ -4,7 +4,6 @@ use rayon::prelude::*;
 use std::f32::consts::PI;
 use std::mem::swap;
 
-use crate::mesh::trimesh::Triangle;
 use crate::{
     math::{
         sdf::{sample_shape_list, ShapeOperation},
@@ -183,7 +182,7 @@ impl IslandBuildData {
         }
 
         // Perform padding
-        voxels.trim_padding(self.cell_padding);
+        voxels.set_padding(self.cell_padding, 10.0);
 
         // NOW, convert voxel data to buffers for Surface Nets
 
@@ -298,11 +297,11 @@ impl IslandBuildData {
             return;
         }
 
-        let mesh = self.mesh.as_mut().unwrap();
+        if let Some(mesh) = self.mesh.as_mut() {
+            mesh.optimize(self.mesh_merge_distance);
 
-        mesh.optimize(self.mesh_merge_distance);
-
-        self.optimized = true;
+            self.optimized = true;
+        }
     }
 
     /// Returns a SurfaceArrays object containing preview mesh data.
@@ -323,50 +322,52 @@ impl IslandBuildData {
         match arr {
             Some(mut x) => {
                 // We know that there is a mesh, because get_mesh returned data
-                let mesh = self.mesh.as_ref().unwrap();
-                let buffer_len = mesh.count_vertices();
+                if let Some(mesh) = self.mesh.as_ref() {
+                    let buffer_len = mesh.count_vertices();
 
-                let mut colors: Vec<Vec4> = vec![];
-                let mut uv1: Vec<Vec2> = vec![];
-                let mut uv2: Vec<Vec2> = vec![];
-                colors.reserve_exact(buffer_len);
-                uv1.reserve_exact(buffer_len);
-                uv2.reserve_exact(buffer_len);
+                    let mut colors: Vec<Vec4> = vec![];
+                    let mut uv1: Vec<Vec2> = vec![];
+                    let mut uv2: Vec<Vec2> = vec![];
+                    colors.reserve_exact(buffer_len);
+                    uv1.reserve_exact(buffer_len);
+                    uv2.reserve_exact(buffer_len);
 
-                for idx in 0..buffer_len {
-                    let pos = mesh.positions[idx];
-                    let norm = mesh.normals[idx];
+                    for idx in 0..buffer_len {
+                        let pos = mesh.positions[idx];
+                        let norm = mesh.normals[idx];
 
-                    // Bake normals
-                    uv1.push(Vec2::new(pos.x + pos.z, pos.y));
-                    uv2.push(Vec2::new(pos.x, pos.z));
+                        // Bake normals
+                        uv1.push(Vec2::new(pos.x + pos.z, pos.y));
+                        uv2.push(Vec2::new(pos.x, pos.z));
 
-                    // TODO: Bake ambient occlusion, somehow
+                        // TODO: Bake ambient occlusion, somehow
 
-                    // Dot product with up vector for masking, then build dirt and sand masks
-                    let dot = norm.dot(Vec3::Y);
-                    let mask_dirt = dot
-                        .remap(self.mask_range_dirt.x, self.mask_range_dirt.y, 0.0, 1.0)
-                        .clamp(0.0, 1.0);
-                    let mask_sand = dot
-                        .remap(self.mask_range_sand.x, self.mask_range_sand.y, 0.0, 1.0)
-                        .clamp(0.0, 1.0)
-                        .powf(self.mask_power_sand);
+                        // Dot product with up vector for masking, then build dirt and sand masks
+                        let dot = norm.dot(Vec3::Y);
+                        let mask_dirt = dot
+                            .remap(self.mask_range_dirt.x, self.mask_range_dirt.y, 0.0, 1.0)
+                            .clamp(0.0, 1.0);
+                        let mask_sand = dot
+                            .remap(self.mask_range_sand.x, self.mask_range_sand.y, 0.0, 1.0)
+                            .clamp(0.0, 1.0)
+                            .powf(self.mask_power_sand);
 
-                    // Sample noise and store it in mesh for extra variation
-                    let noise_sample = self.noise.sample(pos * self.mask_perlin_scale, 100.0);
-                    let noise = (noise_sample.x + noise_sample.y + noise_sample.z)
-                        .remap(-3.0, 3.0, 0.0, 1.0);
+                        // Sample noise and store it in mesh for extra variation
+                        let noise_sample = self.noise.sample(pos * self.mask_perlin_scale, 100.0);
+                        let noise = (noise_sample.x + noise_sample.y + noise_sample.z)
+                            .remap(-3.0, 3.0, 0.0, 1.0);
 
-                    // Store masks in vertex color data
-                    colors.push(Vec4::new(1.0, mask_dirt, mask_sand, noise));
+                        // Store masks in vertex color data
+                        colors.push(Vec4::new(1.0, mask_dirt, mask_sand, noise));
+                    }
+
+                    x.set_colors(colors.to_color());
+                    x.set_uv1(uv1.to_vector2());
+                    x.set_uv2(uv2.to_vector2());
+
+                    return Some(x);
                 }
-
-                x.set_colors(colors.to_color());
-                x.set_uv1(uv1.to_vector2());
-                x.set_uv2(uv2.to_vector2());
-
-                Some(x)
+                None
             }
             None => None,
         }
@@ -393,12 +394,12 @@ impl IslandBuildData {
         let tri_prealloc = mesh.triangles.len() / shapes.len();
 
         for _ in shapes.iter() {
-            // Pre-allocate some space for triangles beforehand
-            let mut tris: Vec<Triangle> = vec![];
-            tris.reserve(tri_prealloc);
-
-            // Build trimesh
-            let trimesh = TriangleMesh::new(tris, mesh.positions.clone(), None);
+            // Pre-allocate some space for triangles, and build trimesh
+            let trimesh = TriangleMesh::new(
+                Vec::with_capacity(tri_prealloc),
+                mesh.positions.clone(),
+                None,
+            );
 
             hulls.push(trimesh);
         }
@@ -411,12 +412,12 @@ impl IslandBuildData {
             // Fetch centerpoint of triangle to use for comparison
             let center = tri.centerpoint(&mesh.positions);
 
-            for shape_idx in 0..shapes.len() {
+            for (shape_idx, shape) in shapes.iter().enumerate() {
                 // TODO: somehow take Intersection CSG into account when sampling shapes,
                 // so collision shapes that are cut off via intersections,
                 // do not include shapes added after said intersection.
 
-                let d = shapes[shape_idx].sample(center);
+                let d = shape.sample(center);
                 if d < min_dist {
                     min_dist = d;
                     min_shape_idx = shape_idx;
@@ -592,6 +593,12 @@ impl INode3D for IslandBuilder {
 
 #[godot_api]
 impl IslandBuilder {
+    // Signals //
+
+    /// Emitted when build data is applied. Useful for awaiting in multi-threaded contexts.
+    #[signal]
+    pub fn applied_build_data();
+
     // Getters //
 
     /// Computes and returns the Axis-Aligned Bounding Box with the current serialization.
@@ -734,7 +741,7 @@ impl IslandBuilder {
             _ => mesh,
         }
     }
-    /// Bakes and returns a triangle mesh with vertex colors, UVs, (TODO: and LODs).
+    /// Bakes and returns a triangle mesh with vertex colors, UVs, and LODs.
     /// Returns an empty mesh if not pre-computed.
     /// Optimizes the mesh data beforehand, if not already optimized.
     #[func]
@@ -743,7 +750,6 @@ impl IslandBuilder {
         self.optimize();
 
         let arrs_opt = self.data.get_mesh_baked();
-        // TODO: generate LODs
         match arrs_opt {
             Some(arrs) => {
                 let mut importer = ImporterMesh::new_gd();
@@ -845,18 +851,29 @@ impl IslandBuilder {
             }
         }
 
-        // let settings = ProjectSettings::singleton();
-        // let debug_color = settings
-        //     .get_setting_ex("addons/stag_toolkit/island_builder/collision_color")
-        //     .default_value(&Variant::from(Color::from_rgba(1.0, 0.0, 0.667, 1.0)))
-        //     .done();
+        // Fetch color for debug drawing
+        let settings = ProjectSettings::singleton();
+        let debug_color_variant: Variant = settings
+            .get_setting_ex("addons/stag_toolkit/island_builder/collision_color")
+            .default_value(&Variant::from(Color::from_rgba(1.0, 0.0, 0.667, 1.0)))
+            .done();
+        let debug_color: Color;
+
+        // Ensure variant is of proper type
+        if let Ok(color) = debug_color_variant.try_to::<Color>() {
+            debug_color = color;
+        } else {
+            // Otherwise, use default
+            debug_color = Color::from_rgba(1.0, 0.0, 0.667, 1.0);
+        }
 
         // Get collision hulls
         for (idx, hull) in hulls.iter_shared().enumerate() {
             let mut shape = CollisionShape3D::new_alloc();
             shape.set_shape(&hull);
             shape.set_name(&format!("collis{0}", idx));
-            // shape.set_debug_color(&debug_color); // TODO: wait for Godot 4.4 crate feature
+            shape.set_debug_color(debug_color); // Apply debug draw color
+
             target.add_child(&shape); // Add shape to scene
 
             // Set shape owner so it is included and saved within the scene
@@ -960,7 +977,8 @@ impl IslandBuilder {
     }
 
     /// Destroys all MeshInstance3D and CollisionShape3D nodes directly under the output node.
-    /// Also clears all working data. The IslandBuilder will have to be re-serialized and netted.
+    /// Clears all working data: The IslandBuilder will have to be re-serialized and netted.
+    /// Removes PackedScene references on the IslandBuilder's target node.
     #[func]
     fn destroy_bakes(&mut self) {
         self.data.whitebox.clear();
@@ -968,6 +986,9 @@ impl IslandBuilder {
         self.data.optimized = false;
 
         let mut out = self.target();
+
+        out.set_scene_file_path(""); // Clear scene file path
+
         // Iterate over all children.
         for child in out.get_children().iter_shared() {
             // If this is a MeshInstance3D, destroy it
@@ -1039,9 +1060,11 @@ impl IslandBuilder {
         self.apply_navigation_properties(navprops);
 
         let target = self.base().get_node_or_null(&self.output_to);
-        if let Some(_) = target {
+        if target.is_some() {
             self.base_mut().set_visible(false);
         }
+
+        self.signals().applied_build_data().emit();
     }
 
     /// Returns a list of ALL IslandBuilder nodes within the `"StagToolkit_IslandBuilder"` group in the given SceneTree.
@@ -1071,15 +1094,16 @@ impl IslandBuilder {
     /// Serializes, precomputes and bakes on **ALL** IslandBuilder nodes within the
     /// `"StagToolkit_IslandBuilder"` group in the given SceneTree.
     /// The IslandBuilder will destroy bakes beforehand.
-    /// @experimental: This function is awaiting some fixes `godot-rust` fixes.
+    ///
+    /// NOTE: Currently, due to multi-threading, the results may be deferred to the end of frame.
+    /// Optionally await `applied_build_data` on an island of your choice to get its ASAP.
+    ///
+    /// @experimental: This function may change in the future. This function utilizes multi-threading, which may be unstable.
     #[func]
     fn all_bake(tree: Gd<SceneTree>) {
-        println!("IslandBuilder: Building islands in parallel...");
-
         // Fetch all builder shapes in the scene tree and serialize them
         let builders = Self::all_builders(tree);
 
-        println!("Builders size {0}", builders.len());
         // Ensure all Island Builders are serialized before threading
         for builder in builders.iter_shared() {
             builder.clone().bind_mut().serialize();
@@ -1087,10 +1111,18 @@ impl IslandBuilder {
 
         // Get callable to our class' static single-island bake method,
         // and bind our list of working islands to it.
-        let bake_method = Callable::from_local_static(
-            &Self::class_name().to_string_name(),
-            "internal_bake_single",
-        )
+        let bake_method = Callable::from_sync_fn("all_bake_single", |args: &[&Variant]| {
+            let idx: i32 = args[0].to();
+            let isles: Array<Gd<Self>> = args[1].to();
+            // Ensure we don't go out of bounds
+            if idx as usize > isles.len() {
+                return Ok(Variant::from(false));
+            }
+
+            let mut isle = isles.at(idx as usize).clone();
+            isle.bind_mut().build(true);
+            Ok(Variant::from(true))
+        })
         .bind(&[builders.to_variant()]);
 
         // Fetch worker pool
@@ -1105,21 +1137,6 @@ impl IslandBuilder {
 
         // Wait for groups to finish
         workerpool.wait_for_group_task_completion(group_id);
-
-        println!("IslandBuilder: Done!");
-    }
-
-    /// Bakes a single island. Intended for WorkerThreadPool threads.
-    /// @experimental: This function is awaiting some fixes `godot-rust` fixes.
-    #[func]
-    fn internal_bake_single(idx: i32, isles: Array<Gd<Self>>) {
-        // Ensure we don't go out of bounds
-        if idx as usize > isles.len() {
-            return;
-        }
-
-        let mut isle = isles.at(idx as usize).clone();
-        isle.bind_mut().build(true);
     }
 }
 

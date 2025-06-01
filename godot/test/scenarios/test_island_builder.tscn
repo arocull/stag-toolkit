@@ -36,11 +36,16 @@ material_override = ExtResource("5_7gndr")
 operation = 2
 size = Vector3(2, 2, 6)
 
+[node name="UNION_box2" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.21858, 0)
+material_override = ExtResource("4_jo25n")
+size = Vector3(4, 1.83118, 4)
+
 [node name="body" type="RigidBody3D" parent="."]
 axis_lock_linear_y = true
 axis_lock_angular_x = true
 axis_lock_angular_z = true
-mass = 43.9632
+mass = 375.376
 freeze = true
 
 [node name="mesh_island" type="MeshInstance3D" parent="body"]

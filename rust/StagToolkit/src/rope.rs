@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-
+use crate::math::types::ToTransform3D;
 use crate::{math::types::ToVector3, simulation::rope::RopeData};
-use glam::{vec4, Vec3, Vec4};
+use glam::{vec4, Mat4, Vec3, Vec4};
+use godot::classes::PhysicsRayQueryParameters3D;
 use godot::{
     classes::{
         Engine, Mesh, MeshInstance3D, ProjectSettings, ResourceLoader, RigidBody3D, ShaderMaterial,
@@ -9,13 +9,13 @@ use godot::{
     init::is_main_thread,
     prelude::*,
 };
+use std::collections::HashMap;
 
 const GROUP_NAME_ROPE: &str = "StagToolkit_SimulatedRope";
 const GROUP_NAME_ROPEBINDING: &str = "StagToolkit_SimulatedRopeBinding";
 const MESH_NAME: &str = "mesh_rope";
 
 /// Settings for a simulated rope class.
-/// @experimental
 #[derive(GodotClass)]
 #[class(init,base=Resource,tool)]
 pub struct SimulatedRopeSettings {
@@ -28,20 +28,25 @@ pub struct SimulatedRopeSettings {
 
     /// Spring constant of the rope.
     /// For every unit of length overstretched: that distance squared, times this constant, is applied in force.
+    ///
+    /// This constant should adjusted according to the average Rigid Body mass and feel of your game.
     #[var(get, set = set_simulation_spring_constant)]
     #[export]
     #[init(val = 5000.0)]
     simulation_spring_constant: f32,
 
     /// Number of iterations for applying a Jakobsen constraint (ensures each point is within the `simulation_point_distance`).
+    /// Higher iterations result in a greater performance cost, but keeps the rope simulation more true to its actual length.
     #[var(get, set = set_simulation_constraint_iterations)]
-    #[export(range = (0.0, 500.0, 1.0))]
-    #[init(val = 30)]
+    #[export(range = (0.0, 500.0, 1.0, or_greater))]
+    #[init(val = 150)]
     simulation_constraint_iterations: u32,
 
     /// Whether or not to automatically call `tick_simulation` on the physics process tick.
-    ///
     /// If this is `false`, **the simulation is not ticked at all**, and is expected to be ticked manually by the user.
+    ///
+    /// Manually ticking all rope simulations in parallel using [WorkerThreadPool] is advised if you have a lot of [SimulatedRope] nodes in the same tree.
+    /// Performance is heavily dependent on rope settings, so tweak and measure accordingly.
     #[export]
     #[init(val = true)]
     simulation_tick_on_physics: bool,
@@ -68,20 +73,24 @@ pub struct SimulatedRopeSettings {
     /// A duplicate of this material is made upon calling `initialize_render` for each [SimulatedRope],
     /// to prevent conflicting parameters.
     ///
-    /// The only parameter passed to the shader is `points`, an array of rope point positions.
+    /// The variables `render_parameter_points` and `render_parameter_point_count` determine the name of the shader parameters to push data to accordingly.
     #[export]
     #[init(val=None)]
     render_material: Option<Gd<ShaderMaterial>>,
 
+    /// Name of the shader parameter to an array of [Vector3] points.
+    /// As the number of points can vary, the shader will have to linearly interpolate this array while adjusting vertex positions.
     #[export]
     #[init(val="points".into())]
     render_parameter_points: GString,
 
+    /// Name of the shader parameter to pass the total number of rope points there is.
     #[export]
     #[init(val="point_count".into())]
     render_parameter_point_count: GString,
 
-    // Updates the rope AABB after this many seconds.
+    /// Updates the rope [AABB] every X seconds.
+    /// This makes sure the rope mesh actually draws when it's on your screen.
     #[export(range=(0.0,1.0,0.01,or_greater,suffix="s"))]
     #[init(val = 0.2)]
     render_aabb_update_rate: f64,
@@ -92,12 +101,13 @@ pub struct SimulatedRopeSettings {
     #[init(val = 2)]
     render_process_priority: i32,
 
-    /// Whether to perform raycasts to attempt collision with the 3D environment.
+    /// Whether to perform raycasts to attempt collision with the 3D environment during the simulation tick.
+    /// @experimental : Collisions are still a work in progress.
     #[export]
-    #[init(val = true)]
+    #[init(val = false)]
     collision_raycasts: bool,
 
-    /// When performing collision checks,
+    /// What layers to perform collision checks, if `collision_raycasts` are enabled.
     #[export(flags_3d_physics)]
     #[init(val = 1)]
     collision_mask: u32,
@@ -108,6 +118,7 @@ pub struct SimulatedRopeSettings {
     collision_offset: f32,
 
     /// All [SimulatedRope] nodes using these settings will automatically set their `physics_process_priority` to this value.
+    /// This affects collision and automatic simulation ticks.
     #[export]
     #[init(val = 1)]
     collision_process_priority: i32,
@@ -117,25 +128,23 @@ pub struct SimulatedRopeSettings {
 
 #[godot_api]
 impl SimulatedRopeSettings {
-    // TODO: use self.signals() when typed signal implementation is released
-
     #[func]
     fn set_simulation_point_distance(&mut self, new_point_distance: f32) {
         self.simulation_point_distance = new_point_distance.max(0.01);
-        self.base_mut().emit_signal("simulation_changed", &[]);
+        self.signals().simulation_changed().emit();
     }
 
     #[func]
     fn set_simulation_spring_constant(&mut self, new_spring_constant: f32) {
         self.simulation_spring_constant = new_spring_constant.max(0.0);
-        self.base_mut().emit_signal("simulation_changed", &[]);
+        self.signals().render_changed().emit();
     }
 
     #[func]
     fn set_simulation_constraint_iterations(&mut self, new_constraint_iterations: i64) {
         self.simulation_constraint_iterations =
             (new_constraint_iterations.unsigned_abs() as u32).max(1);
-        self.base_mut().emit_signal("simulation_changed", &[]);
+        self.signals().simulation_changed().emit();
     }
 
     /// Emitted when any simulation setting changes, requiring re-generation of the internal rope data.
@@ -151,8 +160,8 @@ impl SimulatedRopeSettings {
     fn physics_changed();
 }
 
-/// Godot interface for managing a simulated rope.
-/// @experimental
+/// Godot interface for managing a simulated rope. See associated classes [SimulatedRopeSettings] and [SimulatedRopeBinding].
+/// @experimental Collision is still a work in progress.
 #[derive(GodotClass)]
 #[class(init,base=Node3D,tool)]
 pub struct SimulatedRope {
@@ -183,10 +192,16 @@ pub struct SimulatedRope {
 
     /// Internal, simulated rope data.
     data: RopeData,
+    /// Internal, rope physics query.
+    rayquery: Gd<PhysicsRayQueryParameters3D>,
 
     /// Attached binding IDs, with a corresponding Vec4 with XYZ position, and rope parameter W.
     #[init(val =(HashMap::<i64, Vec4>::new()))]
     bindings: HashMap<i64, Vec4>,
+
+    /// Collision vertex indices, with a corresponding (Vec3, Vec3) with XYZ position and Surface Normal respectively.
+    #[init(val =(HashMap::<usize, Vec3>::new()))]
+    collision_bindings: HashMap<usize, Vec3>,
 
     #[init(val = 0.0)]
     aabb_timer: f64,
@@ -221,12 +236,12 @@ impl INode3D for SimulatedRope {
     }
 
     fn physics_process(&mut self, delta: f64) {
+        self.tick_collision();
+
         if self.do_simulation_tick {
             self.tick_simulation(delta);
             // godot_print!("rope simulation tick: {0}\t{1}", delta, self.data.points.len());
         }
-
-        self.tick_collision();
     }
 }
 
@@ -364,10 +379,18 @@ impl SimulatedRope {
 
         self.base_mut()
             .set_physics_process_priority(settings.collision_process_priority);
+
+        let mut raycast = PhysicsRayQueryParameters3D::new_gd();
+        raycast.set_collision_mask(settings.collision_mask);
+        raycast.set_collide_with_areas(false);
+        raycast.set_hit_back_faces(false);
+        raycast.set_hit_from_inside(false);
+        self.rayquery = raycast;
     }
 
-    /// Fetches the simulated rope settings, using fallbacks if none provided.
-    /// TODO: load project default if provided.
+    /// Fetches the [SimulatedRopeSettings].
+    /// If no settings are provided, it attempts to use the Project Setting `addons/stag_toolkit/simulated_rope/default_settings` instead.
+    /// If there is no default set, the rope will use the default parameters you see when instantiating [SimulatedRopeSettings].
     #[func]
     pub fn fetch_settings(&mut self) -> Gd<SimulatedRopeSettings> {
         // Default to our existing settings if provided
@@ -430,23 +453,28 @@ impl SimulatedRope {
     }
 
     /// Ticks the rope simulation forward by `delta` seconds.
-    /// This method is thread-safe (ideally).
+    /// Uses the last `tick_collision` state (if any).
+    ///
+    /// This method can be run on any thread, as long as no other thread reads or modifies the Rope data while simulating.
     #[func]
     pub fn tick_simulation(&mut self, delta: f64) {
         // Generate bind map for faster computation
-        let bind_map = self.data.unique_bind_map(&self.bindings);
+        let mut bind_map = self.data.unique_bind_map(&self.bindings);
+
+        // Combine collision state into bind map, to treat each collision point like it's static
+        bind_map.extend(self.collision_bindings.iter());
 
         // Compute tension data
         self.data.tension(&bind_map);
 
         // First, step simulation
-        self.data.step(delta, &bind_map);
+        self.data.step(delta);
 
         // Apply constraints
         self.data.constrain(&bind_map);
     }
 
-    /// Ticks the rope render, updating shader parameters and corresponding AABB.
+    /// Ticks the rope render, updating shader parameters and corresponding [AABB].
     /// TODO: should we have data interpolation?
     #[func]
     pub fn tick_render(&mut self) {
@@ -464,7 +492,7 @@ impl SimulatedRope {
         }
     }
 
-    /// Updates the AABB on the rope render.
+    /// Updates the [AABB] on the rope render.
     #[func]
     pub fn tick_render_aabb(&mut self) {
         let mut mesh = self.fetch_mesh_instance();
@@ -473,9 +501,67 @@ impl SimulatedRope {
     }
 
     /// Ticks the rope collision, attempting to collide with terrain.
-    /// Must be run on physics tick.
+    /// **Must** be run on physics tick.
+    ///
+    /// @experimental: Collision for simulations is still a work in progress. A bit more slow and buggy than helpful at the moment.
     #[func]
-    pub fn tick_collision(&mut self) {}
+    pub fn tick_collision(&mut self) {
+        let settings = self.fetch_settings();
+
+        if !settings.bind().collision_raycasts {
+            return;
+        }
+
+        // Fetch physics direct space state
+        if let Some(mut world3d) = self.base().get_world_3d() {
+            if let Some(mut space) = world3d.get_direct_space_state() {
+                self.collision_bindings.clear();
+
+                let offset = settings.bind().collision_offset;
+                let transform: Mat4 = self.base().get_global_transform().to_transform3d();
+
+                // Iterate over all points in rope
+                // TODO: we probably need less than every point?
+                for (idx, simulated) in self.data.points.iter_mut().enumerate() {
+                    let prev = self.data.points_simulated_previous[idx];
+                    let motion = *simulated - prev;
+
+                    self.rayquery
+                        .set_from(transform.project_point3(prev).to_vector3());
+                    self.rayquery
+                        .set_to(transform.project_point3(*simulated).to_vector3());
+
+                    // If collided, set current position to collided position, with margin
+                    let results = space.intersect_ray(&self.rayquery);
+                    if let Some(position) = results.get("position") {
+                        let hit_position: Vector3 = position.to();
+                        let hit_position: Vec3 = hit_position.to_vector3();
+
+                        let hit_normal: Vector3 = results
+                            .get("normal")
+                            .unwrap_or(Variant::from(Vector3::UP))
+                            .to();
+                        let hit_normal: Vec3 = hit_normal.to_vector3();
+
+                        // Get our actual position, and slide it along the surface plane of our hit normal
+                        let position = hit_position
+                            + (motion - hit_normal * hit_normal.dot(motion))
+                            + hit_normal * offset;
+
+                        // Deproject the point back into local space
+                        let combined = transform
+                            .inverse()
+                            .project_point3(position + hit_normal * offset);
+
+                        // Update simulation position
+                        *simulated = combined;
+                        // Keep point in mind for tension calculations
+                        self.collision_bindings.insert(idx, combined);
+                    }
+                }
+            }
+        }
+    }
 
     /// Computes and returns an enclosing [AABB] for the rope.
     #[func]
@@ -569,9 +655,8 @@ impl SimulatedRope {
     }
 }
 
-/// Attaches to a simulated rope, and provides force readings from it.
-/// Automatically applies force readings to the parent RigidBody, if enabled.
-/// @experimental
+/// Attaches to a [SimulatedRope], holding it in place, and providing force/tension readings.
+/// Automatically applies force readings to the parent [RigidBody3D], if enabled.
 #[derive(GodotClass)]
 #[class(init,base=Node3D,tool)]
 pub struct SimulatedRopeBinding {
@@ -604,6 +689,12 @@ pub struct SimulatedRopeBinding {
 #[godot_api]
 impl INode3D for SimulatedRopeBinding {
     fn ready(&mut self) {
+        #[cfg(debug_assertions)]
+        if !self.base().is_inside_tree() {
+            godot_warn!("Rope simulation was not inside tree!");
+            return;
+        }
+
         // Add to node group for rope bindings
         self.base_mut()
             .add_to_group_ex(GROUP_NAME_ROPEBINDING)
@@ -629,7 +720,6 @@ impl INode3D for SimulatedRopeBinding {
     }
 
     fn physics_process(&mut self, _delta: f64) {
-        // TODO: apply rope simulation forces
         if !Engine::singleton().is_editor_hint() {
             if let Some(mut rigid) = self.get_rigid_body() {
                 if let Some(rope) = self.get_bind_to() {
@@ -690,7 +780,7 @@ impl SimulatedRopeBinding {
         self.base().instance_id().to_i64()
     }
 
-    /// Updates the bind settings on this RopeBinding's corresponding rope.
+    /// Updates the bind settings on this [SimulatedRopeBinding]'s corresponding rope.
     #[func]
     fn update_bind(&mut self) {
         if let Some(mut rope) = self.bind_to.clone() {
@@ -700,7 +790,7 @@ impl SimulatedRopeBinding {
         }
     }
 
-    /// Recursively walks up tree until a RigidBody3D is found, returning it, or `null` if not found.
+    /// Recursively walks up tree until a [RigidBody3D] is found, returning it, or `null` if not found.
     #[func]
     fn get_rigid_body(&self) -> Option<Gd<RigidBody3D>> {
         Self::get_rigid_body_recursive(self.base().get_parent_node_3d())

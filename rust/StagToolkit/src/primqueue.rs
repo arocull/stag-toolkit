@@ -1,6 +1,7 @@
 use crate::math::types::{packed_float32_array, ToVector2, Vec2Godot};
 use glam::vec2;
 use godot::{prelude::GodotClass, prelude::*};
+use std::cmp::Ordering;
 
 /// A queue of floats, used for quickly storing and iterating through a set of data.
 /// Can also perform analysis on the data set.
@@ -39,6 +40,11 @@ impl FloatQueue {
     /// Returns the allocated queue length.
     pub fn len(&self) -> usize {
         self.vals.len()
+    }
+
+    /// Returns true if the queue is empty.
+    pub fn is_empty(&self) -> bool {
+        self.vals.is_empty()
     }
 
     /// Returns the actual length of the queue that is in use.
@@ -86,7 +92,7 @@ impl FloatQueue {
     pub fn sorted(&self) -> Vec<f32> {
         let mut vect = self.vals.clone();
         vect.truncate(self.used); // Don't include unused vals
-        vect.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        vect.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
         vect
     }
 
