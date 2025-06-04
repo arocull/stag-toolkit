@@ -134,8 +134,7 @@ mod tests {
         ];
 
         let max_diff: f32 = 1e-5;
-        let mut idx = 0;
-        for case in cases.iter() {
+        for (idx, case) in cases.iter().enumerate() {
             let p = plane(case.origin, case.normal);
             let dist = p.signed_distance(case.point);
             let diff = (case.distance - dist).abs();
@@ -147,7 +146,6 @@ mod tests {
                 case.distance,
                 diff
             );
-            idx += 1;
         }
     }
 
@@ -241,8 +239,7 @@ mod tests {
             },
         ];
 
-        let mut idx = 0;
-        for case in test_cases.iter() {
+        for (idx, case) in test_cases.iter().enumerate() {
             let pl = plane(case.o, case.n);
             let (projected, hit) = pl.ray_intersection(case.ro, case.rd);
 
@@ -257,8 +254,6 @@ mod tests {
                 "case {0}: ray [{1} -> {2}) did not project onto\t{3}",
                 idx, case.ro, case.rd, pl
             );
-
-            idx += 1;
         }
     }
 }

@@ -22,7 +22,7 @@ stag_toolkit/island_builder/collision_color=Color(1, 0, 0.670588, 1)
 
 config/name="StagToolkit"
 config/description="All-purpose toolkit for Godot game creation."
-config/version="0.3.0"
+config/version="0.3.1"
 config/tags=PackedStringArray("abyss", "plugin", "prototype")
 run/main_scene="uid://bas45qf7qdy3c"
 config/features=PackedStringArray("4.4", "Forward Plus")

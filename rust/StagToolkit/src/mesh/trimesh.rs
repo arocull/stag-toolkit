@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::math::{
-    projection::{plane, Plane},
+    projection::{Plane, plane},
     types::*,
 };
 
@@ -513,7 +513,7 @@ impl Iterator for WalkTriangles {
 mod tests {
     use super::TriangleMesh;
     use crate::mesh::trimesh::{Triangle, TriangleOperations};
-    use glam::{vec3, Vec3};
+    use glam::{Vec3, vec3};
 
     const MAX_DIFFERENCE: f32 = 1e-7;
 
@@ -554,8 +554,7 @@ mod tests {
             },
         ];
 
-        let mut idx = 0;
-        for case in test_cases.iter() {
+        for (idx, case) in test_cases.iter().enumerate() {
             let tri: Triangle = [0, 1, 2];
             let normal = tri.normal(&case.vertices);
 
@@ -581,8 +580,6 @@ mod tests {
                 idx,
                 normal
             );
-
-            idx += 1;
         }
     }
 

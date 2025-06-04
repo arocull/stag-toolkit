@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use glam::{vec3, FloatExt, Vec3, Vec4, Vec4Swizzles};
+use glam::{FloatExt, Vec3, Vec4, Vec4Swizzles, vec3};
 
 /// Returns a tuple of values A and B, constrainted within the given distance from each other.
 /// Acts as a double-sided Jakobsen constraint, with added strain.
@@ -49,7 +49,7 @@ impl Default for RopeTensionData {
 
 /// Data for managing a simulated rope.
 ///
-/// I use techniques described in [Robert Bodea's rope simulation article](https://owlree.blog/posts/simulating-a-rope.html).
+/// I use techniques described in [Robert Badea's rope simulation article](https://owlree.blog/posts/simulating-a-rope.html).
 #[derive(Clone)]
 pub struct RopeData {
     /// Number of points in the rope.

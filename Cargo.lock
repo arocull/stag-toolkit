@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "StagToolkit"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "fast-surface-nets",
  "glam 0.30.3",

@@ -1,4 +1,4 @@
-use crate::math::types::{packed_float32_array, ToVector2, Vec2Godot};
+use crate::math::types::{ToVector2, Vec2Godot, packed_float32_array};
 use glam::vec2;
 use godot::{prelude::GodotClass, prelude::*};
 use std::cmp::Ordering;

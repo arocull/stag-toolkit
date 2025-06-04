@@ -6,7 +6,7 @@ use std::mem::swap;
 
 use crate::{
     math::{
-        sdf::{sample_shape_list, ShapeOperation},
+        sdf::{ShapeOperation, sample_shape_list},
         types::{ToColor, ToVector2, ToVector3, Vec3Godot},
         volumetric::{PerlinField, VolumeData},
     },
@@ -17,15 +17,16 @@ use crate::{
     },
 };
 use fast_surface_nets::{
+    SurfaceNetsBuffer,
     ndshape::{ConstShape, ConstShape3u32},
-    surface_nets, SurfaceNetsBuffer,
+    surface_nets,
 };
 use glam::{FloatExt, Mat4, Vec2, Vec3, Vec4};
 use godot::{
     classes::{
-        mesh::PrimitiveType, physics_server_3d::BodyAxis, ArrayMesh, CollisionShape3D,
-        ConvexPolygonShape3D, Material, MeshInstance3D, ProjectSettings, RigidBody3D,
-        WorkerThreadPool,
+        ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, Material, MeshInstance3D,
+        ProjectSettings, RigidBody3D, WorkerThreadPool, mesh::PrimitiveType,
+        physics_server_3d::BodyAxis,
     },
     prelude::*,
 };

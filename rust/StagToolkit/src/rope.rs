@@ -1,6 +1,6 @@
 use crate::math::types::ToTransform3D;
 use crate::{math::types::ToVector3, simulation::rope::RopeData};
-use glam::{vec4, Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec3, Vec4, vec4};
 use godot::classes::PhysicsRayQueryParameters3D;
 use godot::{
     classes::{
@@ -425,7 +425,10 @@ impl SimulatedRope {
                     return new_settings;
                 // Otherwise, throw a warning to let the developer know
                 } else if let Err(bad_settings) = default_settings {
-                    godot_warn!("SimulatedRope failed to load default SimulatedRopeSettings resource from project settings (addons/stag_toolkit/simulated_rope/default_settings): {0}", bad_settings);
+                    godot_warn!(
+                        "SimulatedRope failed to load default SimulatedRopeSettings resource from project settings (addons/stag_toolkit/simulated_rope/default_settings): {0}",
+                        bad_settings
+                    );
                 }
             }
         }

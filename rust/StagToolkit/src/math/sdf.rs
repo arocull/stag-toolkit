@@ -1,4 +1,4 @@
-use glam::{vec2, vec3, Mat4, Vec2, Vec3, Vec3Swizzles, Vec4, Vec4Swizzles};
+use glam::{Mat4, Vec2, Vec3, Vec3Swizzles, Vec4, Vec4Swizzles, vec2, vec3};
 
 /// Joins two distance functions, using a logarithm for smoothing values.
 /// `k = 32.0`` was original suggestion for smoothing value.
@@ -348,11 +348,13 @@ mod tests {
             let dist = sample_cylinder_rounded(case.0, case.1, case.2, case.3);
 
             assert_in_delta(
-                case.4, dist, 1e-6,
+                case.4,
+                dist,
+                1e-6,
                 format!(
                     "RAW sample expected {0}, but got {1} | {2} with radius {3}, height {4}, border {5}",
                     case.4, dist, case.0, case.1, case.2, case.3,
-                )
+                ),
             );
         }
     }
@@ -402,42 +404,66 @@ mod tests {
                 radius: 1.0,
                 expect: -1.0,
             },
-
             // Translation
             TestCaseTransform {
                 note: String::from("Point is shifted to surface of sphere"),
                 sample: Vec3::ZERO,
-                transform: Mat4::from_scale_rotation_translation(Vec3::ONE, Quat::IDENTITY, Vec3::X),
+                transform: Mat4::from_scale_rotation_translation(
+                    Vec3::ONE,
+                    Quat::IDENTITY,
+                    Vec3::X,
+                ),
                 radius: 1.0,
                 expect: 0.0,
             },
             TestCaseTransform {
                 note: String::from("Point is moved forward into center of sphere"),
                 sample: Vec3::X,
-                transform: Mat4::from_scale_rotation_translation(Vec3::ONE, Quat::IDENTITY, Vec3::X),
+                transform: Mat4::from_scale_rotation_translation(
+                    Vec3::ONE,
+                    Quat::IDENTITY,
+                    Vec3::X,
+                ),
                 radius: 1.0,
                 expect: -1.0,
             },
             TestCaseTransform {
-                note: String::from("Sphere is moved away from point, so point is above surface of sphere"),
+                note: String::from(
+                    "Sphere is moved away from point, so point is above surface of sphere",
+                ),
                 sample: Vec3::X,
-                transform: Mat4::from_scale_rotation_translation(Vec3::ONE, Quat::IDENTITY, Vec3::NEG_X),
+                transform: Mat4::from_scale_rotation_translation(
+                    Vec3::ONE,
+                    Quat::IDENTITY,
+                    Vec3::NEG_X,
+                ),
                 radius: 1.0,
                 expect: 1.0,
             },
-
             // Scale
             TestCaseTransform {
-                note: String::from("Coordinate space of sphere is half that of the point's, so point position should appear doubled to a regular sphere"),
+                note: String::from(
+                    "Coordinate space of sphere is half that of the point's, so point position should appear doubled to a regular sphere",
+                ),
                 sample: Vec3::X,
-                transform: Mat4::from_scale_rotation_translation(Vec3::splat(0.5), Quat::IDENTITY, Vec3::ZERO),
+                transform: Mat4::from_scale_rotation_translation(
+                    Vec3::splat(0.5),
+                    Quat::IDENTITY,
+                    Vec3::ZERO,
+                ),
                 radius: 1.0,
                 expect: 1.0,
             },
             TestCaseTransform {
-                note: String::from("Coordinate space of sphere is double that of the point's, so point position should appear half to a regular sphere"),
+                note: String::from(
+                    "Coordinate space of sphere is double that of the point's, so point position should appear half to a regular sphere",
+                ),
                 sample: Vec3::X,
-                transform: Mat4::from_scale_rotation_translation(Vec3::splat(2.0), Quat::IDENTITY, Vec3::ZERO),
+                transform: Mat4::from_scale_rotation_translation(
+                    Vec3::splat(2.0),
+                    Quat::IDENTITY,
+                    Vec3::ZERO,
+                ),
                 radius: 1.0,
                 expect: -0.5,
             },
@@ -448,9 +474,17 @@ mod tests {
             let dist = sphere.sample(case.sample);
             let (scale, rot, loc) = case.transform.to_scale_rotation_translation();
             assert_eq!(
-                dist, case.expect,
+                dist,
+                case.expect,
                 "SHAPE sample expected {0}, but got {1} | {2} with radius {3} | (scale: {4}, rot: {5}, loc: {6})\n\tcase note: {7}",
-                case.expect, dist, case.sample, case.radius, scale, Vec3::from(rot.to_euler(glam::EulerRot::XYZ)), loc, case.note
+                case.expect,
+                dist,
+                case.sample,
+                case.radius,
+                scale,
+                Vec3::from(rot.to_euler(glam::EulerRot::XYZ)),
+                loc,
+                case.note
             );
         }
     }
