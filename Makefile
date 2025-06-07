@@ -38,7 +38,7 @@ debug: bindir
 test: test-rust-release test-godot
 
 test-rust:
-	@cargo test --features all
+	@cargo test --all-features
 
 test-rust-release:
 	@cargo test --release --features godot

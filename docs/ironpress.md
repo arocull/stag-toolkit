@@ -34,15 +34,15 @@ I then modify the configuration with any text editor to look like the following.
 }
 ```
 
-![](../images/ironpress-1.png)
+![](images/ironpress-1.png)
 
 You can re-import the IronPress configuration when ready.
 
-![](../images/ironpress-2.png)
+![](images/ironpress-2.png)
 
 The importer will run IronPress through terminal, optimize and re-import the textures, and output materials for all configured materials.
 
-![](../images/ironpress-3.png)
+![](images/ironpress-3.png)
 
 Because everything has an edge-case, **re-importing the `.ironpress` configuration should only modify what is necessary**, leaving extra customizations in-tact.
 
