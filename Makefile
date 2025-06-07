@@ -1,4 +1,4 @@
-.PHONY: all clean clean-bin derust debug bindir build build-windows build-mac test test-rust test-godot test-sanity bench bundle godot-abyss-release godot-abyss-debug
+.PHONY: all clean clean-bin derust debug bindir build build-windows build-mac test test-rust test-godot test-sanity bench bench-rust bench-godot bundle godot-abyss-release godot-abyss-debug
 
 all: build
 
@@ -49,7 +49,12 @@ test-godot: build
 test-sanity: build test-rust
 	@cd godot/ && godot --headless --stagtest --timeout=90 --test=res://test/sanity
 
-bench: build
+bench: bench-rust bench-godot
+
+bench-rust:
+	@cargo bench --no-default-features
+
+bench-godot: build
 	@cd godot/ && godot --headless --stagtest --bench --timeout=300
 
 # Builds Godot Linux export template with encryption for Abyss

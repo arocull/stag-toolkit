@@ -5,10 +5,11 @@ use glam::{FloatExt, Vec3, Vec4, Vec4Swizzles, vec3};
 /// Returns a tuple of values A and B, constrainted within the given distance from each other.
 /// Acts as a double-sided Jakobsen constraint, with added strain.
 pub fn jakobsen_constraint(a: Vec3, b: Vec3, ideal_distance: f32) -> (Vec3, Vec3) {
+    let d = a.distance(b);
     // Half the change in distance we need in order to meet the constraint.
-    let distance_offset = (a.distance(b) - ideal_distance) * 0.5;
+    let distance_offset = (d - ideal_distance) * 0.5;
     // Direction from previous point to this one, multiplied by offset distance.
-    let offset = (b - a).normalize() * distance_offset;
+    let offset = (b - a) * (distance_offset / d);
     (a + offset, b - offset)
 }
 
@@ -322,6 +323,10 @@ impl Default for RopeData {
 
 #[cfg(test)]
 mod tests {
+    use glam::Vec3;
+
+    use crate::{math::delta::assert_in_delta, simulation::rope::jakobsen_constraint};
+
     use super::RopeData;
 
     #[test]
@@ -355,7 +360,48 @@ mod tests {
     }
 
     #[test]
-    fn find_bounds() {
-        // let rope = RopeData::new(10.0, 0.1);
+    fn test_jakobsen_constraint() {
+        let test_cases = [
+            (Vec3::splat(2.0), Vec3::splat(-2.0), 0.5),
+            (Vec3::splat(2.0), Vec3::splat(-2.0), 1.0),
+            (Vec3::splat(1.0), Vec3::splat(2.0), 35.7),
+        ];
+
+        const EPSILON: f32 = 1e-6;
+
+        for (idx, tcase) in test_cases.iter().enumerate() {
+            let (l, r) = jakobsen_constraint(tcase.0, tcase.1, tcase.2);
+
+            let middle = (tcase.0 + tcase.1) * 0.5;
+            let dtl = (tcase.0 - middle).normalize_or_zero();
+            let dtr = (tcase.1 - middle).normalize_or_zero();
+            let dl = (l - middle).normalize_or_zero();
+            let dr = (r - middle).normalize_or_zero();
+
+            assert_in_delta(
+                tcase.2,
+                l.distance(r),
+                EPSILON,
+                format!("case {idx}: distance was not the same"),
+            );
+            assert_in_delta(
+                0.0,
+                dl.distance(dtl),
+                EPSILON,
+                format!(
+                    "case {idx}: constrained {l} not in same direction as original {0}\t{dl} != {dtl}",
+                    tcase.0
+                ),
+            );
+            assert_in_delta(
+                0.0,
+                dr.distance(dtr),
+                EPSILON,
+                format!(
+                    "case {idx}: constrained {r} not in same direction as original {0}\t{dr} != {dtr}",
+                    tcase.1
+                ),
+            );
+        }
     }
 }

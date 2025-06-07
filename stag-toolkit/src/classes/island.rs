@@ -42,7 +42,7 @@ type IslandChunkSize = ConstShape3u32<VOLUME_MAX_CELLS, VOLUME_MAX_CELLS, VOLUME
 
 /// Container for working data about a given island.
 #[derive(Clone)]
-pub struct IslandBuildData {
+struct IslandBuildData {
     whitebox: GodotWhitebox,
     noise: PerlinField,
 

@@ -1,13 +1,14 @@
 #![doc(html_favicon_url = "https://alanocull.com/favicon.ico")]
 //! Game development utilities addon for Godot, written in Rust for speed and stability.
 //!
-//! Contains these features:
+//! Contains these nodes:
 //! - IslandBuilder
 //! - SimulatedRope
-//! - StagTest (GDScript-only)
-//! - (WIP) AnimationSoup
+//! - QueueFloat
 //!
-//! If you would like to use the Godot-agnostic libraries, simply disable the `godot` feature.
+//! Crate Features:
+//! - **`godot`** (default) - Enables Godot Engine classes using [godot-rust/gdext](https://github.com/godot-rust/gdext) crate. Disable if you just want to use this as a library.
+//! - **`nothreads`** (WIP) - Experimental feature for single-threaded Web exports.
 
 // MODULE DECLARATION //
 

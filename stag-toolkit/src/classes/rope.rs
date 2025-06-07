@@ -11,8 +11,8 @@ use godot::{
 };
 use std::collections::HashMap;
 
-const GROUP_NAME_ROPE: &str = "StagToolkit_SimulatedRope";
-const GROUP_NAME_ROPEBINDING: &str = "StagToolkit_SimulatedRopeBinding";
+pub const GROUP_NAME_ROPE: &str = "StagToolkit_SimulatedRope";
+pub const GROUP_NAME_ROPEBINDING: &str = "StagToolkit_SimulatedRopeBinding";
 const MESH_NAME: &str = "mesh_rope";
 
 /// Settings for a simulated rope class.
