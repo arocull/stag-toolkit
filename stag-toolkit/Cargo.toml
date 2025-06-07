@@ -12,13 +12,11 @@ doc = true
 [features]
 default = ["godot"]
 godot = ["dep:godot"]
-mint = ["godot", "dep:mint", "glam/mint"]
 
 [dependencies]
 fast-surface-nets = "0.2.0"
 glam = { version = "0.30.2", features = ["approx"] }
 godot = { version = "0.3.0", features = ["api-4-4", "experimental-threads", "register-docs"], optional = true }
-mint = { version = "0.5.9", optional = true }
 ndshape = "0.3.0"
 noise = "0.9.0"
 rayon = "1.10.0"

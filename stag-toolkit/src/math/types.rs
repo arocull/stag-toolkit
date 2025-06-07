@@ -21,53 +21,6 @@ impl ToVector3<[f32; 3]> for Vec3 {
     }
 }
 
-/// Additional Mint vector conversion utilities.
-#[cfg(all(feature = "mint", feature = "godot"))]
-pub mod mint {
-    use super::{ToVector3, Vec3, godot::Vec3Godot};
-    use mint::Vector3 as Vec3MintGeneral;
-
-    /// Mint-type 3D vector, used for ineroperability with other libraries.
-    pub type Vec3Mint = Vec3MintGeneral<f32>;
-
-    // From Mint, to Glam
-    impl ToVector3<Vec3> for Vec3Mint {
-        fn to_vector3(self) -> Vec3 {
-            self.into()
-        }
-    }
-    // From Glam, to Mint
-    impl ToVector3<Vec3Mint> for Vec3 {
-        fn to_vector3(self) -> Vec3Mint {
-            self.into()
-        }
-    }
-    // From array, to Mint
-    impl ToVector3<Vec3Mint> for [f32; 3] {
-        fn to_vector3(self) -> Vec3Mint {
-            Vec3Mint::from(self)
-        }
-    }
-    // From Mint, to array
-    impl ToVector3<[f32; 3]> for Vec3Mint {
-        fn to_vector3(self) -> [f32; 3] {
-            [self.x, self.y, self.z]
-        }
-    }
-    // From Mint, to Godot
-    impl ToVector3<Vec3Godot> for Vec3Mint {
-        fn to_vector3(self) -> Vec3Godot {
-            Vec3Godot::from_array(self.into())
-        }
-    }
-    // From Godot, to Mint
-    impl ToVector3<Vec3Mint> for Vec3Godot {
-        fn to_vector3(self) -> Vec3Mint {
-            self.to_array().into()
-        }
-    }
-}
-
 #[cfg(feature = "godot")]
 pub mod gdmath {
     use godot::builtin::PackedColorArray;
