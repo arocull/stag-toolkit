@@ -1,18 +1,24 @@
 [package]
-name = "StagToolkit"
-version = "0.3.1"
+name = "stag-toolkit"
+version = "0.4.0"
 edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 crate-type = ["cdylib"]  # Compile this crate to a dynamic C library.
+doc = true
+
+[features]
+default = ["godot"]
+godot = ["dep:godot"]
+mint = ["godot", "dep:mint", "glam/mint"]
 
 [dependencies]
 fast-surface-nets = "0.2.0"
-glam = { version = "0.30.2", features = ["approx", "mint"] }
-godot = { version = "0.3.0", features = ["api-4-4", "experimental-threads", "register-docs"] }
-mint = "0.5.9"
+glam = { version = "0.30.2", features = ["approx"] }
+godot = { version = "0.3.0", features = ["api-4-4", "experimental-threads", "register-docs"], optional = true }
+mint = { version = "0.5.9", optional = true }
 ndshape = "0.3.0"
 noise = "0.9.0"
 rayon = "1.10.0"

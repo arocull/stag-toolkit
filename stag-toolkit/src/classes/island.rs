@@ -7,7 +7,8 @@ use std::mem::swap;
 use crate::{
     math::{
         sdf::{ShapeOperation, sample_shape_list},
-        types::{ToColor, ToVector2, ToVector3, Vec3Godot},
+        types::ToVector3,
+        types::gdmath::{ToColor, ToVector2, Vec3Godot},
         volumetric::{PerlinField, VolumeData},
     },
     mesh::{

@@ -1,4 +1,4 @@
-use crate::math::types::ToTransform3D;
+use crate::math::types::gdmath::ToTransform3D;
 use crate::{math::types::ToVector3, simulation::rope::RopeData};
 use glam::{Mat4, Vec3, Vec4, vec4};
 use godot::classes::PhysicsRayQueryParameters3D;

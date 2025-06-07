@@ -1,15 +1,14 @@
+use super::trimesh::TriangleMesh;
 use crate::math::sdf;
 use crate::math::sdf::ShapeOperation;
-use crate::math::types::*;
-// use super::trimesh::TriangleMesh;
+use crate::math::types::ToVector3;
+use crate::math::types::gdmath::*;
 use godot::builtin::Array;
 use godot::classes::csg_shape_3d::Operation;
 use godot::classes::mesh::ArrayType;
 use godot::classes::{CsgBox3D, CsgCylinder3D, CsgShape3D, CsgSphere3D, CsgTorus3D};
 use godot::obj::IndexEnum;
 use godot::prelude::*;
-
-use super::trimesh::TriangleMesh;
 
 // MESH DATA HANDLING //
 /// A helper class for batch-handling mesh surface data within Godot Engine.

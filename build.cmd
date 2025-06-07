@@ -7,9 +7,9 @@ cargo build --release
 @REM Store debug binary
 @REM mkdir target\debug
 @REM mkdir godot\addons\stag_toolkit\bin\debug
-@REM copy /y target\debug\StagToolkit.dll /b godot\addons\stag_toolkit\bin\debug\StagToolkit.dll /b
+@REM copy /y target\debug\stag_toolkit.dll /b godot\addons\stag_toolkit\bin\debug\stag_toolkit.dll /b
 
 @REM Store release binary
 mkdir target\release
 mkdir godot\addons\stag_toolkit\bin\release
-copy /y target\release\StagToolkit.dll /b godot\addons\stag_toolkit\bin\release\StagToolkit.dll /b
+copy /y target\release\stag_toolkit.dll /b godot\addons\stag_toolkit\bin\release\stag_toolkit.dll /b

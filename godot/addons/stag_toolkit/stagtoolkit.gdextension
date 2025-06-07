@@ -4,14 +4,14 @@ compatibility_minimum = 4.3
 reloadable = false
 
 [libraries]
-linux.debug.x86_64 =     "res://addons/stag_toolkit/bin/release/libStagToolkit.so"
-linux.release.x86_64 =   "res://addons/stag_toolkit/bin/release/libStagToolkit.so"
-windows.debug.x86_64 =   "res://addons/stag_toolkit/bin/release/StagToolkit.dll"
-windows.release.x86_64 = "res://addons/stag_toolkit/bin/release/StagToolkit.dll"
-macos.debug =            "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
-macos.release =          "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
-macos.debug.arm64 =      "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
-macos.release.arm64 =    "res://addons/stag_toolkit/bin/release/libStagToolkit.dylib"
+linux.debug.x86_64 =     "res://addons/stag_toolkit/bin/release/libstag_toolkit.so"
+linux.release.x86_64 =   "res://addons/stag_toolkit/bin/release/libstag_toolkit.so"
+windows.debug.x86_64 =   "res://addons/stag_toolkit/bin/release/stag_toolkit.dll"
+windows.release.x86_64 = "res://addons/stag_toolkit/bin/release/stag_toolkit.dll"
+macos.debug =            "res://addons/stag_toolkit/bin/release/libstag_toolkit.dylib"
+macos.release =          "res://addons/stag_toolkit/bin/release/libstag_toolkit.dylib"
+macos.debug.arm64 =      "res://addons/stag_toolkit/bin/release/libstag_toolkit.dylib"
+macos.release.arm64 =    "res://addons/stag_toolkit/bin/release/libstag_toolkit.dylib"
 
 [icons]
 IslandBuilder = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"

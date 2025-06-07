@@ -20,33 +20,33 @@ derust:
 	@rm -rf godot/addons/stag_toolkit/plugin/ui/
 
 build: bindir
-	@cargo build --release
-	@cp target/release/libStagToolkit.so godot/addons/stag_toolkit/bin/release/libStagToolkit.so
+	@cargo build --release --features godot
+	@cp target/release/libstag_toolkit.so godot/addons/stag_toolkit/bin/release/libstag_toolkit.so
 
 build-windows: bindir
-	@cargo build --target x86_64-pc-windows-gnu --release
-	@cp target/x86_64-pc-windows-gnu/release/StagToolkit.dll godot/addons/stag_toolkit/bin/release/StagToolkit.dll
+	@cargo build --target x86_64-pc-windows-gnu --release --features godot
+	@cp target/x86_64-pc-windows-gnu/release/stag_toolkit.dll godot/addons/stag_toolkit/bin/release/stag_toolkit.dll
 
 build-mac: bindir
-	@cargo build --target x86_64-apple-darwin
-	@cp target/x86_64-apple-darwin/release/libStagToolkit.dylib godot/addons/stag_toolkit/bin/release/libStagToolkit.dylib
+	@cargo build --target x86_64-apple-darwin  --release --features godot
+	@cp target/x86_64-apple-darwin/release/libstag_toolkit.dylib godot/addons/stag_toolkit/bin/release/libstag_toolkit.dylib
 
 debug: bindir
 	@cargo build
-	@cp target/debug/libStagToolkit.so godot/addons/stag_toolkit/bin/debug/libStagToolkit.so
+	@cp target/debug/libstag_toolkit.so godot/addons/stag_toolkit/bin/debug/libstag_toolkit.so
 
 test: test-rust-release test-godot
 
 test-rust:
-	@cargo test
+	@cargo test --features all
 
 test-rust-release:
-	@cargo test --release
+	@cargo test --release --features godot
 
 test-godot: build
 	@cd godot/ && godot --headless --stagtest --timeout=90
 
-test-sanity: build
+test-sanity: build test-rust
 	@cd godot/ && godot --headless --stagtest --timeout=90 --test=res://test/sanity
 
 bench: build
