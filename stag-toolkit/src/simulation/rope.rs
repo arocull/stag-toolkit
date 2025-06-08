@@ -5,12 +5,12 @@ use glam::{FloatExt, Vec3, Vec4, Vec4Swizzles, vec3};
 /// Returns a tuple of values A and B, constrainted within the given distance from each other.
 /// Acts as a double-sided Jakobsen constraint, with added strain.
 pub fn jakobsen_constraint(a: Vec3, b: Vec3, ideal_distance: f32) -> (Vec3, Vec3) {
-    let d = a.distance(b);
+    let (o, d) = (a - b).normalize_and_length();
     // Half the change in distance we need in order to meet the constraint.
     let distance_offset = (d - ideal_distance) * 0.5;
     // Direction from previous point to this one, multiplied by offset distance.
-    let offset = (b - a) * (distance_offset / d);
-    (a + offset, b - offset)
+    let offset = o * distance_offset;
+    (a - offset, b + offset)
 }
 
 /// Returns a one-sided Jakobsen constraint, with added strain, where B is forced to be at the ideal distance of A.
@@ -54,7 +54,7 @@ impl Default for RopeTensionData {
 #[derive(Clone)]
 pub struct RopeData {
     /// Number of points in the rope.
-    pub point_count: u32,
+    pub point_count: usize,
     /// Ideal distance between points in the rope.
     pub distance_between_points: f32,
     /// Spring constant of the rope.
@@ -64,32 +64,30 @@ pub struct RopeData {
     /// Number of Jakobsen constraint steps to perform.
     pub constraint_iterations: u32,
 
-    /// All current rope positions, with tension.
+    /// All current simulated rope positions, with tension.
     pub points: Vec<Vec3>,
-
-    /// All current simulated rope positions.
-    // pub points: Vec<Vec3>,
 
     /// All previous simulated rope positions.
     pub points_simulated_previous: Vec<Vec3>,
 
+    /// All rope positions that are pinned via bindings.
+    /// Used to optimize constraint iterations.
+    pinned: Vec<bool>,
+
     /// Last computed tension data for each point on the rope.
-    pub tension: Vec<RopeTensionData>,
+    tension: Vec<RopeTensionData>,
 }
 
 impl RopeData {
     /// Generates a new RopeData struct.
     pub fn new(ideal_length: f32, point_distance: f32) -> Self {
         // Find ideal number of points in rope
-        let count = ((ideal_length / point_distance).round() as u32).max(2);
+        let count = ((ideal_length / point_distance).round() as usize).max(2);
 
         // Create a line of points along the forward axis
-        let mut points: Vec<Vec3> = Vec::with_capacity(count as usize);
-        let mut tension: Vec<RopeTensionData> = Vec::with_capacity(count as usize);
-
+        let mut points: Vec<Vec3> = Vec::with_capacity(count);
         for i in 0..count {
             points.push((i as f32 / count as f32) * Vec3::NEG_Z);
-            tension.push(RopeTensionData::default());
         }
 
         Self {
@@ -100,21 +98,21 @@ impl RopeData {
             constraint_iterations: 50,
 
             points: points.clone(),
-            // points: points.clone(),
             points_simulated_previous: points,
-            tension,
+            pinned: vec![false; count],
+            tension: vec![RopeTensionData::default(); count],
         }
     }
 
     /// Returns the point index for the given binding location (between 0 and 1).
     /// Assumes passed "param" value is between 0 and 1.
     pub fn bind_index(&self, param: f32) -> usize {
-        (param * ((self.points.len() - 1) as f32)).round() as usize
+        (param * ((self.point_count - 1) as f32)).round() as usize
     }
 
     /// Returns the rope factor based off the given bind index.
     pub fn bind_factor(&self, index: usize) -> f32 {
-        index as f32 / (self.points.len() - 1) as f32
+        index as f32 / (self.point_count - 1) as f32
     }
 
     /// Returns the calculated slack at the given index.
@@ -143,21 +141,21 @@ impl RopeData {
     /// Steps the simulation forward by many X seconds using Verlet integration.
     /// Does NOT apply constraints.
     pub fn step(&mut self, delta_time: f64) {
-        let delta_time_squared: f32 = (delta_time * delta_time) as f32;
+        // let delta_time_squared: f32 = (delta_time * delta_time) as f32;
+        let accel = self.acceleration * ((delta_time * delta_time) as f32);
         for (idx, point) in self.points.iter_mut().enumerate() {
             // Perform a Verlet integration of the given point
             let p = *point;
-            *point = 2.0 * p - self.points_simulated_previous[idx]
-                + self.acceleration * delta_time_squared;
+            *point = (p * 2.0) - self.points_simulated_previous[idx] + accel;
             self.points_simulated_previous[idx] = p;
         }
     }
 
     /// Converts a keyed-by-ID bindings map to a keyed-by-index map of unique bindings.
     pub fn unique_bind_map(&self, bindings: &HashMap<i64, Vec4>) -> HashMap<usize, Vec3> {
-        let mut unique: HashMap<usize, Vec3> = HashMap::new();
+        let mut unique: HashMap<usize, Vec3> = HashMap::with_capacity(bindings.len());
 
-        for (_, b) in bindings.iter() {
+        for b in bindings.values() {
             unique.insert(self.bind_index(b.w), b.xyz());
         }
 
@@ -241,30 +239,34 @@ impl RopeData {
 
     /// Constrains the system X many times, snapping the system back to bound points.
     /// Uses the Jakobsen Method.
-    ///
-    /// TODO: should this fill a new set of points each iteration instead of operating on the same dataset?
     pub fn constrain(&mut self, binding_map: &HashMap<usize, Vec3>) {
+        // Figure out which points are pinned by the hash map so we only have to find them once
+        for (idx, val) in self.pinned.iter_mut().enumerate() {
+            *val = binding_map.contains_key(&idx);
+        }
+
         // Run many iterations
         for _ in 0..self.constraint_iterations {
-            // Force points towards/away from each other to meet the constraint
-            for idx in 1..self.points.len() {
-                let lock_a = binding_map.contains_key(&idx);
-                let lock_b = binding_map.contains_key(&(idx - 1));
+            // Force points towards/away from each other to meet the constraint.
+            // Don't move points that are pinned down.
+            for (idx, pinned) in self.pinned.iter().enumerate().skip(1) {
+                let previdx = idx - 1;
 
-                if lock_a && lock_b {
-                    continue;
-                }
-                if lock_a {
-                    self.points[idx - 1] = jakobsen_constraint_single(
+                if *pinned {
+                    if self.pinned[previdx] {
+                        continue;
+                    }
+
+                    self.points[previdx] = jakobsen_constraint_single(
                         self.points[idx],
-                        self.points[idx - 1],
+                        self.points[previdx],
                         self.distance_between_points,
                     );
                     continue;
                 }
-                if lock_b {
+                if self.pinned[previdx] {
                     self.points[idx] = jakobsen_constraint_single(
-                        self.points[idx - 1],
+                        self.points[previdx],
                         self.points[idx],
                         self.distance_between_points,
                     );
@@ -272,16 +274,15 @@ impl RopeData {
                 }
 
                 // Constrain with previous point
-                (self.points[idx], self.points[idx - 1]) = jakobsen_constraint(
+                (self.points[idx], self.points[previdx]) = jakobsen_constraint(
                     self.points[idx],
-                    self.points[idx - 1],
+                    self.points[previdx],
                     self.distance_between_points,
                 );
             }
 
             // Enforce binding positions, if any are present
             for (idx, b) in binding_map.iter() {
-                // self.points[*idx] = *b;
                 self.points[*idx] = *b;
             }
         }

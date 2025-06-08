@@ -490,7 +490,7 @@ impl SimulatedRope {
             shader.set_shader_parameter(settings.render_parameter_points.arg(), &pts.to_variant());
             shader.set_shader_parameter(
                 settings.render_parameter_point_count.arg(),
-                &self.data.point_count.to_variant(),
+                &(self.data.point_count as u32).to_variant(),
             );
         }
     }
