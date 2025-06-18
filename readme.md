@@ -1,13 +1,13 @@
-# Stag Toolkit
+# ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit.svg) Stag Toolkit
 
 [Godot](https://godotengine.org/) addon for real-time 3D games, art, and simulations.
-Also usable as a [Rust library](#as-a-library) for non-Godot development.
+Also usable as a [Rust library](#as-a-rust-library) for non-Godot development.
 
 Currently equipped for Godot **4.4**+ on Windows and Linux.
 
 > [!WARNING]
 > Areas of this addon are highly experimental and frequently subject to change based on personal needs.
-> These updates will sometimes require usage to be updated accordingly.
+> These changes will sometimes require usage to be updated accordingly.
 > Use at your own risk!
 > Check for `@experimental` in docs to help identify unstable features.
 
@@ -15,10 +15,10 @@ Currently equipped for Godot **4.4**+ on Windows and Linux.
 
 ## Feature List
 
-- **[StagTest](docs/stagtest.md)** framework for simulating gameplay and performing benchmarks
-- **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend (Rust required)
-- [**SimulatedRope** and **SimulatedRopeBinding**](docs/simulatedrope.md) nodes for performing and interacting with rope simulations (Rust required)
-- **QueueFloat** class for handling and analyzing float arrays with minimal allocations (Rust required)
+- ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg) **[StagTest](docs/stagtest.md)** framework for simulating gameplay and performing benchmarks
+- ![](godot/addons/stag_toolkit/icons/icon_islandbuilder.svg) **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend (Rust required)
+- ![](godot/addons/stag_toolkit/icons/icon_simulatedropebinding.svg) [**SimulatedRope** and **SimulatedRopeBinding**](docs/simulatedrope.md) nodes for performing and interacting with rope simulations (Rust required)
+- ![](godot/addons/stag_toolkit/icons/icon_queuefloat.svg) **QueueFloat** class for handling and analyzing float arrays with minimal allocations (Rust required)
 - [**Texture/Material** importer](docs/ironpress.md) for `.ironpress` files (external tooling required)
 - "Simple LOD" importer for meshes/scenes with custom LODs
 - Shader includes and debug shaders
@@ -37,7 +37,7 @@ Some features can be toggled on/off via the Project Settings under `addons/stag_
 
 The latest stable plugin versions are published in the [releases tab](https://github.com/arocull/stag-toolkit/releases). Download and extract the zip archive, and copy the `addons/stag_toolkit` directory into your project's `addons` directory.
 
-### As a Library
+### As a Rust Library
 
 The `stag-toolkit` crate can also be used as a library for your own Rust projects, with the option to disable Godot-related features. In your `Cargo.toml`, add:
 
@@ -75,7 +75,7 @@ Make use Rust's target system!
 - Get a list of [all platforms](https://doc.rust-lang.org/nightly/rustc/platform-support.html): `$ rustup target list`
 - Ensure you have the proper linker installed [to make use of cargo](https://stackoverflow.com/a/62853319)
 
-Platforms still working on support for: `x86_64-apple-darwin`
+Platforms still working on support for: `x86_64-apple-darwin` `wasm32-unknown-emscripten`
 
 #### On Linux
 
@@ -86,7 +86,7 @@ Install the proper linkers!
 
 ### Contribution
 
-If making a contribution, please follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) standard (as best you can).
+If making a contribution, please follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) standard for commit names (as best you can).
 
 You may need to install additional toolchains for pre-commit hooks.
 

@@ -136,7 +136,7 @@ impl<T: Hash + Eq + Copy> Mixable for HashMap<T, Quat> {
 
     fn scale(&mut self, scale: f32) {
         for (_, val) in self.iter_mut() {
-            *val = (*val) * scale;
+            *val *= scale;
         }
     }
 }
