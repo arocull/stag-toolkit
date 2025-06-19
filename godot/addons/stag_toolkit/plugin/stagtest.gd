@@ -9,15 +9,7 @@ const DEFAULT_REPORTS_PATH: String = "res://test/reports/"
 const DEFAULT_TIMEOUT: float = 30.0
 const DEFAULT_TIME_SCALE: float = 1.0
 
-signal test_post_ready() ## Called just after beginning a test.
-signal test_pre_exit() ## Called just before exiting a test.
-
-enum ExitCodes {
-	Ok = OK,
-	Failed = FAILED,
-	BadFile = ERR_FILE_UNRECOGNIZED,
-}
-
+## Helper class containing data of a StagTest benchmark results.
 class BenchmarkResult extends RefCounted:
 	var count: int = 0 ## Number of times benchmark Callable was ran
 	var minimum: float = 0 ## Minimum completion time, in milliseconds
@@ -44,6 +36,94 @@ class BenchmarkResult extends RefCounted:
 			StagTest.__format_duration(self.median),
 			StagTest.__format_duration(self.standard_deviation),
 		])
+
+## Testing class for signal expectors.
+## This class is thread-safe.
+class SignalExpector extends RefCounted:
+	var _emitter: Signal
+	var _emitter_name: String = ""
+	var _count: int = 0
+	var _context: String = ""
+	var _mutex: Mutex = Mutex.new()
+
+	## Increments the emitter count by 1.
+	func _increment() -> void:
+		_mutex.lock()
+		_count += 1
+		_mutex.unlock()
+	## Asserts that the emitter is not null.
+	func assert_valid(extra_context: String = "") -> void:
+		StagTest.test_data["assertions"] += 1
+		if _emitter.is_null():
+			StagTest.fail("expected {0} to not be null{1}{2}".format([
+				_emitter_name,
+				StagTest.__format_assertion_message(_context),
+				StagTest.__format_assertion_message(extra_context)
+			]))
+	## Asserts that the Signal was emitted at least once.
+	func assert_emitted(extra_context: String = "") -> void:
+		StagTest.test_data["assertions"] += 1
+		if get_count() == 0:
+			StagTest.fail("expected {0} to be emitted{1}{2}".format([
+				_emitter_name,
+				StagTest.__format_assertion_message(_context),
+				StagTest.__format_assertion_message(extra_context)
+			]))
+	## Asserts that the Signal was not emitted at all.
+	func assert_not_emitted(extra_context: String = "") -> void:
+		StagTest.test_data["assertions"] += 1
+		if get_count() > 0:
+			StagTest.fail("expected {0} to NOT be emitted{1}{2}".format([
+				_emitter_name,
+				StagTest.__format_assertion_message(_context),
+				StagTest.__format_assertion_message(extra_context)
+			]))
+	## Asserts that the Signal was emitted exactly `exact_call_count` times.
+	func assert_count(exact_call_count: int, extra_context: String = "") -> void:
+		StagTest.test_data["assertions"] += 1
+		if get_count() != exact_call_count:
+			StagTest.fail("expected {0} to be emitted {1} times instead of {2} times{3}{4}".format([
+				_emitter_name,
+				exact_call_count,
+				get_count(),
+				StagTest.__format_assertion_message(_context),
+				StagTest.__format_assertion_message(extra_context)
+			]))
+	## Blocks until either the emitter count or timeout (in milliseconds) is reached.
+	## Fails the test if the timeout was reached.
+	func block_until(threshold: int = 1, timeout_ms: int = 30000, extra_context: String = "") -> void:
+		var start := Time.get_ticks_msec()
+		while get_count() < threshold:
+			if Time.get_ticks_msec() - start >= timeout_ms:
+				StagTest.fail(
+					"timeout of {0} exceeded while waiting for signal {1} to emit {2} times, but only emitted {3} times{4}{5}".format([
+						StagTest.__format_duration(float(timeout_ms) * 1000),
+						_emitter_name,
+						threshold,
+						get_count(),
+						_context,
+						extra_context,
+					])
+				)
+				return
+			OS.delay_usec(1)
+	## Resets the expector state.
+	func reset() -> void:
+		_mutex.lock()
+		_count = 0
+		_mutex.unlock()
+	## Returns the number of times the signal emitted.
+	func get_count() -> int:
+		return _count
+
+signal test_post_ready() ## Called just after beginning a test.
+signal test_pre_exit() ## Called just before exiting a test.
+
+enum ExitCodes {
+	Ok = OK,
+	Failed = FAILED,
+	BadFile = ERR_FILE_UNRECOGNIZED,
+}
 
 var args: Dictionary
 var _quit_function: Callable = __quit_default
@@ -443,7 +523,7 @@ func fail(reason: String) -> void:
 		test_data["post_test_message"] = "[color=red]FAILED {0} for reason:\n\t{1}[/color]\n\n".format([path(), reason])
 		test_resulted = true
 
-## Assert that a given value is true.
+## Assert that a given boolean is true.
 func assert_true(value: bool, message: String = "") -> void:
 	test_data["assertions"] += 1
 	if not value:
@@ -550,31 +630,37 @@ func assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: Strin
 			delta, diff, __format_assertion_message(message)]))
 
 
-## Pass: the signal, a function with as many arguments as the signal takes, plus a callable, that is invoked.[br]
-## Message may be any additional error context you want on failure.[br]
-## Returns a Signal expector that, when called with a boolean argument (which defaults to true):
-## - true: will fail the test if the given Signal was NOT emitted
-## - false: will fail the test if the given Signal WAS emitted
-func signal_expector(sig: Signal, to_connect: Callable, message: String = "") -> Callable:
-	var event_data: Dictionary = { "emitted": false }
+## Creates a [StagTest.SignalExpector] from the given signal, which can be used for further assertions.
+## The [StagTest.SignalExpector] is thread-safe.
+## Fails the test if the signal is null, or if the signal could not be connected.
+func signal_expector(emitter: Signal, emitter_parameter_count: int, message: String = "") -> SignalExpector:
+	var expector := SignalExpector.new()
 
-	# Stores when the event to be emitted.
-	var event_reciever = func (): event_data["emitted"] = true
+	if emitter.is_null():
+		StagTest.fail("while creating Signal Expector, expected emitter to exist{0}".format([
+			StagTest.__format_assertion_message(message)
+		]))
+		return expector
 
-	# Listen for the signal to be emitted. Allow multiple connections, as data is unique each bind.
-	sig.connect(to_connect.bind(event_reciever), CONNECT_ONE_SHOT | CONNECT_REFERENCE_COUNTED)
+	expector._emitter = emitter
+	expector._emitter_name = emitter.get_name()
+	expector._context = message
 
-	# Call this function to process the Signal expect.
-	var event_expector = func (should_call: bool = true):
-		test_data["assertions"] += 1
-		if should_call:
-			if not event_data.get("emitted", false):
-				fail("expected {0} to be emitted{1}".format([sig.get_name(), __format_assertion_message(message)]))
-		else:
-			if event_data.get("emitted", false):
-				fail("expected {0} to NOT be emitted{1}".format([sig.get_name(), __format_assertion_message(message)]))
+	var err: int
 
-	return event_expector
+	if emitter_parameter_count > 0: # Discard excess parameters
+		err = emitter.connect(expector._increment.unbind(emitter_parameter_count))
+	else:
+		err = emitter.connect(expector._increment)
+
+	if err != OK:
+		StagTest.fail("while creating Signal Expector, failed to connect to emitter with error:{0}\n{1}".format([
+			error_string(err),
+			StagTest.__format_assertion_message(message)
+		]))
+		return expector
+
+	return expector
 
 
 ## Performs a timing benchmark of the Callable (with no arguments) the specified number of times, returning an analysis.[br]

@@ -69,7 +69,7 @@ enum DockerType {
 var dockers: Array[Dictionary] = [
 	{
 		"toggle": "addons/stag_toolkit/island_builder/enabled",
-		"resource": "res://addons/stag_toolkit/plugin/island_builder.gd",
+		"resource": "res://addons/stag_toolkit/plugin/island_builder/island_builder.gd",
 		"constructed": null,
 		"init": "thread_init",
 		"deinit": "thread_deinit",

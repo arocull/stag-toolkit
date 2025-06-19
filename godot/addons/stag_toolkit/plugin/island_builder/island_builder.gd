@@ -11,7 +11,7 @@ const PRECOMPUTE_REQUIRED_BUTTONS = [
 	"btn_navigation",
 ]
 
-var docker = preload("res://addons/stag_toolkit/plugin/ui/island_docker.tscn")
+var docker = load("res://addons/stag_toolkit/plugin/island_builder/island_docker.tscn")
 var panel: Control = null
 var last_builder: IslandBuilder = null
 var realtime_enabled: bool = false

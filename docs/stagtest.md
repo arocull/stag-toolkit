@@ -19,7 +19,33 @@ Breakdown of command-line arguments:
 - `godot` - should launch Godot Engine
 - `--headless` - will run Godot headlessly. This is optional, ignore it if you want to observe your tests running.
 - `--stagtest` - runs the StagTest harness
-- `--stagtest?` - prints help output for using StagTest (see for extra CLI args)
+- `--stagtest?` - prints help output for using StagTest (see below)
+
+Here is StagTest's help output.
+
+```
+StagTest - StagToolkit test harness implementation.
+   flags ---
+        --stagtest? - displays command output, like this
+        --stagtest  - runs with StagTest mode
+        --fast      - escapes on the first test failure, instead of running all tests
+        --bench     - enables benchmark reports and switches default test directory to "res://test/benchmarks/"
+                - benchmark times are reported in microseconds, unless otherwise specified
+   arguments ---
+        note: FILEPATHs can be absolute, relative, or a resource path. Resource paths are strongly advised.
+
+        --test=FILEPATH - runs the provided scene file, or all scene files within given directory
+                - if a directory, subdirectories are also run
+                - organized alphabetically within each directory, running subdirectories first
+                FILEPATH="res://test/scenarios/" by default (quotes optional)
+        --reports=DIRECTORY - writes reports to the given directory
+                - set to empty string "" for no reports
+                DIRECTORY="res://test/reports/" by default (quotes optional)
+        --timeout=SECONDS - forcibly ends all tests after the given amount of time, returning any collected results
+                SECONDS=30.0 by default, floating-point times are valid
+        --timescale=SCALE - sets the default engine time scale when not overidden by tests
+                SCALE=1.0 by default, floating-point scales are valid
+```
 
 ### Test Format
 
@@ -40,8 +66,8 @@ If the test is not skipped or failed during Teardown, the test is passed once Te
 
 ### Overriding Test Environments
 
-**Your startup scene will still be loaded** (and immediately after, unloaded) when initializing StagTest.
-To prevent it from running code, return if testing is active.
+**Your startup scene will still be loaded** (and immediately after, unloaded) while setting up StagTest.
+To prevent your scene from running code, return if testing is active.
 
 ```gd
 func _ready():
@@ -49,6 +75,8 @@ func _ready():
 	if is_instance_valid(StagTest) and StagTest.is_active():
 		return
 ```
+
+StagTest will remove itself from the tree upon entering the Ready state if running in a release build, so it is necessary to check whether the singleton exists via `is_instance_valid`.
 
 **If your game has a custom quit function** for thread safety (or other things), you can tell StagToolkit to use that instead of a traditional `get_tree().quit()`. The Callable must accept an exit code.
 
@@ -90,15 +118,27 @@ Optional messages can be included for additional context.
 - `StagTest.assert_approx_equal(a: Variant, b: Variant, message: String = "")` - Utilizes Godot's built-in "approx_equal" method for comparing two values. Note that this threshold value scales based on the magnitude of the values being compared, with low-precision.
 - `StagTest.assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: String = "")` - Asserts that two variants of the same type are within a specified delta. Only some common types are supported.
 
-<br/>
+### Signal Expectors
 
-Signal Expectors are a unique form of assertion that can be to test signals:
-- `StagTest.signal_expector(sig: Signal, to_connect: Callable, message: String = "") -> Callable`
-    - Returns a callable that ensures the given signal was (or was not) emitted.
-    - `to_connect` should be a function with as many arguments as the signal emits, plus a callable argument that is called within the function.
-    - Must be created before the signal is called.
-    - To run the assertion, call the returned callable, passing `true` (signal SHOULD have been emitted) or `false` (signal should NOT have been emitted) depending on desired outcome.
-    - See [`res://test/scenarios/signals_test.gd`](../../godot/test/scenarios/example/signals_test.gd) for example.
+Signal Expectors are a uniqueassertion helper that can be to test signals.
+
+- `StagTest.signal_expector(emitter: Signal, emitter_parameter_count: int, message: String = "") -> StagTest.SignalExpector`
+	- Returns a SignalExpector bound to the given signal.
+	- Will fail test if the provided signal is null, or fails to connect.
+	- `emitter_parameter_count` must equal the number of parameters provided by the signal.
+	- `message` serves as additional context.
+
+Signal Expectors have a variety of thread-safe assertions and helper methods.
+
+- `assert_valid(extra_context: String = "")` - Assert the emitter is not null.
+- `assert_emitted(extra_context: String = "")` - Assert the Signal was emitted at least once.
+- `assert_not_emitted(extra_context: String = "")` - Assert the Signal was not emitted at all.
+- `assert_count(exact_call_count: int, extra_context: String = "")` - Assert the Signal was emitted exactly `exact_call_count` times.
+- `block_until(threshold: int = 1, timeout_ms: int = 30000, extra_context: String = "")` - Block this thread until either the emitted count or timeout (in milliseconds) is reached. Fails the test if the timeout was reached.
+- `reset()` - Resets the expector state.
+- `get_count() -> int` - Returns the number of times the signal emitted.
+
+See [`res://test/scenarios/examples/test_signals.gd`](../godot/test/scenarios/example/test_signals.gd) for example usage.
 
 
 ### Informational
