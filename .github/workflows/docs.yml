@@ -1,0 +1,58 @@
+#checkov:skip:CKV2_GHA_1:Comment
+name: Build and Deploy Docs
+run-name: Docs - ${{ github.event.repository.name }}
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  docgen:
+    runs-on: ubuntu-latest
+    name: Build Docs
+    permissions:
+      id-token: write
+      contents: read
+      actions: write
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - name: Install Python Dependencies
+        run: |
+          pip install sphinx sphinx_rtd_theme myst_parser
+
+      - name: Setup StagToolkit
+        uses: ./.gitea/setup
+        with:
+          godot-version: '4.4.1-stable'
+          cross-compile: false
+          toolkit-path: '.'
+
+      - name: Import Assets
+        shell: bash
+        run: |
+          godot godot/project.godot --headless --import
+
+      - name: Generate Documentation
+        shell: bash
+        run: |
+          make doc
+
+      - name: Sphinx Build
+        shell: bash
+        run: |
+          make sphinx
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./build/public

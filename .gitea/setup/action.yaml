@@ -54,8 +54,6 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
-        echo `ls`
-        echo `pwd`
         make build
 
     - name: Build StagToolkit (Cross-Platform)
@@ -63,6 +61,4 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
-        echo `ls`
-        echo `pwd`
         make build build-windows

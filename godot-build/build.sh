@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 TARGET=release
 PROJECT=$1
 VERSION=$3
