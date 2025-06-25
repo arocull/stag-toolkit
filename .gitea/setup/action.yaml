@@ -4,7 +4,7 @@ description: 'Installs necessary toolchains for building StagToolkit and running
 inputs:
   godot-version:
     description: 'What version of the Godot editor to install. Set to null for no installation.'
-    required: true
+    required: false
     default: '4.4.1-stable'
   rust-version:
     description: 'What version of the Rust toolchain to install'
@@ -53,6 +53,12 @@ runs:
         override: false
         targets: x86_64-pc-windows-gnu
 
+    - name: Add Rust Windows Target
+      if: ${{ inputs.cross-compile == true }}
+      shell: bash
+      run: |
+        rustup target add x86_64-pc-windows-gnu
+
     - name: Build StagToolkit
       if: ${{ ! (inputs.cross-compile == true) }}
       shell: bash
@@ -72,4 +78,4 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
-        make import
+        godot godot/project.godot --headless --import

@@ -100,7 +100,6 @@ jobs:
       - name: Setup StagToolkit
         uses: ./.gitea/setup
         with:
-          godot-version: '4.4.1-stable'
           cross-compile: false
           toolkit-path: '.'
           import-assets: true
