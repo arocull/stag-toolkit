@@ -103,11 +103,7 @@ jobs:
           godot-version: '4.4.1-stable'
           cross-compile: false
           toolkit-path: '.'
-
-      - name: Import Assets
-        shell: bash
-        run: |
-          godot godot/project.godot --headless --import
+          import-assets: true
 
       - name: Godot Unit Tests
         shell: bash

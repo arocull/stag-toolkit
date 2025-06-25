@@ -3,3 +3,15 @@ resolver = "2"
 members = [
     "stag-toolkit",
 ]
+
+# https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles
+[profile.dev]
+opt-level = 1
+debug = true
+debug-assertions = true
+overflow-checks = true
+
+[profile.release]
+opt-level = 3
+debug = false
+strip = "none"

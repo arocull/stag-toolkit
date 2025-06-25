@@ -1,5 +1,5 @@
-use godot::prelude::GodotClass;
+// use godot::prelude::GodotClass;
 
-#[derive(GodotClass)]
-#[class(init,base=Node,tool)]
-pub struct AnimationSoup {}
+// #[derive(GodotClass)]
+// #[class(init,base=Node,tool)]
+// pub struct AnimationSoup {}

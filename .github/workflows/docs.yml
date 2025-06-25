@@ -1,0 +1,80 @@
+#checkov:skip:CKV2_GHA_1:Comment
+name: Build and Deploy Docs
+run-name: Docs - ${{ github.event.repository.name }}
+
+
+on:
+  # pull_request:
+  #   types:
+  #     - opened
+  #     - reopened
+  #     - closed
+  #     - synchronize
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  docgen:
+    runs-on: ubuntu-latest
+    name: Build Docs
+    permissions:
+      id-token: write
+      contents: read
+      actions: write
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+
+      - name: Install Python Dependencies
+        run: |
+          pip install sphinx sphinx_rtd_theme myst_parser
+
+      - name: Setup StagToolkit
+        uses: ./.gitea/setup
+        with:
+          godot-version: '4.4.1-stable'
+          cross-compile: false
+          toolkit-path: '.'
+          import-assets: true
+
+      - name: Generate Documentation
+        shell: bash
+        run: |
+          make doc
+
+      # https://github.com/actions/upload-pages-artifact
+      - name: Upload static files as artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./build/public/
+
+  deploy:
+    # Add a dependency to the build job
+    needs: docgen
+
+    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+    permissions:
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
+
+    # Deploy to the github-pages environment
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    # Specify runner + deployment step
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

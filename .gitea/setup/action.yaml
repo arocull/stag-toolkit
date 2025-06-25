@@ -18,6 +18,10 @@ inputs:
     description: 'If true, builds StagToolkit binaries for all supported platforms'
     required: false
     default: false
+  import-assets:
+    description: 'If true, imports StagToolkit assets for all supported platforms'
+    required: false
+    default: false
 runs:
   using: "composite"
   steps:
@@ -54,8 +58,6 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
-        echo `ls`
-        echo `pwd`
         make build
 
     - name: Build StagToolkit (Cross-Platform)
@@ -63,6 +65,11 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
-        echo `ls`
-        echo `pwd`
         make build build-windows
+
+    - name: Import Assets
+      if: ${{ inputs.import-assets == true }}
+      shell: bash
+      run: |
+        cd ${{ inputs.toolkit-path }}
+        make import

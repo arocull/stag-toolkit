@@ -1,4 +1,13 @@
 excluded_directories: !!set
+  .cargo: null
   .git: null
+  .gitea: null
+  .github: null
   .vscode: null
-  rust: null
+  .idea: null
+  docs: null
+  build: null
+  sphinx: null
+  stag-toolkit: null
+  target: null
+  reports: null

@@ -1,4 +1,4 @@
-.PHONY: all clean clean-bin derust debug bindir build build-windows build-mac test test-rust test-godot test-sanity bench bench-rust bench-godot bundle godot-abyss-release godot-abyss-debug
+.PHONY: all bindir clean clean-bin derust import debug build build-windows build-mac test test-rust test-godot test-sanity bench bench-rust bench-godot bundle godot-abyss-release godot-abyss-debug doc doc-clean doc-gdscript doc-gdextension doc-rust sphinx
 
 all: build
 
@@ -8,8 +8,9 @@ bindir:
 	@mkdir -p godot/addons/stag_toolkit/bin/release/
 	@mkdir -p godot/addons/stag_toolkit/bin/debug/
 
-clean: clean-bin
+clean: clean-bin doc-clean
 	@cargo clean
+	@rm -rf build/
 
 clean-bin:
 	@rm -rf godot/addons/stag_toolkit/bin/
@@ -17,7 +18,10 @@ clean-bin:
 derust:
 	@rm godot/addons/stag_toolkit/*.gdext*
 	@rm godot/addons/stag_toolkit/plugin/island_builder.*
-	@rm -rf godot/addons/stag_toolkit/plugin/ui/
+	@rm -rf godot/addons/stag_toolkit/plugin/island_builder/
+
+import:
+	@cd godot && godot --headless --import
 
 build: bindir
 	@cargo build --release --features godot
@@ -35,6 +39,8 @@ debug: bindir
 	@cargo build
 	@cp target/debug/libstag_toolkit.so godot/addons/stag_toolkit/bin/debug/libstag_toolkit.so
 
+
+
 test: test-rust-release test-godot
 
 test-rust:
@@ -49,6 +55,8 @@ test-godot: build
 test-sanity: build test-rust
 	@cd godot/ && godot --headless --stagtest --timeout=90 --test=res://test/sanity
 
+
+
 bench: bench-rust bench-godot
 
 bench-rust:
@@ -56,6 +64,29 @@ bench-rust:
 
 bench-godot: build
 	@cd godot/ && godot --headless --stagtest --bench --timeout=300
+
+
+doc: doc-gdscript doc-gdextension sphinx
+
+doc-clean:
+	@rm -rf sphinx/gen
+	@rm -rf build/public
+
+doc-gdscript:
+	@mkdir -p sphinx/gen/gdscript
+	@cd godot/ && godot --headless --doctool ../sphinx/gen/gdscript/ --gdscript-docs res://addons/stag_toolkit/
+
+doc-gdextension:
+	@mkdir -p sphinx/gen/gdextension
+	@cd godot/ && godot --headless --doctool ../sphinx/gen/gdextension/ --gdextension-docs
+	@mv sphinx/gen/gdextension/doc_classes/* sphinx/gen/gdextension/
+
+doc-rust:
+	@cargo doc --lib --no-default-features
+
+sphinx:
+	@cd sphinx && ./build.sh
+	@cd sphinx && sphinx-build . ../build/public
 
 # Builds Godot Linux export template with encryption for Abyss
 godot-abyss-release:

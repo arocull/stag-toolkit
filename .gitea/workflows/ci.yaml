@@ -127,19 +127,12 @@ jobs:
           fetch-depth: 0
 
       - name: Setup StagToolkit
-        # uses: https://git.alanocull.com/lonesome-stag/stag-toolkit@${{ gitea.ref }}
         uses: ./.gitea/setup
         with:
-          # token: ${{ secrets.ACCESS_TOKEN }}
           godot-version: '4.4.1-stable'
           cross-compile: false
           toolkit-path: '.'
-          # path: .github/actions/setup@${{ gitea.ref }}
-
-      - name: Import Assets
-        shell: bash
-        run: |
-          godot godot/project.godot --headless --import
+          import-assets: true
 
       - name: Godot Unit Tests
         shell: bash

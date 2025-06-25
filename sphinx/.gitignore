@@ -1,0 +1,6 @@
+misc/
+docs/
+gdextension/
+gdscript/
+gen/
+make_rst.py
