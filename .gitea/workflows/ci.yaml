@@ -7,38 +7,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  super-linter:
-    runs-on: ubuntu-latest
-    name: super-linter
-    permissions:
-      id-token: write
-      contents: read
-      actions: write
-      statuses: write
-
-    steps:
-      - name: Clone
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ gitea.head_ref }}
-          fetch-depth: 0
-
-      - name: Super-Linter
-        uses: super-linter/super-linter@v6.8.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SUPPRESS_POSSUM: true
-          LINTER_RULES_PATH: .
-          DISABLE_ERRORS: true
-          VALIDATE_RUST_2015: false
-          VALIDATE_RUST_2018: false
-          VALIDATE_RUST_2021: false
-          VALIDATE_RUST_CLIPPY: false
-          VALIDATE_JSCPD: false # takes forever
-          # These seem to be broken
-          VALIDATE_GROOVY: false
-          FIX_GROOVY: false
-
   rust:
     runs-on: ubuntu-latest
     name: Test Rust
@@ -46,6 +14,7 @@ jobs:
       id-token: write
       contents: read
       actions: write
+      statuses: write
 
     steps:
       - name: Clone
@@ -79,17 +48,34 @@ jobs:
         id: rust-machete
         uses: bnjbvr/cargo-machete@v0.6.2
 
+      - name: Unit Tests and Code Coverage
+        id: tarpaulin
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin -o html --output-dir reports/
+
       # Disabled Clippy temporarily as we're creating libraries for future use, hence unused functions
       # - name: Clippy
       #   id: rust-clippy
       #   run: |
       #     cargo clippy -- -D warnings
 
-      - name: Unit Tests and Code Coverage
-        id: tarpaulin
-        run: |
-          cargo install cargo-tarpaulin
-          cargo tarpaulin -o html --output-dir reports/
+      - name: Super-Linter
+        uses: super-linter/super-linter@v6.8.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPPRESS_POSSUM: true
+          LINTER_RULES_PATH: .
+          DISABLE_ERRORS: true
+          VALIDATE_RUST_2015: false
+          VALIDATE_RUST_2018: false
+          VALIDATE_RUST_2021: false
+          VALIDATE_RUST_CLIPPY: false
+          VALIDATE_JSCPD: false # takes forever
+          # These seem to be broken
+          VALIDATE_GROOVY: false
+          FIX_GROOVY: false
+
 
       - name: Archive Coverage Results
         uses: actions/upload-artifact@v3

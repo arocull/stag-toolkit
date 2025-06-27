@@ -39,9 +39,8 @@ jobs:
           pip install sphinx sphinx_rtd_theme myst_parser
 
       - name: Setup StagToolkit
-        uses: ./.gitea/setup
+        uses: ./.gitea/composite/setup
         with:
-          godot-version: '4.4.1-stable'
           cross-compile: false
           toolkit-path: '.'
           import-assets: true
