@@ -686,6 +686,17 @@ pub struct SimulatedRopeBinding {
     #[init(val = 2)]
     update_tick: i32,
 
+    /// Whether this rope can snap or not.
+    #[export]
+    #[init(val = false)]
+    snap_enabled: bool,
+
+    /// If [snap_enabled] is true, when this amount of tension is applied to this binding,
+    /// the rope binding will "snap," releasing the rope.
+    #[export(range = (0.0, 15000.0, 0.001, or_greater, suffix="N"))]
+    #[init(val = 5000.0)]
+    snap_tension_threshold: f32,
+
     base: Base<Node3D>,
 }
 
@@ -724,17 +735,22 @@ impl INode3D for SimulatedRopeBinding {
 
     fn physics_process(&mut self, _delta: f64) {
         if !Engine::singleton().is_editor_hint() {
-            if let Some(mut rigid) = self.get_rigid_body() {
-                if let Some(rope) = self.get_bind_to() {
-                    let rope = rope.bind();
+            if let Some(rope) = self.get_bind_to() {
+                let force: Vector3 = rope.bind().get_tension_force_at(self.bind_at)
+                    * self.spring_constant_multiplier;
 
-                    let force: Vector3 =
-                        rope.get_tension_force_at(self.bind_at) * self.spring_constant_multiplier;
-
+                // Apply tension force to RigidBody
+                if let Some(mut rigid) = self.get_rigid_body() {
                     let pos =
                         self.base().get_global_position() - rigid.clone().get_global_position();
 
                     rigid.apply_force_ex(force).position(pos).done();
+                }
+
+                // Snap binding if too much tension is applied
+                if self.snap_enabled && force.length() > self.snap_tension_threshold {
+                    self.set_bind_to(None);
+                    self.signals().rope_snapped().emit(force);
                 }
             }
         }
@@ -747,6 +763,18 @@ impl INode3D for SimulatedRopeBinding {
 
 #[godot_api]
 impl SimulatedRopeBinding {
+    /// Emitted when a new rope is bound to this node.
+    #[signal]
+    pub fn rope_bound(rope: Gd<SimulatedRope>);
+
+    /// Emitted when the currently bound rope is unbound from this node.
+    #[signal]
+    pub fn rope_unbound(rope: Gd<SimulatedRope>);
+
+    /// Emitted when the currently bound rope "snaps" away from this node.
+    #[signal]
+    pub fn rope_snapped(tension_force: Vector3);
+
     #[func]
     fn set_bind_to(&mut self, new_bind_to: Option<Gd<SimulatedRope>>) {
         let id = self.base().instance_id().to_i64();
@@ -754,12 +782,20 @@ impl SimulatedRopeBinding {
         // If we had an existing bind, remove it
         if let Some(mut rope) = self.bind_to.clone() {
             rope.bind_mut().bind_erase(id);
+
+            // Notify that a rope was unbound
+            self.signals().rope_unbound().emit(&rope);
         }
 
-        self.bind_to = new_bind_to;
+        self.bind_to = new_bind_to.clone();
 
         if self.base().is_inside_tree() {
             self.update_bind();
+        }
+
+        // Notify that a new rope was bound
+        if let Some(rope) = new_bind_to {
+            self.signals().rope_bound().emit(&rope);
         }
     }
 
@@ -781,6 +817,17 @@ impl SimulatedRopeBinding {
     #[func]
     fn get_bind_id(&self) -> i64 {
         self.base().instance_id().to_i64()
+    }
+
+    /// Returns the current tension force vector in the rope at this binding.
+    /// This includes the [spring_constant_multiplier].
+    #[func]
+    fn get_tension_force(&self) -> Vector3 {
+        if let Some(rope) = self.get_bind_to() {
+            let rope = rope.bind();
+            return rope.get_tension_force_at(self.bind_at) * self.spring_constant_multiplier;
+        }
+        Vector3::ZERO
     }
 
     /// Updates the bind settings on this [SimulatedRopeBinding]'s corresponding rope.

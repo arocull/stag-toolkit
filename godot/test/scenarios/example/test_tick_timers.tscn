@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://mm5t5hfprcch"]
+
+[ext_resource type="Script" uid="uid://cww3c8y5vq2xq" path="res://test/scenarios/example/test_tick_timers.gd" id="1_pfrgc"]
+
+[node name="TestTickTimers" type="Node"]
+script = ExtResource("1_pfrgc")

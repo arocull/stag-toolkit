@@ -116,7 +116,30 @@ class SignalExpector extends RefCounted:
 	func get_count() -> int:
 		return _count
 
+## Testing class for awaiting process/physics_process ticks.
+class TickTimer extends RefCounted:
+	signal done() ## Emitted after the specified wait ticks have passed.
+	var _wait_ticks: int = 0
+
+	## Decreases the wait tick count by 1, and emits upon reaching zero ticks.
+	## Returns true if still waiting on ticks.
+	static func __decrement(t: TickTimer, wait_until: Signal) -> bool:
+		t._wait_ticks -= 1
+		if t._wait_ticks == 0:
+			wait_until.connect(func (): t.done.emit(), CONNECT_ONE_SHOT)
+			return false
+		return true
+	## Returns the number of wait ticks left.
+	func ticks_left() -> int:
+		return _wait_ticks
+	static func keep(t: TickTimer) -> bool:
+		return t.ticks_left() > 0
+
 signal test_post_ready() ## Called just after beginning a test.
+signal tick_process() ## Emitted at the beginning of each process tick during the test.
+signal tick_physics_process() ## Emitted at the beginning of each physics process tick during the test.
+signal internal_tick_process_list_ready()
+signal internal_tick_physics_process_list_ready()
 signal test_pre_exit() ## Called just before exiting a test.
 
 enum ExitCodes {
@@ -160,8 +183,8 @@ func _init():
 	# Always process regardless of engine pause
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	# This node will ALWAYS process first (int64 minimum)
-	process_priority = -9223372036854775808
-	process_physics_priority = -9223372036854775808
+	process_priority = StagUtils.INT64_MIN
+	process_physics_priority = StagUtils.INT64_MIN
 
 ## Engine hook for StagTest.
 func _ready():
@@ -224,7 +247,7 @@ func _ready():
 	__begin.call_deferred(test_root)
 
 ## Begins testing with the given test root.
-func __begin(test_root: String):
+func __begin(test_root: String) -> void:
 	print("StagTest - Test Root: {0}\n".format([test_root.get_base_dir()]))
 
 	var is_single = FileAccess.file_exists(test_root)
@@ -302,6 +325,15 @@ func __cleanup_test():
 	test_pre_exit.emit()
 	in_test = false
 	pause(true) # Halt all processing
+
+	_tick_timers_process_mu.lock()
+	_tick_timers_process.clear()
+	_tick_timers_process_mu.unlock()
+
+	_tick_timers_physics_process_mu.lock()
+	_tick_timers_physics_process.clear()
+	_tick_timers_physics_process_mu.unlock()
+
 	time_scale(_time_scale_base) # Reset time scale
 	get_tree().unload_current_scene.call_deferred()
 
@@ -472,6 +504,34 @@ func __ensure_directory(filepath: String) -> int:
 
 func __quit_default(status: int):
 	get_tree().quit(status)
+
+## TICKING ##
+
+var _tick_timers_process: Array[TickTimer] = []
+var _tick_timers_physics_process: Array[TickTimer] = []
+var _tick_timers_process_mu: Mutex = Mutex.new()
+var _tick_timers_physics_process_mu: Mutex = Mutex.new()
+
+func _process(_delta: float) -> void:
+	if in_test:
+		tick_process.emit()
+
+		# Tick all tick timers down by 1, releasing any that are finished
+		_tick_timers_process_mu.lock()
+		_tick_timers_process = _tick_timers_process.filter(TickTimer.__decrement.bind(internal_tick_process_list_ready))
+		_tick_timers_process_mu.unlock()
+		internal_tick_process_list_ready.emit()
+
+func _physics_process(_delta: float) -> void:
+	if in_test:
+		tick_physics_process.emit()
+
+		# Tick all tick timers down by 1, releasing any that are finished
+		_tick_timers_physics_process_mu.lock()
+		_tick_timers_physics_process = _tick_timers_physics_process.filter(
+			TickTimer.__decrement.bind(internal_tick_physics_process_list_ready))
+		_tick_timers_physics_process_mu.unlock()
+		internal_tick_physics_process_list_ready.emit()
 
 ## SETUP CALLS ##
 
@@ -662,6 +722,45 @@ func signal_expector(emitter: Signal, emitter_parameter_count: int, message: Str
 
 	return expector
 
+## Returns a signal that emits after the given amount of process ticks.
+## If [code]ticks[/code] is less than or equal to zero, the signal emits on the next process tick.
+##
+##[codeblock]
+##await StagTest.tick_timer_process(10) # Wait 10 ticks
+### Resumes coroutine at the very beginning of tick 10 before anything else processes
+##StagTest.assert_equal(10, process_ticks_stagtest, "awaited 10 process ticks")
+##StagTest.assert_equal(9, process_ticks_node, "nodes are just about to process tick 10")
+##[/codeblock]
+func tick_timer_process(ticks: int) -> Signal:
+	if ticks <= 1:
+		return tick_process
+
+	var timer := TickTimer.new()
+	timer._wait_ticks = ticks
+	_tick_timers_process_mu.lock()
+	_tick_timers_process.append(timer)
+	_tick_timers_process_mu.unlock()
+	return timer.done
+
+## Returns a signal that emits after the given amount of physics process ticks.
+## If [code]ticks[/code] is less than or equal to zero, the signal emits on the next physics tick.
+##
+##[codeblock]
+##await StagTest.tick_timer_physics_process(10) # Wait 10 ticks
+### Resumes coroutine at the very beginning of tick 10 before anything else processes
+##StagTest.assert_equal(10, physics_ticks_stagtest, "awaited 10 process ticks")
+##StagTest.assert_equal(9, physics_ticks_node, "nodes are just about to process tick 10")
+##[/codeblock]
+func tick_timer_physics_process(ticks: int) -> Signal:
+	if ticks <= 1:
+		return tick_physics_process
+
+	var timer := TickTimer.new()
+	timer._wait_ticks = ticks
+	_tick_timers_physics_process_mu.lock()
+	_tick_timers_physics_process.append(timer)
+	_tick_timers_physics_process_mu.unlock()
+	return timer.done
 
 ## Performs a timing benchmark of the Callable (with no arguments) the specified number of times, returning an analysis.[br]
 ## If timeout is greater than zero, forcibly stops benchmark after X many seconds.

@@ -107,7 +107,4 @@ jobs:
       - name: Godot Unit Tests
         shell: bash
         run: |
-          echo $(pwd)
-          echo $(ls -ah)
-          echo $(ls -ah godot)
-          godot --path godot/ --headless --stagtest --timeout=90
+          make test-godot

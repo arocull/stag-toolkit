@@ -50,11 +50,10 @@ test-rust-release:
 	@cargo test --release --features godot
 
 test-godot: build
-	@cd godot/ && godot --headless --stagtest --timeout=90
+	@godot --path godot/ --headless --no-header --stagtest --timeout=40 --timescale=5.0
 
 test-sanity: build test-rust
-	@cd godot/ && godot --headless --stagtest --timeout=90 --test=res://test/sanity
-
+	@godot --path godot/ --headless --no-header --stagtest --timeout=90 --test=res://test/sanity
 
 
 bench: bench-rust bench-godot
@@ -63,7 +62,7 @@ bench-rust:
 	@cargo bench --no-default-features
 
 bench-godot: build
-	@cd godot/ && godot --headless --stagtest --bench --timeout=300
+	@godot --path godot/ --headless --no-header --stagtest --bench --timeout=300
 
 
 doc: doc-gdscript doc-gdextension sphinx

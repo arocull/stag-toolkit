@@ -140,6 +140,10 @@ Signal Expectors have a variety of thread-safe assertions and helper methods.
 
 See [`res://test/scenarios/examples/test_signals.gd`](../godot/test/scenarios/example/test_signals.gd) for example usage.
 
+### Timers
+- `StagTest.tick_timer_process(ticks: int)` - Returns a signal that emits after the given amount of process ticks. If `ticks` is less than or equal to zero, the signal emits on the next tick.
+- `StagTest.tick_timer_physics_process(ticks: int)` - Returns a signal that emits after the given amount of physics process ticks. If `ticks` is less than or equal to zero, the signal emits on the next tick.
+
 
 ### Informational
 - `StagTest.is_active()` - Returns true if StagTest is active (game launched with `--stagtest` flag)
