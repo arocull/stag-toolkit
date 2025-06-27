@@ -127,7 +127,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup StagToolkit
-        uses: ./.gitea/setup
+        uses: ./.gitea/composite/setup
         with:
           cross-compile: false
           toolkit-path: '.'

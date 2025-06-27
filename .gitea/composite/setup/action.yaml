@@ -17,14 +17,27 @@ inputs:
   cross-compile:
     description: 'If true, builds StagToolkit binaries for all supported platforms'
     required: false
+    type: boolean
+    default: false
+  fetch-lfs:
+    description: 'If true, fetches LFS files using a Gitea workaround'
+    required: false
+    type: boolean
     default: false
   import-assets:
-    description: 'If true, imports StagToolkit assets for all supported platforms'
-    required: false
+    description: 'If true, fetches LFS and launches Godot to import StagToolkit assets'
+    required: true
+    type: boolean
     default: false
 runs:
   using: "composite"
   steps:
+    - name: Debugging
+      shell: bash
+      run: |
+        echo "import-assets = ${{ inputs.import-assets }}"
+        echo "import-assets == true? ${{ inputs.import-assets == true }}"
+
     - name: Install Godot
       if: ${{ inputs.godot-version != null }}
       shell: bash
@@ -39,7 +52,7 @@ runs:
           echo 'alias godot="/usr/local/bin/godot" ' >> $rc
 
     - name: Install MinGW
-      if: ${{ inputs.cross-compile == true }}
+      if: ${{ inputs.cross-compile == 'true' }}
       shell: bash
       run: |
         sudo apt-get update
@@ -54,28 +67,48 @@ runs:
         targets: x86_64-pc-windows-gnu
 
     - name: Add Rust Windows Target
-      if: ${{ inputs.cross-compile == true }}
+      if: ${{ inputs.cross-compile == 'true' }}
       shell: bash
       run: |
         rustup target add x86_64-pc-windows-gnu
 
     - name: Build StagToolkit
-      if: ${{ ! (inputs.cross-compile == true) }}
+      if: ${{ ! (inputs.cross-compile == 'true') }}
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
         make build
 
     - name: Build StagToolkit (Cross-Platform)
-      if: ${{ inputs.cross-compile == true }}
+      if: ${{ inputs.cross-compile == 'true' }}
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
         make build build-windows
 
-    - name: Import Assets
-      if: ${{ inputs.import-assets == true }}
+    # Regular LFS fetch does not work on Gitea
+    # https://gitea.com/gitea/act_runner/issues/164
+    - name: Fetch LFS
+      id: fetch-lfs
+      if: ${{ (inputs.fetch-lfs == 'true') || (inputs.import-assets == 'true') }}
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
+        git remote get-url origin
+        function EscapeForwardSlash() { echo "$1" | sed 's/\//\\\//g'; }
+        readonly ReplaceStr="EscapeForwardSlash ${{ github.repository }}.git/info/lfs/objects/batch"; sed -i "s/\(\[http\)\( \".*\)\"\]/\1\2`$ReplaceStr`\"]/" .git/config
+
+        git config --local lfs.transfer.maxretries 1
+        /usr/bin/git lfs fetch origin refs/remotes/origin/${{ github.ref_name }}
+        /usr/bin/git lfs checkout
+
+    # Note: with UUID changes, Godot MUST import asstes in order to run scenes
+    # https://github.com/godotengine/godot/issues/107695
+    - name: Import Assets
+      if: ${{ inputs.import-assets == 'true' }}
+      shell: bash
+      run: |
+        echo "Importing assets!"
+        cd ${{ inputs.toolkit-path }}
+        ls -ah
         godot godot/project.godot --headless --import

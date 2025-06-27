@@ -26,21 +26,13 @@ jobs:
           ref: ${{ gitea.ref }}
           fetch-depth: 0
 
-      - name: Install MinGW
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mingw-w64
-
-      - name: Install Rust Toolchain
-        uses: crusty-pie/toolchain@v1
+      - name: Setup StagToolkit
+        uses: ./.gitea/setup
         with:
-          toolchain: 1.82.0
-          override: true
-          components: rustfmt, clippy
-
-      - name: Add Rust Windows Target
-        run: |
-          rustup target add x86_64-pc-windows-gnu
+          godot-version: null
+          cross-compile: true
+          toolkit-path: '.'
+          import-assets: false
 
       - name: Build and Bundle
         id: build-bundle

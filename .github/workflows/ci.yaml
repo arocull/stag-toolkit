@@ -98,7 +98,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup StagToolkit
-        uses: ./.gitea/setup
+        uses: ./.gitea/composite/setup
         with:
           cross-compile: false
           toolkit-path: '.'
@@ -107,15 +107,7 @@ jobs:
       - name: Godot Unit Tests
         shell: bash
         run: |
-          make test-godot
-
-      # - name: Godot Benchmarks
-      #   shell: bash
-      #   run: |
-      #     make bench
-
-      # - name: Archive Bench Results
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: benchmarks
-      #     path: godot/test/reports/
+          echo $(pwd)
+          echo $(ls -ah)
+          echo $(ls -ah godot)
+          godot --path godot/ --headless --stagtest --timeout=90
