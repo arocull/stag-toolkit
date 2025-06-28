@@ -55,11 +55,24 @@ func _post_process(scene: Node):
 	# Generate collision hulls
 	if generate_hulls:
 		var meshes: Array[MeshInstance3D] = StagImportUtils.fetch_meshes(scene)
+
+		# See if we manually specify collision
+		var collision_meshes: Array[MeshInstance3D] = []
 		for mesh in meshes:
-			# If the mesh has an LOD, only generate convex hulls for lowest LODs
-			var lod: int = StagImportUtils.get_lod_suffix(mesh.name)
-			if not generate_lods or (lod < 0 or lod == (lods.size() - 1)):
+			# If we do find meshes with collision specified, add them to the list
+			if mesh.name.to_lower().begins_with("collis_") or mesh.name.to_lower().begins_with("collision_"):
+				collision_meshes.append(mesh)
+
+		if collision_meshes.size() > 0:
+			for mesh in collision_meshes:
 				StagImportUtils.generate_convex_hull(mesh, scene)
+				mesh.queue_free()
+		else:
+			for mesh in meshes:
+				# If the mesh has an LOD, only generate convex hulls for lowest LODs
+				var lod: int = StagImportUtils.get_lod_suffix(mesh.name)
+				if not generate_lods or (lod < 0 or lod == (lods.size() - 1)):
+					StagImportUtils.generate_convex_hull(mesh, scene)
 
 func fetch_lods(obj: Node, store_lod: Callable):
 	for child in obj.get_children():
