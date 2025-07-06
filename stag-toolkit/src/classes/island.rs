@@ -5,10 +5,13 @@ use std::f32::consts::PI;
 use std::mem::swap;
 
 use crate::{
+    classes::utils::editor_lock,
     math::{
         sdf::{ShapeOperation, sample_shape_list},
-        types::ToVector3,
-        types::gdmath::{ToColor, ToVector2, Vec3Godot},
+        types::{
+            ToVector3,
+            gdmath::{ToColor, ToVector2, Vec3Godot},
+        },
         volumetric::{PerlinField, VolumeData},
     },
     mesh::{
@@ -309,12 +312,6 @@ impl IslandBuildData {
     /// Returns a SurfaceArrays object containing preview mesh data.
     /// Returns `None` if no mesh is currently stored.
     fn get_mesh(&self) -> Option<GodotSurfaceArrays> {
-        // let positions = &self.mesh.as_ref().unwrap().positions;
-        // let tris = convex_hull(positions);
-        // let m = TriangleMesh::from_triangles(tris, positions.to_vec());
-
-        // return Some(GodotSurfaceArrays::from_trimesh(&m));
-
         self.mesh.as_ref().map(GodotSurfaceArrays::from_trimesh)
     }
     /// Fetches the preview mesh and bakes additional data for shading into it.
@@ -875,6 +872,7 @@ impl IslandBuilder {
             shape.set_shape(&hull);
             shape.set_name(&format!("collis{0}", idx));
             shape.set_debug_color(debug_color); // Apply debug draw color
+            editor_lock(shape.clone().upcast(), true); // Lock editing
 
             target.add_child(&shape); // Add shape to scene
 
@@ -956,6 +954,8 @@ impl IslandBuilder {
 
         // If no mesh found, create one
         let mut mesh = MeshInstance3D::new_alloc();
+        // Editor lock the mesh so users don't mess with it
+        editor_lock(mesh.clone().upcast(), true); // Lock editing
 
         // Get render layers mask from Project Settings
         let settings = ProjectSettings::singleton();

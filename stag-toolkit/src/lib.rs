@@ -79,6 +79,9 @@ pub mod classes {
     /// Godot interfaces for rope simulations.
     pub mod rope;
 
+    /// Utility functions for managing Godot classes.
+    pub mod utils;
+
     /// Sanity tests.
     #[cfg(debug_assertions)]
     pub mod sanity;
