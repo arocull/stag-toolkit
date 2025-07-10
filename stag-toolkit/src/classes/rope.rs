@@ -123,6 +123,19 @@ pub struct SimulatedRopeSettings {
     #[init(val = 1)]
     collision_process_priority: i32,
 
+    /// Whether to automatically delete the [SimulatedRope] if it falls out of bounds in-game, as defined by `autodelete_aabb`.
+    #[export]
+    #[init(val = true)]
+    autodelete_enabled: bool,
+
+    /// If `autodelete_enabled` is true, and this [AABB] does not enclose any portion of the [SimulatedRope]'s [AABB]
+    /// the rope is removed from the tree and queued for deletion.
+    /// Only checked on render [AABB] updates (as defined by `render_aabb_update_rate`), during gameplay.
+    /// This is defined in global space.
+    #[export]
+    #[init(val = Aabb { position: Vector3 { x: -3000.0, y: -500.0, z: -3000.0 }, size: Vector3 { x: 6000.0, y: 2000.0, z: 6000.0 } })]
+    autodelete_aabb: Aabb,
+
     base: Base<Resource>,
 }
 
@@ -363,6 +376,7 @@ impl SimulatedRope {
         }
 
         mesh.set_layer_mask(settings.render_layers);
+        drop(settings);
 
         // Update preview immediately
         self.tick_render();
@@ -496,11 +510,31 @@ impl SimulatedRope {
     }
 
     /// Updates the [AABB] on the rope render.
+    /// If `autodelete_enabled` is set on the [SimulatedRopeSettings], this may queue the [SimulatedRope] for deletion.
     #[func]
     pub fn tick_render_aabb(&mut self) {
         let mut mesh = self.fetch_mesh_instance();
-        mesh.set_custom_aabb(self.get_aabb());
+        let aabb = self.get_aabb();
+        mesh.set_custom_aabb(aabb);
         self.aabb_timer = 0.0;
+
+        let settings = self.fetch_settings();
+        if settings.bind().autodelete_enabled && !Engine::singleton().is_editor_hint() {
+            let autodelete_aabb = settings.bind().autodelete_aabb;
+
+            // Check if the entire rope has fallen out-of-bounds
+            if !aabb.encloses(autodelete_aabb) && !aabb.intersects(autodelete_aabb) {
+                let mut base = self.base_mut();
+                // Remove rope from scene tree
+                if let Some(mut parent) = base.clone().get_parent() {
+                    let node = base.clone().upcast::<Node>();
+                    parent.remove_child(&node);
+                }
+
+                // Queue ourselves for deletion
+                base.queue_free();
+            }
+        }
     }
 
     /// Ticks the rope collision, attempting to collide with terrain.
