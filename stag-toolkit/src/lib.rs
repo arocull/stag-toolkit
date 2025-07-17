@@ -36,6 +36,9 @@ pub mod mesh {
     /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
 
+    /// Godot-agnostic Island Builder utilities.
+    pub mod island;
+
     /// Ineroperable mesh data with Godot Engine.
     #[cfg(feature = "godot")]
     pub mod godot;

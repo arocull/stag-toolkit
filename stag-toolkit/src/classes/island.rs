@@ -398,6 +398,7 @@ impl IslandBuildData {
                 Vec::with_capacity(tri_prealloc),
                 mesh.positions.clone(),
                 None,
+                None,
             );
 
             hulls.push(trimesh);

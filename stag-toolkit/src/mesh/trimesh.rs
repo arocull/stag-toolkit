@@ -174,24 +174,33 @@ impl TriangleOperations for Triangle {
 // MESHES //
 
 /// Container for triangle mesh data.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct TriangleMesh {
     /// Primary mesh buffer, listing the index of corresponding vertex positions and normals, in counter-clockwise face winding.
     pub triangles: Vec<Triangle>,
     // pub indices: Vec<usize>,
     /// Individual vertices of the mesh.
     pub positions: Vec<Vec3>,
-    /// Normals of the mesh, assigned to vertices of corresponding index.
+    /// Normals of the mesh, assigned to vertices of the corresponding index.
     pub normals: Vec<Vec3>,
+    /// Optional color data, assigned to vertices of the corresponding index.
+    pub colors: Vec<Vec4>,
 }
+
 impl TriangleMesh {
     /// Creates a new TriangleMesh from the given mesh data.
-    pub fn new(triangles: Vec<Triangle>, positions: Vec<Vec3>, normals: Option<Vec<Vec3>>) -> Self {
+    pub fn new(
+        triangles: Vec<Triangle>,
+        positions: Vec<Vec3>,
+        normals: Option<Vec<Vec3>>,
+        colors: Option<Vec<Vec4>>,
+    ) -> Self {
         Self {
             triangles,
             positions,
             // Default normals to an empty vector if not included
             normals: normals.unwrap_or_default(),
+            colors: colors.unwrap_or_default(),
         }
     }
 
@@ -218,6 +227,7 @@ impl TriangleMesh {
             positions,
             // Default normals to an empty vector if not included
             normals: normals.unwrap_or_default(),
+            colors: vec![],
         }
     }
 
@@ -650,7 +660,8 @@ mod tests {
         let tris: Vec<Triangle> = vec![[1, 4, 3], [3, 4, 1]];
         let indices: Vec<usize> = vec![1, 4, 3, 3, 4, 1];
 
-        let mut mesh = TriangleMesh::new(tris.clone(), positions.clone(), Some(normals.clone()));
+        let mut mesh =
+            TriangleMesh::new(tris.clone(), positions.clone(), Some(normals.clone()), None);
         let mut index_mesh =
             TriangleMesh::from_indices(indices.clone(), positions.clone(), Some(normals.clone()));
 
@@ -732,7 +743,7 @@ mod tests {
             vec3(0.0, 0.0, -1.0),
         ];
         let triangles: Vec<Triangle> = vec![[0, 1, 2], [0, 3, 1]];
-        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
 
         assert_eq!(
             1.0,
