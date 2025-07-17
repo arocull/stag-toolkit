@@ -70,6 +70,9 @@ pub mod classes {
     // IMPORTS //
     use godot::prelude::*;
 
+    /// Island Builder data handling.
+    pub mod island_settings;
+
     /// Godot interfaces for Abyss' IslandBuilder tool.
     pub mod island;
 
