@@ -1,6 +1,6 @@
 use super::trimesh::TriangleMesh;
 use crate::math::sdf;
-use crate::math::sdf::ShapeOperation;
+use crate::math::sdf::{ShapeOperation, shape_list_bounds};
 use crate::math::types::ToVector3;
 use crate::math::types::gdmath::*;
 use godot::builtin::Array;
@@ -154,27 +154,8 @@ impl GodotWhitebox {
     }
     /// Calculates the Axis-Aligned Bounding Box for the whitebox.
     pub fn get_aabb(&self) -> Aabb {
-        let mut aabb = Aabb::new(Vec3Godot::ZERO, Vec3Godot::ZERO);
-
-        // If we have no shapes, return nothing
-        if self.shapes.is_empty() {
-            return aabb;
-        }
-
-        // Create an iterator
-        for shape in self.shapes.iter() {
-            // Only include Unions in AABB, as all other operations take away
-            if shape.operation != ShapeOperation::Union {
-                continue;
-            }
-
-            let (min_bound, max_bound) = shape.relative_bounds();
-            let shape_aabb = shape.transform().to_transform3d()
-                * Aabb::new(min_bound.to_vector3(), (max_bound - min_bound).to_vector3());
-            aabb = aabb.merge(shape_aabb);
-        }
-
-        aabb
+        let bounds = shape_list_bounds(&self.shapes);
+        Aabb::new(bounds.minimum.to_vector3(), bounds.size().to_vector3())
     }
 
     /// Serializes CSG geometry into a whitebox. Temporarily shows the parent node in case it is hidden.
