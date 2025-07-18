@@ -1,5 +1,6 @@
-use crate::math::sdf::Shape;
+use crate::math::sdf::{Shape, shape_list_bounds};
 use crate::math::volumetric::VolumeData;
+use glam::Vec3;
 use godot::classes::TriangleMesh;
 
 /// Settings for voxel generation.
@@ -140,7 +141,7 @@ impl Data {
     }
 
     /// Updates the settings, dirtying the data if changed.
-    pub fn change_voxel_settings(&mut self, settings: SettingsVoxels) {
+    pub fn set_voxel_settings(&mut self, settings: SettingsVoxels) {
         if self.settings_voxels != settings {
             self.settings_voxels = settings;
             self.dirty_voxels();
@@ -148,7 +149,7 @@ impl Data {
     }
 
     /// Updates the settings, dirtying the data if changed.
-    pub fn change_mesh_settings(&mut self, settings: SettingsMesh) {
+    pub fn set_mesh_settings(&mut self, settings: SettingsMesh) {
         if self.settings_mesh != settings {
             self.settings_mesh = settings;
             self.dirty_mesh();
@@ -156,10 +157,40 @@ impl Data {
     }
 
     /// Updates the settings, dirtying the data if changed.
-    pub fn change_collision_settings(&mut self, settings: SettingsCollision) {
+    pub fn set_collision_settings(&mut self, settings: SettingsCollision) {
         if self.settings_collision != settings {
             self.settings_collision = settings;
             self.dirty_collision();
         }
+    }
+
+    /// Updates the shape list, dirtying the data if changed.
+    pub fn set_shapes(&mut self, shapes: Vec<Shape>) {
+        if self.shapes != shapes {
+            self.shapes = shapes;
+            self.dirty_voxels();
+        }
+    }
+
+    /// Returns the voxel data, computing it if necessary.
+    pub fn get_voxels(&self) -> VolumeData<f32> {
+        if self.shapes.is_empty() {
+            return VolumeData::new(0.0, [0, 0, 0]);
+        }
+
+        let striation_amplitude = Vec3::new(
+            self.settings_voxels.striation_amplitude_xz,
+            self.settings_voxels.striation_amplitude_y,
+            self.settings_voxels.striation_amplitude_xz,
+        )
+        .abs();
+        let padding_size: f32 =
+            self.settings_voxels.voxel_size * self.settings_voxels.voxel_padding as f32;
+
+        let bounds = shape_list_bounds(&self.shapes)
+            .expand_vector(striation_amplitude)
+            .expand_margin(padding_size);
+
+        VolumeData::new(0.0, [0, 0, 0])
     }
 }
