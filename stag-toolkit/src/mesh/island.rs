@@ -1,8 +1,10 @@
 use crate::math::sdf::Shape;
+use crate::math::volumetric::VolumeData;
 use godot::classes::TriangleMesh;
 
+/// Settings for voxel generation.
 #[derive(Copy, Clone, PartialEq)]
-pub struct Settings {
+pub struct SettingsVoxels {
     /// Number of voxels to pad on each side of the [IslandBuilder] volume.
     pub voxel_padding: u32,
     /// Width/height/depth of a voxel. This is the approximate resolution of the resulting [IslandBuilder] mesh.
@@ -25,7 +27,11 @@ pub struct Settings {
     pub striation_amplitude_xz: f32,
     /// Amplitude of striation noise on local Y axis.
     pub striation_amplitude_y: f32,
+}
 
+/// Settings for mesh generation.
+#[derive(Copy, Clone, PartialEq)]
+pub struct SettingsMesh {
     /// Distance threshold for vertices to be merged for the visual mesh.
     pub mesh_vertex_merge_distance: f32,
 
@@ -59,7 +65,11 @@ pub struct Settings {
     pub mask_perlin_scale_y: f32,
     /// Z frequency scale when sampling perlin noise for baking into the Alpha channel.
     pub mask_perlin_scale_z: f32,
+}
 
+/// Settings for collision generation.
+#[derive(Copy, Clone, PartialEq)]
+pub struct SettingsCollision {
     /// Whether to merge collision vertices on non-manifold edges.
     pub collision_merge_nonmanifold_edges: bool,
     /// Whether to perform collision decimation on non-manifold edges.
@@ -75,10 +85,13 @@ pub struct Settings {
 }
 
 pub struct Data {
-    settings: Settings,
+    settings_voxels: SettingsVoxels,
+    settings_mesh: SettingsMesh,
+    settings_collision: SettingsCollision,
 
     shapes: Vec<Shape>,
 
+    voxels: Option<VolumeData<f32>>,
     mesh_preview: Option<TriangleMesh>,
     mesh_baked: Option<TriangleMesh>,
     hulls: Vec<TriangleMesh>,
@@ -89,10 +102,17 @@ pub struct Data {
 
 impl Data {
     /// Creates a new data set for building from.
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(
+        settings_voxels: SettingsVoxels,
+        settings_mesh: SettingsMesh,
+        settings_collision: SettingsCollision,
+    ) -> Self {
         Self {
-            settings,
+            settings_voxels,
+            settings_mesh,
+            settings_collision,
             shapes: vec![],
+            voxels: None,
             mesh_preview: None,
             mesh_baked: None,
             hulls: vec![],
@@ -101,18 +121,45 @@ impl Data {
     }
 
     /// Clears all generated data.
-    pub fn dirty(&mut self) {
+    pub fn dirty_voxels(&mut self) {
+        self.voxels = None;
         self.mesh_preview = None;
-        self.mesh_baked = None;
-        self.hulls.clear();
         self.volume = 0.0;
+        self.dirty_mesh();
+        self.dirty_collision();
+    }
+
+    /// Clears generated mesh data.
+    pub fn dirty_mesh(&mut self) {
+        self.mesh_baked = None;
+    }
+
+    /// Clears generated collision data.
+    pub fn dirty_collision(&mut self) {
+        self.hulls.clear();
     }
 
     /// Updates the settings, dirtying the data if changed.
-    pub fn change_settings(&mut self, settings: Settings) {
-        if self.settings != settings {
-            self.settings = settings;
-            self.dirty();
+    pub fn change_voxel_settings(&mut self, settings: SettingsVoxels) {
+        if self.settings_voxels != settings {
+            self.settings_voxels = settings;
+            self.dirty_voxels();
+        }
+    }
+
+    /// Updates the settings, dirtying the data if changed.
+    pub fn change_mesh_settings(&mut self, settings: SettingsMesh) {
+        if self.settings_mesh != settings {
+            self.settings_mesh = settings;
+            self.dirty_mesh();
+        }
+    }
+
+    /// Updates the settings, dirtying the data if changed.
+    pub fn change_collision_settings(&mut self, settings: SettingsCollision) {
+        if self.settings_collision != settings {
+            self.settings_collision = settings;
+            self.dirty_collision();
         }
     }
 }

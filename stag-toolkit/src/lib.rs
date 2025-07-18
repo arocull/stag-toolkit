@@ -14,6 +14,8 @@
 
 /// General math utilities and conversions.
 pub mod math {
+    /// Rust-only implementation of an Axis-Aligned Bounding Box.
+    pub mod bounding_box;
     /// Methods for asserting values are within a given delta, for unit tests.
     pub mod delta;
     /// Internal implementation for primitive queues.
