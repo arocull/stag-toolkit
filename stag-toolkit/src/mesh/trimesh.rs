@@ -10,7 +10,7 @@ use crate::math::{
 /// A mesh edge of vertex indices. In counter-clockwise winding order.
 pub type Edge = [usize; 2];
 
-/// A set of two indices, that can be operated from any set of positions.
+/// A set of two indices that can be operated from any set of positions.
 pub trait EdgeOperations {
     /// Returns a new, flipped edge by changing vertex order.
     fn flip(&self) -> Self;
@@ -33,7 +33,7 @@ impl EdgeOperations for Edge {
 /// A mesh triangle of vertex indices. In counter-clockwise face winding order.
 pub type Triangle = [usize; 3];
 
-/// A set of three indices, that can be operated on from any set of positions.
+/// A set of three indices that can be operated on from any set of positions.
 pub trait TriangleOperations {
     /// Returns a positive value if the triangle's points are oriented counter-clockwise,
     /// negative if clockwise, and zero if they are collinear.
@@ -174,7 +174,7 @@ impl TriangleOperations for Triangle {
 // MESHES //
 
 /// Container for triangle mesh data.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Default)]
 pub struct TriangleMesh {
     /// Primary mesh buffer, listing the index of corresponding vertex positions and normals, in counter-clockwise face winding.
     pub triangles: Vec<Triangle>,

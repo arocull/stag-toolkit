@@ -150,6 +150,11 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
         }
     }
 
+    /// Returns the dimensions of this Volume.
+    pub fn get_dimensions(&self) -> [u32; 3] {
+        self.dim
+    }
+
     /// Splits the Volume into a set of worker data for parallel operations.
     /// If `preserve_data` is true, the data of the volume is copied into the vector.
     pub fn to_workers(&self, group_size: u32, preserve_data: bool) -> Vec<VolumeWorker<T>> {
@@ -241,7 +246,7 @@ mod tests {
     use super::VolumeData;
 
     #[test]
-    fn test_volumedata_indexxing() {
+    fn test_volume_data_indexing() {
         let vol = VolumeData::new(1.0f32, [4, 4, 4]);
         assert_eq!(vol.size, 4 * 4 * 4, "volume size matches expected");
 
