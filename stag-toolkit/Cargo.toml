@@ -30,6 +30,11 @@ name = "simulation"
 harness = false
 path = "benches/simulation.rs"
 
+[[bench]]
+name = "island"
+harness = false
+path = "benches/island.rs"
+
 [lints.rust]
 missing_docs = "allow"
 

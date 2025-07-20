@@ -61,6 +61,7 @@ impl PerlinField {
 }
 
 /// A container for storing volume data
+#[derive(Clone)]
 pub struct VolumeData<T> {
     /// Internal data for voxel grid.
     pub data: Vec<T>,

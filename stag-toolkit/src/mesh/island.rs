@@ -44,8 +44,28 @@ pub struct SettingsVoxels {
     pub worker_group_size: u32,
 }
 
+impl Default for SettingsVoxels {
+    fn default() -> Self {
+        Self {
+            voxel_padding: 3,
+            voxel_size: Vec3::splat(0.275),
+            sdf_edge_radius: 1.6,
+            sdf_smooth_iterations: 4,
+            sdf_smooth_radius_voxels: 3,
+            sdf_smooth_weight: 0.95,
+
+            striation_scale_xz: 0.1,
+            striation_scale_y: 10.0,
+            striation_amplitude_xz: 0.2,
+            striation_amplitude_y: 0.01,
+
+            worker_group_size: VOLUME_MAX_CELLS * VOLUME_MAX_CELLS * VOLUME_MAX_CELLS,
+        }
+    }
+}
+
 /// Settings for mesh generation.
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Default)]
 pub struct SettingsMesh {
     /// Distance threshold for vertices to be merged for the visual mesh.
     pub mesh_vertex_merge_distance: f32,
@@ -83,7 +103,7 @@ pub struct SettingsMesh {
 }
 
 /// Settings for collision generation.
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Default)]
 pub struct SettingsCollision {
     /// Whether to merge collision vertices on non-manifold edges.
     pub collision_merge_nonmanifold_edges: bool,
@@ -99,6 +119,7 @@ pub struct SettingsCollision {
     pub collision_decimation_iterations: u32,
 }
 
+#[derive(Clone, Default)]
 pub struct Data {
     settings_voxels: SettingsVoxels,
     settings_mesh: SettingsMesh,
