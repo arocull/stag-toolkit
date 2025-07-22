@@ -1,9 +1,10 @@
-use std::collections::HashMap;
-
+use crate::math::raycast::{Raycast, RaycastResult};
 use crate::math::{
     projection::{Plane, plane},
     types::*,
 };
+use glam::Vec4Swizzles;
+use std::collections::HashMap;
 
 // EDGES //
 
@@ -484,29 +485,59 @@ impl TriangleMesh {
     }
 }
 
-/*
-/// Describes a list of triangles. Can be iterated.
-pub struct WalkTriangles {
-    mesh: Vec<usize>,
-    curr: usize,
-}
-impl Iterator for WalkTriangles {
-    type Item = Triangle;
+impl Raycast for TriangleMesh {
+    fn raycast(
+        &self,
+        origin: Vec3,
+        dir: Vec3,
+        max_depth: f32,
+        backfaces: bool,
+    ) -> Option<RaycastResult> {
+        let mut shortest_depth: f32 = max_depth;
+        let mut result = RaycastResult::default();
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.curr < self.mesh.len() {
-            let current: Triangle = [
-                self.mesh[self.curr],
-                self.mesh[self.curr + 1],
-                self.mesh[self.curr + 2],
-            ];
-            self.curr += 3;
-            return Some(current);
+        // For all triangles
+        for (idx, tri) in self.triangles.iter().enumerate() {
+            // Perform a ray intersection
+            let plane = tri.plane(&self.positions);
+
+            // First, make sure this is shorter than our current collision depth
+            // Also make sure it's not back-facing, if possible
+            let depth = -plane.signed_distance(origin);
+            if (depth >= 0.0 || backfaces) && depth < shortest_depth {
+                // Project point onto the plane
+                let (hit, intersected) = plane.ray_intersection(origin, dir);
+
+                if intersected {
+                    // Get barycentric coordinate of triangle
+                    let coord = tri.barycentric(&self.positions, hit);
+                    // Finally, check if the point is contained by the triangle
+                    let contained = tri.contains_barycentric(coord);
+
+                    if contained {
+                        shortest_depth = depth;
+                        result.point = hit;
+                        result.normal = plane.xyz();
+                        result.face_index = Some(idx);
+                        result.barycentric = Some(coord);
+                    }
+                }
+            }
         }
-        None
+
+        // No collision, return nothing
+        if shortest_depth == max_depth {
+            return None;
+        }
+
+        result.depth = shortest_depth;
+        Some(result)
+    }
+
+    fn point_inside(&self, point: Vec3) -> bool {
+        todo!()
     }
 }
-*/
 
 // UNIT TESTS //
 #[cfg(test)]

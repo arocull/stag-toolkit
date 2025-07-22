@@ -1,8 +1,11 @@
 use crate::physics::body::PhysicsBody;
 use crate::physics::identity::Identity;
 use std::collections::HashMap;
-use std::sync::RwLock;
 use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, RwLock};
+
+// https://rust-guide.com/en/documentation/concurrency/Arc
+// https://rust-guide.com/en/documentation/concurrency/RwLock
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct PhysicsServerSettings {
@@ -12,8 +15,17 @@ pub struct PhysicsServerSettings {
 }
 
 /// A "frame" or slice of time in the physics server.
+#[derive(Clone)]
 pub struct PhysicsFrame {
-    bodies: RwLock<HashMap<Identity, PhysicsBody>>,
+    bodies: Arc<RwLock<HashMap<Identity, PhysicsBody>>>,
+}
+
+impl PhysicsFrame {
+    pub fn default() -> Self {
+        Self {
+            bodies: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
 }
 
 pub struct PhysicsServer {
@@ -21,19 +33,10 @@ pub struct PhysicsServer {
     allocations: AtomicU64,
 
     /// Current physics "frame" or tick.
-    /// https://rust-guide.com/en/documentation/concurrency/RwLock
-    current: PhysicsFrame,
+    current: Arc<PhysicsFrame>,
     /// Recorded history of physics frames.
     /// TODO: use a queue system like FloatQueue
-    history: RwLock<Vec<PhysicsFrame>>,
-}
-
-impl PhysicsFrame {
-    pub fn default() -> Self {
-        Self {
-            bodies: RwLock::new(HashMap::new()),
-        }
-    }
+    history: Arc<RwLock<Vec<PhysicsFrame>>>,
 }
 
 impl PhysicsServer {
@@ -41,8 +44,8 @@ impl PhysicsServer {
         Self {
             settings,
             allocations: AtomicU64::new(0),
-            current: PhysicsFrame::default(),
-            history: RwLock::new(Vec::new()),
+            current: Arc::new(PhysicsFrame::default()),
+            history: Arc::new(RwLock::new(Vec::new())),
         }
     }
 

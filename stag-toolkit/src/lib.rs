@@ -20,6 +20,8 @@ pub mod math {
     pub mod primqueue;
     /// Ray, plane and point projections.
     pub mod projection;
+    /// Types and traits for implementing raycast functions on objects.
+    pub mod raycast;
     /// Signed Distance Field math and shape sampling.
     pub mod sdf;
     /// Type conversions for ineroperability between libraries.
@@ -33,8 +35,6 @@ pub mod mesh {
     // pub mod hull;
     /// Net algorithms like Naive Surface Nets.
     pub mod nets;
-    /// Types and traits for implementing raycast functions on objects.
-    pub mod raycast;
     /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
 
