@@ -33,6 +33,8 @@ pub mod mesh {
     // pub mod hull;
     /// Net algorithms like Naive Surface Nets.
     pub mod nets;
+    /// Types and traits for implementing raycast functions on objects.
+    pub mod raycast;
     /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
 
@@ -49,6 +51,16 @@ pub mod simulation {
     /// Data structures for rope simulation.
     /// Godot-agnostic.
     pub mod rope;
+}
+/// Physics-server related classes.
+pub mod physics {
+    /// Physics bodies with collision, mass, and velocity.
+    pub mod body;
+    /// Physics object identity types.
+    pub mod identity;
+    /// Custom physics server implementation for general use.
+    /// Experimental.
+    pub mod server;
 }
 /// Custom animation system for Godot Engine.
 pub mod animation {
