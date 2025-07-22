@@ -255,8 +255,7 @@ mod tests {
         assert_eq!(
             vol.delinearize(idx_max),
             [3, 3, 3],
-            "Delinearize at index {0}",
-            idx_max
+            "Delinearize at index {idx_max}"
         );
 
         // Test clamping

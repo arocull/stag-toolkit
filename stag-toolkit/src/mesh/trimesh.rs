@@ -570,15 +570,11 @@ mod tests {
 
             assert!(
                 normal.length() > 1.0 - MAX_DIFFERENCE,
-                "Case {0}, {1} isn't normalized ( >=1.0 )",
-                idx,
-                normal
+                "Case {idx}, {normal} isn't normalized ( >=1.0 )"
             );
             assert!(
                 normal.length() < 1.0 + MAX_DIFFERENCE,
-                "Case {0}, {1} isn't normalized ( <=1.0 )",
-                idx,
-                normal
+                "Case {idx}, {normal} isn't normalized ( <=1.0 )"
             );
         }
     }

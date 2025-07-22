@@ -4,7 +4,7 @@ use glam::{Mat4, Vec2, Vec3, Vec3Swizzles, Vec4, Vec4Swizzles, vec2, vec3};
 /// `k = 32.0`` was original suggestion for smoothing value.
 pub fn smooth_union(a: f32, b: f32, k: f32) -> f32 {
     let res = (-k * a).exp() + (-k * b).exp();
-    res.max(0.0001).log10() * (-1.0) / k
+    -res.max(0.0001).log10() / k
 }
 
 /// Returns the union of two distance functions: A + B.

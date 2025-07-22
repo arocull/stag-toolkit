@@ -870,7 +870,7 @@ impl IslandBuilder {
         for (idx, hull) in hulls.iter_shared().enumerate() {
             let mut shape = CollisionShape3D::new_alloc();
             shape.set_shape(&hull);
-            shape.set_name(&format!("collis{0}", idx));
+            shape.set_name(&format!("collis{idx}"));
             shape.set_debug_color(debug_color); // Apply debug draw color
             editor_lock(shape.clone().upcast(), true); // Lock editing
 

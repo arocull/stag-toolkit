@@ -245,8 +245,7 @@ mod tests {
 
             assert_eq!(
                 hit, case.collided,
-                "case {0}: collision state should max expected",
-                idx
+                "case {idx}: collision state should max expected"
             );
 
             assert_eq!(
