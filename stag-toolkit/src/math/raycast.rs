@@ -40,6 +40,4 @@ pub trait Raycast {
         max_depth: f32,
         backfaces: bool,
     ) -> Option<RaycastResult>;
-    /// Returns true if the given point is inside the object.
-    fn point_inside(&self, point: Vec3) -> bool;
 }

@@ -503,7 +503,8 @@ impl Raycast for TriangleMesh {
 
             // First, make sure this is shorter than our current collision depth
             // Also make sure it's not back-facing, if possible
-            let depth = -plane.signed_distance(origin);
+            let depth = plane.signed_distance(origin);
+            println!("{depth} vs {shortest_depth}");
             if (depth >= 0.0 || backfaces) && depth < shortest_depth {
                 // Project point onto the plane
                 let (hit, intersected) = plane.ray_intersection(origin, dir);
@@ -533,17 +534,18 @@ impl Raycast for TriangleMesh {
         result.depth = shortest_depth;
         Some(result)
     }
-
-    fn point_inside(&self, point: Vec3) -> bool {
-        todo!()
-    }
 }
 
 // UNIT TESTS //
 #[cfg(test)]
 mod tests {
+    use std::f32;
+
     use super::TriangleMesh;
-    use crate::mesh::trimesh::{Triangle, TriangleOperations};
+    use crate::{
+        math::raycast::Raycast,
+        mesh::trimesh::{Triangle, TriangleOperations},
+    };
     use glam::{Vec3, vec3};
 
     const MAX_DIFFERENCE: f32 = 1e-7;
@@ -786,4 +788,42 @@ mod tests {
     }
 
     // TODO: edge map test using a manifold cube
+
+    #[test]
+    fn test_raycast() {
+        let positions: Vec<Vec3> = vec![
+            vec3(1.0, 0.0, -1.0),
+            vec3(-1.0, 0.0, -1.0),
+            vec3(0.0, 0.0, 1.0),
+            // vec3(0.0, 0.0, -1.0),
+        ];
+        let triangles: Vec<Triangle> = vec![[0, 1, 2]];
+        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+
+        let result = mesh
+            .raycast(Vec3::Y, Vec3::NEG_Y, f32::INFINITY, false)
+            .expect("raycast should hit directly");
+
+        assert_eq!(result.normal, Vec3::Y, "normal should be facing the ray");
+        assert_eq!(result.depth, 1.0, "depth should be 1");
+
+        assert!(
+            mesh.raycast(Vec3::NEG_Y, Vec3::Y, f32::INFINITY, false)
+                .is_none(),
+            "raycast should miss backface"
+        );
+        assert!(
+            mesh.raycast(Vec3::NEG_Y, Vec3::Y, f32::INFINITY, true)
+                .is_some(),
+            "raycast should hit backface"
+        );
+
+        assert!(
+            mesh.raycast(Vec3::new(5.0, 5.0, 5.0), Vec3::NEG_Y, f32::INFINITY, true)
+                .is_none(),
+            "raycast should miss triangle during barycentric projection"
+        );
+
+        // TODO: layers of triangles with depth sort
+    }
 }
