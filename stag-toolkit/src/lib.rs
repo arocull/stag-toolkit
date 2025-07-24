@@ -53,6 +53,7 @@ pub mod simulation {
     pub mod rope;
 }
 /// Physics-server related classes.
+#[cfg(feature = "physics_server")]
 pub mod physics {
     /// Physics bodies with collision, mass, and velocity.
     pub mod body;

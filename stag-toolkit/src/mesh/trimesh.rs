@@ -365,8 +365,11 @@ impl TriangleMesh {
     }
 
     /// Merges all vertices within the given threshold distance of each other, merging later vertices into earlier ones.
-    /// This operation occurs in-place.
-    /// Does not remove degenerate triangles.
+    /// This operation occurs in place.
+    ///
+    /// **Does not remove degenerate triangles or unused vertices.**
+    /// Call `remove_degenerate` and `remove_unused` to clean up the mesh when you are done editing it.
+    /// Or, to do everything at once, call `optimize`.
     pub fn merge_by_distance(&mut self, threshold: f32) {
         let thresh_squared = threshold * threshold;
 
@@ -375,7 +378,7 @@ impl TriangleMesh {
         // List of vertex indices: (replace, new)
         let mut replace: Vec<(usize, usize)> = vec![];
 
-        // Start from back of array
+        // Start from the back of the array
         for (i, vert) in self.positions.iter().enumerate().rev() {
             // ...read forward until we hit our current index
             for j in 0..i {
@@ -504,7 +507,6 @@ impl Raycast for TriangleMesh {
             // First, make sure this is shorter than our current collision depth
             // Also make sure it's not back-facing, if possible
             let depth = plane.signed_distance(origin);
-            println!("{depth} vs {shortest_depth}");
             if (depth >= 0.0 || backfaces) && depth < shortest_depth {
                 // Project point onto the plane
                 let (hit, intersected) = plane.ray_intersection(origin, dir);
@@ -787,15 +789,98 @@ mod tests {
         assert_eq!(0, mesh.triangles.len());
     }
 
-    // TODO: edge map test using a manifold cube
+    #[test]
+    fn test_join() {
+        let positions1: Vec<Vec3> = vec![Vec3::X, Vec3::Y, Vec3::Z];
+        let positions2: Vec<Vec3> = vec![Vec3::NEG_X, Vec3::NEG_Y, Vec3::NEG_Z];
+
+        let triangles = vec![[0, 1, 2]];
+        let mut mesh1 = TriangleMesh::new(triangles.clone(), positions1.clone(), None);
+        let mesh2 = TriangleMesh::new(triangles.clone(), positions2.clone(), None);
+
+        assert_eq!(
+            1,
+            mesh1.triangles.len(),
+            "mesh 1 should only have one triangle"
+        );
+        assert_eq!(
+            1,
+            mesh2.triangles.len(),
+            "mesh 2 should only have one triangle"
+        );
+        assert_eq!(3, mesh1.positions.len(), "mesh 1 should have 3 vertices");
+        assert_eq!(3, mesh2.positions.len(), "mesh 2 should have 3 vertices");
+
+        mesh1.join(&mesh2);
+        assert_eq!(
+            6,
+            mesh1.positions.len(),
+            "joined mesh should have 6 vertices"
+        );
+        assert_eq!(
+            2,
+            mesh1.triangles.len(),
+            "joined mesh should have 2 triangles"
+        );
+
+        assert_eq!(
+            vec![
+                Vec3::X,
+                Vec3::Y,
+                Vec3::Z,
+                Vec3::NEG_X,
+                Vec3::NEG_Y,
+                Vec3::NEG_Z
+            ],
+            mesh1.positions
+        );
+        assert_eq!(vec![[0, 1, 2], [3, 4, 5]], mesh1.triangles);
+    }
 
     #[test]
-    fn test_raycast() {
+    fn test_merge_by_distance() {
         let positions: Vec<Vec3> = vec![
             vec3(1.0, 0.0, -1.0),
             vec3(-1.0, 0.0, -1.0),
             vec3(0.0, 0.0, 1.0),
-            // vec3(0.0, 0.0, -1.0),
+            vec3(1.0, 1e-6, -1.0),
+            vec3(-1.0, 1e-6, -1.0),
+            vec3(0.0, 0.0, -1.0),
+        ];
+        let triangles = vec![[0, 1, 2], [3, 4, 5]];
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+
+        mesh.merge_by_distance(1e-5);
+
+        assert_eq!(2, mesh.triangles.len()); // Mesh still retains both triangles
+        assert_eq!(
+            vec![[0, 1, 2], [0, 1, 5]],
+            mesh.triangles,
+            "mesh uses only necessary points"
+        );
+        assert_eq!(6, mesh.positions.len()); // Mesh retained vertices but is not using them
+
+        mesh.remove_unused();
+        assert_eq!(4, mesh.positions.len(), "unused vertices should be removed");
+
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        mesh.optimize(1e-5);
+        assert_eq!(
+            vec![[0, 1, 2], [0, 1, 3]],
+            mesh.triangles,
+            "optimize only uses necessary points"
+        );
+        assert_eq!(4, mesh.positions.len(), "optimize should do all cleanup");
+    }
+
+    // TODO: edge map test using a manifold cube
+
+    #[test]
+    fn test_raycast_backface_triangles() {
+        let positions: Vec<Vec3> = vec![
+            vec3(1.0, 0.0, -1.0),
+            vec3(-1.0, 0.0, -1.0),
+            vec3(0.0, 0.0, 1.0),
         ];
         let triangles: Vec<Triangle> = vec![[0, 1, 2]];
         let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
@@ -804,8 +889,19 @@ mod tests {
             .raycast(Vec3::Y, Vec3::NEG_Y, f32::INFINITY, false)
             .expect("raycast should hit directly");
 
+        assert_eq!(
+            Vec3::ZERO,
+            result.point,
+            "ray should should intersect at origin"
+        );
         assert_eq!(result.normal, Vec3::Y, "normal should be facing the ray");
         assert_eq!(result.depth, 1.0, "depth should be 1");
+        assert_eq!(
+            0,
+            result
+                .face_index
+                .expect("face index should be set for trimesh")
+        );
 
         assert!(
             mesh.raycast(Vec3::NEG_Y, Vec3::Y, f32::INFINITY, false)
@@ -823,7 +919,62 @@ mod tests {
                 .is_none(),
             "raycast should miss triangle during barycentric projection"
         );
+    }
 
-        // TODO: layers of triangles with depth sort
+    #[test]
+    fn test_raycast_offset() {
+        let positions: Vec<Vec3> = vec![
+            vec3(1.0, 1.0, -1.0),
+            vec3(-1.0, 1.0, -1.0),
+            vec3(0.0, 1.0, 1.0),
+        ];
+        let triangles: Vec<Triangle> = vec![[0, 1, 2]];
+        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+
+        let result = mesh
+            .raycast(Vec3::new(0.1, 2.0, -0.5), Vec3::NEG_Y, f32::INFINITY, false)
+            .expect("raycast should hit directly");
+
+        assert_eq!(
+            Vec3::new(0.1, 1.0, -0.5),
+            result.point,
+            "ray should should intersect at expected point"
+        );
+        assert_eq!(result.normal, Vec3::Y, "normal should be facing the ray");
+        assert_eq!(result.depth, 1.0, "depth should be 1");
+        assert_eq!(
+            0,
+            result
+                .face_index
+                .expect("face index should be set for trimesh")
+        );
+    }
+
+    #[test]
+    fn test_raycast_layered() {
+        // Should return nearest face index
+        let positions_layered: Vec<Vec3> = vec![
+            vec3(1.0, 0.0, -1.0),
+            vec3(-1.0, 0.0, -1.0),
+            vec3(0.0, 0.0, 1.0),
+            vec3(1.0, 1.0, -1.0),
+            vec3(-1.0, 1.0, -1.0),
+            vec3(0.0, 1.0, 1.0),
+        ];
+        let triangles_layered: Vec<Triangle> = vec![[0, 1, 2], [3, 4, 5]];
+        let mesh_layered =
+            TriangleMesh::new(triangles_layered.clone(), positions_layered.clone(), None);
+
+        let result = mesh_layered
+            .raycast(Vec3::Y * 3.0, Vec3::NEG_Y, f32::INFINITY, false)
+            .expect("raycast should hit directly");
+
+        assert_eq!(2.0, result.depth, "raycast should be 2 units from surface");
+        assert_eq!(1, result.face_index.expect("face_index should exist"));
+        assert_eq!(
+            Vec3::Y,
+            result.point,
+            "raycast should intersect at (0, 1, 0)"
+        );
     }
 }

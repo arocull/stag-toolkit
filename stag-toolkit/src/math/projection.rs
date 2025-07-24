@@ -23,7 +23,7 @@ impl Plane for Vec4 {
     }
 
     fn signed_distance(self, point: Vec3) -> f32 {
-        self.dot(Self::new(point.x, point.y, point.z, 0.0))
+        self.dot(Self::new(point.x, point.y, point.z, 1.0))
     }
 
     fn ray_intersection(self, ray_origin: Vec3, ray_direction: Vec3) -> (Vec3, bool) {
@@ -130,6 +130,13 @@ mod tests {
                 normal: Vec3::new(0.0, 1.0, 1.0).normalize(),
                 point: Vec3::new(0.0, 1.0, 1.0).normalize() * Vec3::splat(3.0),
                 distance: 3.0,
+            },
+            // Plane at random orientation
+            TestPlanePointProject {
+                origin: Vec3::new(0.0, 1.0, 0.0),
+                normal: Vec3::new(0.0, 1.0, 0.0),
+                point: Vec3::new(0.0, 2.0, 0.0),
+                distance: 1.0,
             },
         ];
 
