@@ -1,4 +1,4 @@
-use crate::math::raycast::{Raycast, RaycastResult};
+use crate::math::raycast::{Raycast, RaycastParameters, RaycastResult};
 use crate::math::{
     projection::{Plane, plane},
     types::*,
@@ -489,14 +489,8 @@ impl TriangleMesh {
 }
 
 impl Raycast for TriangleMesh {
-    fn raycast(
-        &self,
-        origin: Vec3,
-        dir: Vec3,
-        max_depth: f32,
-        backfaces: bool,
-    ) -> Option<RaycastResult> {
-        let mut shortest_depth: f32 = max_depth;
+    fn raycast(&self, params: RaycastParameters) -> Option<RaycastResult> {
+        let mut shortest_depth: f32 = params.max_depth;
         let mut result = RaycastResult::default();
 
         // For all triangles
@@ -506,10 +500,10 @@ impl Raycast for TriangleMesh {
 
             // First, make sure this is shorter than our current collision depth
             // Also make sure it's not back-facing, if possible
-            let depth = plane.signed_distance(origin);
-            if (depth >= 0.0 || backfaces) && depth < shortest_depth {
+            let depth = plane.signed_distance(params.origin);
+            if (depth >= 0.0 || params.hit_backfaces) && depth < shortest_depth {
                 // Project point onto the plane
-                let (hit, intersected) = plane.ray_intersection(origin, dir);
+                let (hit, intersected) = plane.ray_intersection(params.origin, params.direction);
 
                 if intersected {
                     // Get barycentric coordinate of triangle
@@ -529,7 +523,7 @@ impl Raycast for TriangleMesh {
         }
 
         // No collision, return nothing
-        if shortest_depth == max_depth {
+        if shortest_depth == params.max_depth {
             return None;
         }
 
@@ -544,6 +538,7 @@ mod tests {
     use std::f32;
 
     use super::TriangleMesh;
+    use crate::math::raycast::RaycastParameters;
     use crate::{
         math::raycast::Raycast,
         mesh::trimesh::{Triangle, TriangleOperations},
@@ -886,7 +881,12 @@ mod tests {
         let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
 
         let result = mesh
-            .raycast(Vec3::Y, Vec3::NEG_Y, f32::INFINITY, false)
+            .raycast(RaycastParameters::new(
+                Vec3::Y,
+                Vec3::NEG_Y,
+                f32::INFINITY,
+                false,
+            ))
             .expect("raycast should hit directly");
 
         assert_eq!(
@@ -904,19 +904,34 @@ mod tests {
         );
 
         assert!(
-            mesh.raycast(Vec3::NEG_Y, Vec3::Y, f32::INFINITY, false)
-                .is_none(),
+            mesh.raycast(RaycastParameters::new(
+                Vec3::NEG_Y,
+                Vec3::Y,
+                f32::INFINITY,
+                false
+            ))
+            .is_none(),
             "raycast should miss backface"
         );
         assert!(
-            mesh.raycast(Vec3::NEG_Y, Vec3::Y, f32::INFINITY, true)
-                .is_some(),
+            mesh.raycast(RaycastParameters::new(
+                Vec3::NEG_Y,
+                Vec3::Y,
+                f32::INFINITY,
+                true
+            ))
+            .is_some(),
             "raycast should hit backface"
         );
 
         assert!(
-            mesh.raycast(Vec3::new(5.0, 5.0, 5.0), Vec3::NEG_Y, f32::INFINITY, true)
-                .is_none(),
+            mesh.raycast(RaycastParameters::new(
+                Vec3::new(5.0, 5.0, 5.0),
+                Vec3::NEG_Y,
+                f32::INFINITY,
+                true
+            ))
+            .is_none(),
             "raycast should miss triangle during barycentric projection"
         );
     }
@@ -932,7 +947,12 @@ mod tests {
         let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
 
         let result = mesh
-            .raycast(Vec3::new(0.1, 2.0, -0.5), Vec3::NEG_Y, f32::INFINITY, false)
+            .raycast(RaycastParameters::new(
+                Vec3::new(0.1, 2.0, -0.5),
+                Vec3::NEG_Y,
+                f32::INFINITY,
+                false,
+            ))
             .expect("raycast should hit directly");
 
         assert_eq!(
@@ -966,7 +986,12 @@ mod tests {
             TriangleMesh::new(triangles_layered.clone(), positions_layered.clone(), None);
 
         let result = mesh_layered
-            .raycast(Vec3::Y * 3.0, Vec3::NEG_Y, f32::INFINITY, false)
+            .raycast(RaycastParameters::new(
+                Vec3::Y * 3.0,
+                Vec3::NEG_Y,
+                f32::INFINITY,
+                false,
+            ))
             .expect("raycast should hit directly");
 
         assert_eq!(2.0, result.depth, "raycast should be 2 units from surface");

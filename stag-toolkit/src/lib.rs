@@ -55,10 +55,14 @@ pub mod simulation {
 /// Physics-server related classes.
 #[cfg(feature = "physics_server")]
 pub mod physics {
-    /// Physics bodies with collision, mass, and velocity.
+    /// Physics bodies with collision, mass, and intertia.
     pub mod body;
+    /// State of physics bodies transform, velocity, and angular velocity.
+    pub mod body_state;
     /// Physics object identity types.
     pub mod identity;
+    /// Utility structures and functions for raycasting.
+    pub mod raycast;
     /// Custom physics server implementation for general use.
     /// Experimental.
     pub mod server;
