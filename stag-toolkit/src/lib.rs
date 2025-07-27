@@ -96,6 +96,11 @@ pub mod classes {
     /// Godot interfaces for rope simulations.
     pub mod rope;
 
+    /// Custom physics server implementation for use in StagToolkit simulations.
+    /// Highly experimental.
+    #[cfg(feature = "physics_server")]
+    pub mod physics_server;
+
     /// Utility functions for managing Godot classes.
     pub mod utils;
 

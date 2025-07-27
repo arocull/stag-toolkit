@@ -21,13 +21,13 @@ pub struct PhysicsBody {
     pub mass: f32,
 
     /// TODO: Computed center-of-mass of the physics body.
-    center_of_mass: Vec3,
+    pub center_of_mass: Vec3,
     /// TODO: Computed moment-of-inertia of the physics body.
-    moment_of_inertia: Vec3,
+    pub moment_of_inertia: Vec3,
     /// TODO: Computed inverse inertia of the physics body.
-    inverse_inertia: Vec3,
+    pub inverse_inertia: Vec3,
 
-    state: BodyState,
+    pub state: BodyState,
 }
 
 impl PhysicsBody {

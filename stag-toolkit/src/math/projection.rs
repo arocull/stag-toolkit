@@ -1,5 +1,15 @@
 use glam::{Vec3, Vec4, Vec4Swizzles};
 
+#[derive(Copy, Clone, Default, Debug)]
+pub struct RayIntersectionResult {
+    /// Intersection point between the ray and the plane.
+    pub intersection: Vec3,
+    /// If true, this ray collided with the plane in **either** direction.
+    pub collided: bool,
+    /// If true, the plane normal is parallel to the ray.
+    pub reversed: bool,
+}
+
 /// Constructs a 3D plane using the given origin and normal values, describing the plane as a 4D vector.
 /// To produce a normalized plane, `normal` is expected to be a normalized vector.
 pub fn plane(origin: Vec3, normal: Vec3) -> Vec4 {
@@ -12,9 +22,9 @@ pub trait Plane {
     fn flip(self) -> Self;
     /// Returns the signed distance from the given point to this plane.
     fn signed_distance(self, point: Vec3) -> f32;
-    /// Intersects the given plane with the given ray, and returns a position and whether it sucessfully collided.
+    /// Intersects the given plane with the given ray, and returns a position and true it sucessfully collided.
     /// If the ray is parallel with the plane, returns the ray origin instead.
-    fn ray_intersection(self, ray_origin: Vec3, ray_direction: Vec3) -> (Vec3, bool);
+    fn ray_intersection(self, ray_origin: Vec3, ray_direction: Vec3) -> RayIntersectionResult;
 }
 
 impl Plane for Vec4 {
@@ -26,22 +36,29 @@ impl Plane for Vec4 {
         self.dot(Self::new(point.x, point.y, point.z, 1.0))
     }
 
-    fn ray_intersection(self, ray_origin: Vec3, ray_direction: Vec3) -> (Vec3, bool) {
+    fn ray_intersection(self, ray_origin: Vec3, ray_direction: Vec3) -> RayIntersectionResult {
         let dt = self.xyz().dot(ray_direction);
 
         // Test if ray direction is perpendicular to plane normal (parallel)
         if dt == 0.0 {
-            return (ray_origin, false); // Cast never collides
+            return RayIntersectionResult {
+                intersection: ray_origin,
+                collided: false, // Cast never collides
+                reversed: false,
+            };
         }
 
-        (
-            ray_origin // Return projected point
+        let projected = ray_origin // Return projected point
                 - Vec3::splat(
                     self.dot(Self::new(ray_origin.x, ray_origin.y, ray_origin.z, 1.0))
                         / dt,
-                ) * ray_direction,
-            true, // Cast successfully collided
-        )
+                ) * ray_direction;
+
+        RayIntersectionResult {
+            intersection: projected,
+            collided: true, // Cast successfully collided
+            reversed: !dt.is_sign_negative(),
+        }
     }
 }
 
@@ -169,6 +186,7 @@ mod tests {
             rd: Vec3,
             result: Vec3,
             collided: bool,
+            reverse: bool,
         }
 
         let test_cases: Vec<TestPlanePointProject> = vec![
@@ -180,6 +198,7 @@ mod tests {
                 rd: Vec3::NEG_Z,
                 result: Vec3::ZERO,
                 collided: true,
+                reverse: false,
             },
             // Above plane, casting away from origin. Should hit plane anyway
             TestPlanePointProject {
@@ -189,6 +208,7 @@ mod tests {
                 rd: Vec3::Z,
                 result: Vec3::ZERO,
                 collided: true,
+                reverse: true,
             },
             // Above plane, casting parallel to it
             TestPlanePointProject {
@@ -198,6 +218,7 @@ mod tests {
                 rd: Vec3::X,
                 result: Vec3::Z,
                 collided: false,
+                reverse: false,
             },
             // Below plane, casting to it
             TestPlanePointProject {
@@ -207,6 +228,7 @@ mod tests {
                 rd: Vec3::Z,
                 result: Vec3::ZERO,
                 collided: true,
+                reverse: true,
             },
             // Below plane, casting away from it
             TestPlanePointProject {
@@ -216,6 +238,7 @@ mod tests {
                 rd: Vec3::NEG_Z,
                 result: Vec3::ZERO,
                 collided: true,
+                reverse: false,
             },
             // Plane has origin offset
             TestPlanePointProject {
@@ -225,6 +248,7 @@ mod tests {
                 rd: Vec3::Z,
                 result: Vec3::Z,
                 collided: true,
+                reverse: true,
             },
             // Ray origin is on plane
             TestPlanePointProject {
@@ -234,6 +258,7 @@ mod tests {
                 rd: Vec3::Z,
                 result: Vec3::Z,
                 collided: true,
+                reverse: true,
             },
             // Ray origin is on plane, and parallel to it
             TestPlanePointProject {
@@ -243,23 +268,30 @@ mod tests {
                 rd: Vec3::X,
                 result: Vec3::Z,
                 collided: false,
+                reverse: false,
             },
         ];
 
         for (idx, case) in test_cases.iter().enumerate() {
             let pl = plane(case.o, case.n);
-            let (projected, hit) = pl.ray_intersection(case.ro, case.rd);
+            let result = pl.ray_intersection(case.ro, case.rd);
 
             assert_eq!(
-                hit, case.collided,
+                result.collided, case.collided,
                 "case {idx}: collision state should max expected"
             );
 
             assert_eq!(
-                projected, case.result,
+                result.intersection, case.result,
                 "case {0}: ray [{1} -> {2}) did not project onto\t{3}",
                 idx, case.ro, case.rd, pl
             );
+
+            assert_eq!(
+                result.reversed, case.reverse,
+                "case {0}: ray [{1} -> {2}) did not match backface",
+                idx, case.ro, case.rd,
+            )
         }
     }
 }

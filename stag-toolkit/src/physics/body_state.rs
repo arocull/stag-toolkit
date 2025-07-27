@@ -12,17 +12,21 @@ pub struct BodyState {
 }
 
 impl BodyState {
-    fn new(transform: Mat4) -> Self {
+    pub fn new(transform: Mat4, linear_velocity: Vec3, angular_velocity: Vec3) -> Self {
         Self {
             transform,
-            linear_velocity: Vec3::ZERO,
-            angular_velocity: Vec3::ZERO,
+            linear_velocity,
+            angular_velocity,
         }
     }
 }
 
 impl Default for BodyState {
     fn default() -> Self {
-        Self::new(Mat4::IDENTITY)
+        Self {
+            transform: Mat4::IDENTITY,
+            linear_velocity: Vec3::ZERO,
+            angular_velocity: Vec3::ZERO,
+        }
     }
 }

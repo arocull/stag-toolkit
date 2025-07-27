@@ -1,4 +1,9 @@
-use glam::Vec3;
+use core::fmt;
+use glam::{Mat4, Vec3};
+use std::{
+    fmt::{Display, Formatter},
+    ops::Mul,
+};
 
 /// Features for raycasting objects.
 pub trait Raycast {
@@ -30,6 +35,20 @@ impl RaycastParameters {
     }
 }
 
+impl Mul<RaycastParameters> for Mat4 {
+    type Output = RaycastParameters;
+
+    /// Returns a new set of raycast parameters transformed by the given matrix.
+    fn mul(self, rhs: RaycastParameters) -> Self::Output {
+        RaycastParameters::new(
+            self.transform_point3(rhs.origin),
+            self.transform_vector3(rhs.direction),
+            rhs.max_depth,
+            rhs.hit_backfaces,
+        )
+    }
+}
+
 impl Default for RaycastParameters {
     fn default() -> Self {
         Self {
@@ -38,6 +57,16 @@ impl Default for RaycastParameters {
             max_depth: f32::INFINITY,
             hit_backfaces: false,
         }
+    }
+}
+
+impl Display for RaycastParameters {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{{ origin: {0}, direction: {1}, max_depth: {2}, hit_backfaces: {3} }}",
+            self.origin, self.direction, self.max_depth, self.hit_backfaces
+        )
     }
 }
 
@@ -63,6 +92,28 @@ impl RaycastResult {
             return None;
         }
         Some(*self)
+    }
+}
+
+impl Mul<RaycastResult> for Mat4 {
+    type Output = RaycastResult;
+
+    /// Returns a new set of raycast parameters transformed by the given matrix.
+    fn mul(self, rhs: RaycastResult) -> Self::Output {
+        let mut result = rhs;
+        result.point = self.transform_point3(result.point);
+        result.normal = self.transform_vector3(result.normal);
+        result
+    }
+}
+
+impl Display for RaycastResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{{ point: {0}, normal: {1}, depth: {2} }}",
+            self.point, self.normal, self.depth
+        )
     }
 }
 

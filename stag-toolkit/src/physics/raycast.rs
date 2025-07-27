@@ -7,6 +7,15 @@ pub struct PhysicsRaycastParameters {
     pub collision_mask: u32,
 }
 
+impl PhysicsRaycastParameters {
+    pub fn new(raycast_parameters: RaycastParameters, collision_mask: u32) -> Self {
+        Self {
+            raycast_parameters,
+            collision_mask,
+        }
+    }
+}
+
 impl Default for PhysicsRaycastParameters {
     fn default() -> Self {
         Self {

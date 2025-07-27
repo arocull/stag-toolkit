@@ -30,7 +30,7 @@ import:
 	@cd godot && godot --headless --import
 
 build: bindir
-	@cargo build --release --features godot
+	@cargo build --release --features godot,physics_server
 	@cp target/release/libstag_toolkit.so godot/addons/stag_toolkit/bin/release/libstag_toolkit.so
 
 build-windows: bindir

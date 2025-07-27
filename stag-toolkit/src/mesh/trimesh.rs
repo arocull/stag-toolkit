@@ -96,7 +96,7 @@ impl TriangleOperations for Triangle {
         let pl = plane(positions[self[0]], norm);
         // Project point onto plane, using opposite of plane's normal.
         // Projection should never fail as ray is always antiparallel to the normal.
-        pl.ray_intersection(point, -norm).0
+        pl.ray_intersection(point, -norm).intersection
     }
 
     fn barycentric(&self, positions: &[Vec3], project: Vec3) -> Vec3 {
@@ -503,17 +503,18 @@ impl Raycast for TriangleMesh {
             let depth = plane.signed_distance(params.origin);
             if (depth >= 0.0 || params.hit_backfaces) && depth < shortest_depth {
                 // Project point onto the plane
-                let (hit, intersected) = plane.ray_intersection(params.origin, params.direction);
+                let projection = plane.ray_intersection(params.origin, params.direction);
 
-                if intersected {
+                // TODO: better method for checking if ray direction is not hitting plane
+                if projection.collided && (!projection.reversed || params.hit_backfaces) {
                     // Get barycentric coordinate of triangle
-                    let coord = tri.barycentric(&self.positions, hit);
+                    let coord = tri.barycentric(&self.positions, projection.intersection);
                     // Finally, check if the point is contained by the triangle
                     let contained = tri.contains_barycentric(coord);
 
                     if contained {
                         shortest_depth = depth;
-                        result.point = hit;
+                        result.point = projection.intersection;
                         result.normal = plane.xyz();
                         result.face_index = Some(idx);
                         result.barycentric = Some(coord);
@@ -968,6 +969,16 @@ mod tests {
                 .face_index
                 .expect("face index should be set for trimesh")
         );
+
+        // raycast that should completely miss
+        let result = mesh.raycast(RaycastParameters::new(
+            Vec3::new(0.1, 10.0, -0.5),
+            Vec3::Y,
+            f32::INFINITY,
+            false,
+        ));
+
+        assert_eq!(None, result, "raycast should have missed");
     }
 
     #[test]
