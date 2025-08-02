@@ -60,7 +60,7 @@ impl StagPhysicsServer {
                 }
 
                 // Build and optimize a collision mesh
-                let mut mesh = TriangleMesh::new(tris, vertices, None);
+                let mut mesh = TriangleMesh::new(tris, vertices, None, None);
                 mesh.optimize(1e-6);
 
                 meshes.push(Arc::new(mesh));

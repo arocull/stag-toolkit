@@ -758,7 +758,7 @@ mod tests {
         assert_eq!(2.0, triangle_c.area(&positions), "Triangle C");
 
         let triangles: Vec<Triangle> = vec![triangle_a, triangle_b, triangle_c];
-        let mesh = TriangleMesh::new(triangles, positions, None);
+        let mesh = TriangleMesh::new(triangles, positions, None, None);
 
         assert_eq!(3.0, mesh.surface_area(), "Mesh Surface Area");
     }
@@ -892,8 +892,8 @@ mod tests {
         let positions2: Vec<Vec3> = vec![Vec3::NEG_X, Vec3::NEG_Y, Vec3::NEG_Z];
 
         let triangles = vec![[0, 1, 2]];
-        let mut mesh1 = TriangleMesh::new(triangles.clone(), positions1.clone(), None);
-        let mesh2 = TriangleMesh::new(triangles.clone(), positions2.clone(), None);
+        let mut mesh1 = TriangleMesh::new(triangles.clone(), positions1.clone(), None, None);
+        let mesh2 = TriangleMesh::new(triangles.clone(), positions2.clone(), None, None);
 
         assert_eq!(
             1,
@@ -945,7 +945,7 @@ mod tests {
             vec3(0.0, 0.0, -1.0),
         ];
         let triangles = vec![[0, 1, 2], [3, 4, 5]];
-        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
 
         mesh.merge_by_distance(1e-5);
 
@@ -960,7 +960,7 @@ mod tests {
         mesh.remove_unused();
         assert_eq!(4, mesh.positions.len(), "unused vertices should be removed");
 
-        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
         mesh.optimize(1e-5);
         assert_eq!(
             vec![[0, 1, 2], [0, 1, 3]],
@@ -980,7 +980,7 @@ mod tests {
             vec3(0.0, 0.0, 1.0),
         ];
         let triangles: Vec<Triangle> = vec![[0, 1, 2]];
-        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
 
         let result = mesh
             .raycast(RaycastParameters::new(
@@ -1046,7 +1046,7 @@ mod tests {
             vec3(0.0, 1.0, 1.0),
         ];
         let triangles: Vec<Triangle> = vec![[0, 1, 2]];
-        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
 
         let result = mesh
             .raycast(RaycastParameters::new(
@@ -1094,8 +1094,12 @@ mod tests {
             vec3(0.0, 1.0, 1.0),
         ];
         let triangles_layered: Vec<Triangle> = vec![[0, 1, 2], [3, 4, 5]];
-        let mesh_layered =
-            TriangleMesh::new(triangles_layered.clone(), positions_layered.clone(), None);
+        let mesh_layered = TriangleMesh::new(
+            triangles_layered.clone(),
+            positions_layered.clone(),
+            None,
+            None,
+        );
 
         let result = mesh_layered
             .raycast(RaycastParameters::new(
