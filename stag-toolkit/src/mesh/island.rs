@@ -3,6 +3,7 @@ use crate::math::sdf::{Shape, sample_shape_list, shape_list_bounds};
 use crate::math::volumetric::VolumeData;
 use crate::mesh::nets::mesh_from_nets;
 use crate::mesh::trimesh::TriangleMesh;
+use codegen::ExposeSettings;
 use fast_surface_nets::{SurfaceNetsBuffer, ndshape::ConstShape, surface_nets};
 use glam::{Mat4, Quat, Vec3};
 use ndshape::ConstShape3u32;
@@ -14,11 +15,12 @@ const VOLUME_MAX_CELLS_TRIM: u32 = 44;
 type IslandChunkSize = ConstShape3u32<VOLUME_MAX_CELLS, VOLUME_MAX_CELLS, VOLUME_MAX_CELLS>;
 
 /// Settings for voxel generation.
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, ExposeSettings)]
 pub struct SettingsVoxels {
     /// Number of voxels to pad on each side of the [IslandBuilder] volume.
     pub voxel_padding: u32,
     /// Width/height/depth of a voxel. This is the approximate resolution of the resulting [IslandBuilder] mesh.
+    #[setting(default=Vec3::splat(0.275), min=0.05, max=1.0, incr=0.001, soft_max, unit="m")]
     pub voxel_size: Vec3,
 
     /// Rounding distance to apply to edges of Signed Distance Field primitives.
@@ -44,25 +46,25 @@ pub struct SettingsVoxels {
     pub worker_group_size: u32,
 }
 
-impl Default for SettingsVoxels {
-    fn default() -> Self {
-        Self {
-            voxel_padding: 3,
-            voxel_size: Vec3::splat(0.275),
-            sdf_edge_radius: 1.6,
-            sdf_smooth_iterations: 4,
-            sdf_smooth_radius_voxels: 3,
-            sdf_smooth_weight: 0.95,
-
-            striation_scale_xz: 0.1,
-            striation_scale_y: 10.0,
-            striation_amplitude_xz: 0.2,
-            striation_amplitude_y: 0.01,
-
-            worker_group_size: VOLUME_MAX_CELLS * VOLUME_MAX_CELLS * VOLUME_MAX_CELLS,
-        }
-    }
-}
+// impl Default for SettingsVoxels {
+//     fn default() -> Self {
+//         Self {
+//             voxel_padding: 3,
+//             voxel_size: Vec3::splat(0.275),
+//             sdf_edge_radius: 1.6,
+//             sdf_smooth_iterations: 4,
+//             sdf_smooth_radius_voxels: 3,
+//             sdf_smooth_weight: 0.95,
+//
+//             striation_scale_xz: 0.1,
+//             striation_scale_y: 10.0,
+//             striation_amplitude_xz: 0.2,
+//             striation_amplitude_y: 0.01,
+//
+//             worker_group_size: VOLUME_MAX_CELLS * VOLUME_MAX_CELLS * VOLUME_MAX_CELLS,
+//         }
+//     }
+// }
 
 /// Settings for mesh generation.
 #[derive(Copy, Clone, PartialEq, Default)]

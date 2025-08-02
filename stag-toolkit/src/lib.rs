@@ -12,6 +12,8 @@
 
 // MODULE DECLARATION //
 
+mod codegen {}
+
 /// General math utilities and conversions.
 pub mod math {
     /// Rust-only implementation of an Axis-Aligned Bounding Box.
