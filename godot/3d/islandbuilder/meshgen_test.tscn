@@ -22,6 +22,7 @@ navigation_properties = SubResource("NavIslandProperties_rd51c")
 output_to = NodePath("../body")
 material_baked = ExtResource("2_lyvhm")
 material_preview = ExtResource("3_0xy63")
+bake_normals = true
 visible = false
 metadata/volume = 4.75614
 
@@ -167,6 +168,10 @@ axis_lock_linear_y = true
 axis_lock_angular_x = true
 axis_lock_angular_z = true
 mass = 35492.0
+
+[node name="mesh_island" type="MeshInstance3D" parent="island_test/body"]
+layers = 5
+metadata/_edit_lock_ = true
 
 [node name="aabb_checker" type="GPUParticles3D" parent="."]
 emitting = false

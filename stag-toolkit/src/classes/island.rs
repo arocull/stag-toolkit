@@ -69,6 +69,7 @@ struct IslandBuildData {
     mask_range_sand: Vec2,
     mask_power_sand: f32,
     mask_perlin_scale: Vec3,
+    bake_normals: bool,
 
     /// Mesh generated via surface nets.
     /// Stored as option in case it was not already generated.
@@ -108,6 +109,7 @@ impl IslandBuildData {
             mask_range_sand: Vec2::new(0.7, 1.0),
             mask_power_sand: 3.0,
             mask_perlin_scale: Vec3::new(0.75, 0.33, 0.75),
+            bake_normals: true,
 
             mesh: None,
             optimized: false,
@@ -304,6 +306,9 @@ impl IslandBuildData {
 
         if let Some(mesh) = self.mesh.as_mut() {
             mesh.optimize(self.mesh_merge_distance);
+            if self.bake_normals {
+                mesh.bake_normals_smooth();
+            }
 
             self.optimized = true;
         }
@@ -323,6 +328,7 @@ impl IslandBuildData {
                 // We know that there is a mesh, because get_mesh returned data
                 if let Some(mesh) = self.mesh.as_ref() {
                     let buffer_len = mesh.count_vertices();
+                    let normals = mesh.normals.clone().to_vector3();
 
                     let mut colors: Vec<Vec4> = vec![];
                     let mut uv1: Vec<Vec2> = vec![];
@@ -363,6 +369,10 @@ impl IslandBuildData {
                     x.set_colors(colors.to_color());
                     x.set_uv1(uv1.to_vector2());
                     x.set_uv2(uv2.to_vector2());
+
+                    if self.bake_normals {
+                        x.set_normals(normals);
+                    }
 
                     return Some(x);
                 }
@@ -545,6 +555,11 @@ pub struct IslandBuilder {
     #[export]
     material_preview: Option<Gd<Material>>,
 
+    /// If true, bakes smooth mesh normals using StagToolkit before providing the mesh to Godot.
+    /// Otherwise, Godot handles mesh normals on mesh import.
+    #[export]
+    bake_normals: bool,
+
     base: Base<Node3D>,
 }
 
@@ -573,6 +588,7 @@ impl INode3D for IslandBuilder {
             gameplay_health_density: 1.0,
             material_baked: None,
             material_preview: None,
+            bake_normals: true,
             base,
         }
     }
@@ -656,6 +672,11 @@ impl IslandBuilder {
         self.data.collision_merge_distance = self.collision_merge_distance;
         self.data.collision_decimate_angle = self.collision_decimation_angle.to_radians();
         self.data.collision_decimate_iterations = self.collision_decimate_iterations;
+
+        if self.data.bake_normals != self.bake_normals {
+            self.data.optimized = false;
+            self.data.bake_normals = self.bake_normals;
+        }
 
         // Check if random seeds have changed
         // Don't bother setting seed if they haven't changed

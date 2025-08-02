@@ -10,9 +10,10 @@ crate-type = ["cdylib", "lib"]  # Compile this crate to a dynamic C library.
 # doc = true
 
 [features]
-default = ["godot"]
-godot = ["dep:godot"]
-# nothreads = ["godot/experimental-wasm-nothreads"]
+default = ["godot", "physics_server"]
+godot = ["dep:godot"] # Enables compiling as a Godot plugin
+# nothreads = ["godot/experimental-wasm-nothreads"] # Intended for WASM exports
+physics_server = [] # Experimental physics server
 
 [dependencies]
 fast-surface-nets = "0.2.0"

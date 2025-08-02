@@ -20,6 +20,8 @@ pub mod math {
     pub mod primqueue;
     /// Ray, plane and point projections.
     pub mod projection;
+    /// Types and traits for implementing raycast functions on objects.
+    pub mod raycast;
     /// Signed Distance Field math and shape sampling.
     pub mod sdf;
     /// Type conversions for ineroperability between libraries.
@@ -50,6 +52,21 @@ pub mod simulation {
     /// Godot-agnostic.
     pub mod rope;
 }
+/// Physics-server related classes.
+#[cfg(feature = "physics_server")]
+pub mod physics {
+    /// Physics bodies with collision, mass, and intertia.
+    pub mod body;
+    /// State of physics bodies transform, velocity, and angular velocity.
+    pub mod body_state;
+    /// Physics object identity types.
+    pub mod identity;
+    /// Utility structures and functions for raycasting.
+    pub mod raycast;
+    /// Custom physics server implementation for general use.
+    /// Experimental.
+    pub mod server;
+}
 /// Custom animation system for Godot Engine.
 pub mod animation {
     /// Animation-focused mixing implementation for HashMaps.
@@ -78,6 +95,11 @@ pub mod classes {
 
     /// Godot interfaces for rope simulations.
     pub mod rope;
+
+    /// Custom physics server implementation for use in StagToolkit simulations.
+    /// Highly experimental.
+    #[cfg(feature = "physics_server")]
+    pub mod physics_server;
 
     /// Utility functions for managing Godot classes.
     pub mod utils;

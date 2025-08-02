@@ -1,9 +1,10 @@
-use std::collections::HashMap;
-
+use crate::math::raycast::{Raycast, RaycastParameters, RaycastResult};
 use crate::math::{
     projection::{Plane, plane},
     types::*,
 };
+use glam::Vec4Swizzles;
+use std::collections::HashMap;
 
 // EDGES //
 
@@ -58,6 +59,8 @@ pub trait TriangleOperations {
     fn has_edge(&self, edge: &Edge) -> bool;
     /// Returns the centerpoint of the triangle.
     fn centerpoint(&self, positions: &[Vec3]) -> Vec3;
+    /// Returns the area of the triangle.
+    fn area(&self, positions: &[Vec3]) -> f32;
     /// Returns a face-winded list of edges on this triangle.
     fn edges(&self) -> [Edge; 3];
 }
@@ -95,7 +98,7 @@ impl TriangleOperations for Triangle {
         let pl = plane(positions[self[0]], norm);
         // Project point onto plane, using opposite of plane's normal.
         // Projection should never fail as ray is always antiparallel to the normal.
-        pl.ray_intersection(point, -norm).0
+        pl.ray_intersection(point, -norm).intersection
     }
 
     fn barycentric(&self, positions: &[Vec3], project: Vec3) -> Vec3 {
@@ -164,6 +167,13 @@ impl TriangleOperations for Triangle {
 
     fn centerpoint(&self, positions: &[Vec3]) -> Vec3 {
         (positions[self[0]] + positions[self[1]] + positions[self[2]]) * Vec3::splat(1.0 / 3.0)
+    }
+
+    fn area(&self, positions: &[Vec3]) -> f32 {
+        // https://math.stackexchange.com/questions/128991/how-to-calculate-the-area-of-a-3d-triangle
+        let ab = positions[self[0]] - positions[self[1]];
+        let ac = positions[self[0]] - positions[self[2]];
+        ab.cross(ac).length() * 0.5
     }
 
     fn edges(&self) -> [Edge; 3] {
@@ -364,8 +374,11 @@ impl TriangleMesh {
     }
 
     /// Merges all vertices within the given threshold distance of each other, merging later vertices into earlier ones.
-    /// This operation occurs in-place.
-    /// Does not remove degenerate triangles.
+    /// This operation occurs in place.
+    ///
+    /// **Does not remove degenerate triangles or unused vertices.**
+    /// Call `remove_degenerate` and `remove_unused` to clean up the mesh when you are done editing it.
+    /// Or, to do everything at once, call `optimize`.
     pub fn merge_by_distance(&mut self, threshold: f32) {
         let thresh_squared = threshold * threshold;
 
@@ -374,7 +387,7 @@ impl TriangleMesh {
         // List of vertex indices: (replace, new)
         let mut replace: Vec<(usize, usize)> = vec![];
 
-        // Start from back of array
+        // Start from the back of the array
         for (i, vert) in self.positions.iter().enumerate().rev() {
             // ...read forward until we hit our current index
             for j in 0..i {
@@ -473,8 +486,64 @@ impl TriangleMesh {
         self.triangles = new_tris;
     }
 
-    /// TODO: Bakes all normals into mesh data.
-    pub fn bake_normals(&mut self) {}
+    /// Calculates smooth vertex normals, using each triangle's surface area as a weight.
+    /// Returns as a list of surface normals for each corresponding vertex.
+    pub fn get_normals_smooth(&self) -> Vec<Vec3> {
+        // Map of vertices, with a list of corresponding triangle normals and associated area
+        let mut vertices: HashMap<usize, Vec<(Vec3, f32)>> = HashMap::new();
+
+        for tri in self.triangles.iter() {
+            let norm = tri.normal(&self.positions);
+            let area = tri.area(&self.positions);
+
+            for idx in tri.iter() {
+                if let Some(vertex_normals) = vertices.get_mut(idx) {
+                    vertex_normals.push((norm, area));
+                } else {
+                    vertices.insert(*idx, vec![(norm, area)]);
+                }
+            }
+        }
+
+        // Allocate new normal buffer and fill with default values
+        let mut normals: Vec<Vec3> = Vec::with_capacity(vertices.len());
+        normals.resize(vertices.len(), Vec3::ZERO);
+
+        // Fill in normals based on triangle normals weighted by triangle area
+        for (idx, vertex_data) in vertices {
+            let mut total_area: f32 = 0.0;
+            for (_, area) in vertex_data.iter() {
+                total_area += area;
+            }
+
+            let mut vertex_normal = Vec3::ZERO;
+            for (normal, area) in vertex_data.iter() {
+                vertex_normal += normal * (area / total_area);
+            }
+            normals[idx] = -vertex_normal.normalize_or_zero();
+        }
+
+        normals
+    }
+
+    /// Computes a corresponding normal for each mesh vertex by sampling a list of SDF shapes.
+    // pub fn get_normals_sdf(&self) -> Vec<Vec3> {
+    //     vec![]
+    // }
+
+    /// Bakes out smooth vertex normals, using each triangle's surface area as a weight.
+    pub fn bake_normals_smooth(&mut self) {
+        self.normals = self.get_normals_smooth();
+    }
+
+    /// Returns the calculated surface area of the mesh.
+    pub fn surface_area(&self) -> f32 {
+        let mut sum: f32 = 0.0;
+        for tri in self.triangles.iter() {
+            sum += tri.area(&self.positions);
+        }
+        sum
+    }
 
     /// Performs all existing optimization steps on the triangle mesh.
     pub fn optimize(&mut self, merge_distance: f32) {
@@ -484,35 +553,62 @@ impl TriangleMesh {
     }
 }
 
-/*
-/// Describes a list of triangles. Can be iterated.
-pub struct WalkTriangles {
-    mesh: Vec<usize>,
-    curr: usize,
-}
-impl Iterator for WalkTriangles {
-    type Item = Triangle;
+impl Raycast for TriangleMesh {
+    fn raycast(&self, params: RaycastParameters) -> Option<RaycastResult> {
+        let mut shortest_depth: f32 = params.max_depth;
+        let mut result = RaycastResult::default();
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.curr < self.mesh.len() {
-            let current: Triangle = [
-                self.mesh[self.curr],
-                self.mesh[self.curr + 1],
-                self.mesh[self.curr + 2],
-            ];
-            self.curr += 3;
-            return Some(current);
+        // For all triangles
+        for (idx, tri) in self.triangles.iter().enumerate() {
+            // Perform a ray intersection
+            let plane = tri.plane(&self.positions);
+
+            // First, make sure this is shorter than our current collision depth
+            // Also make sure it's not back-facing, if possible
+            let depth = plane.signed_distance(params.origin);
+            if (depth >= 0.0 || params.hit_backfaces) && depth < shortest_depth {
+                // Project point onto the plane
+                let projection = plane.ray_intersection(params.origin, params.direction);
+
+                // TODO: better method for checking if ray direction is not hitting plane
+                if projection.collided && (!projection.reversed || params.hit_backfaces) {
+                    // Get barycentric coordinate of triangle
+                    let coord = tri.barycentric(&self.positions, projection.intersection);
+                    // Finally, check if the point is contained by the triangle
+                    let contained = tri.contains_barycentric(coord);
+
+                    if contained {
+                        shortest_depth = depth;
+                        result.point = projection.intersection;
+                        result.normal = plane.xyz();
+                        result.face_index = Some(idx);
+                        result.barycentric = Some(coord);
+                    }
+                }
+            }
         }
-        None
+
+        // No collision, return nothing
+        if shortest_depth == params.max_depth {
+            return None;
+        }
+
+        result.depth = shortest_depth;
+        Some(result)
     }
 }
-*/
 
 // UNIT TESTS //
 #[cfg(test)]
 mod tests {
+    use std::f32;
+
     use super::TriangleMesh;
-    use crate::mesh::trimesh::{Triangle, TriangleOperations};
+    use crate::math::raycast::RaycastParameters;
+    use crate::{
+        math::raycast::Raycast,
+        mesh::trimesh::{Triangle, TriangleOperations},
+    };
     use glam::{Vec3, vec3};
 
     const MAX_DIFFERENCE: f32 = 1e-7;
@@ -630,6 +726,31 @@ mod tests {
                 tri.normal(&case.tri)
             );
         }
+    }
+
+    #[test]
+    fn test_area() {
+        let positions: Vec<Vec3> = vec![
+            Vec3::new(0.0, 0.0, 0.0),  // 0
+            Vec3::new(1.0, 0.0, 0.0),  // 1
+            Vec3::new(0.0, 1.0, 0.0),  // 2
+            Vec3::new(-1.0, 0.0, 0.0), // 3
+            Vec3::new(0.0, -1.0, 0.0), // 4
+            Vec3::new(2.0, 0.0, 0.0),  // 5
+            Vec3::new(0.0, 2.0, 0.0),  // 6
+        ];
+        let triangle_a: Triangle = [0, 2, 1];
+        let triangle_b: Triangle = [0, 4, 3];
+        let triangle_c: Triangle = [0, 6, 5];
+
+        assert_eq!(0.5, triangle_a.area(&positions), "Triangle A");
+        assert_eq!(0.5, triangle_b.area(&positions), "Triangle B");
+        assert_eq!(2.0, triangle_c.area(&positions), "Triangle C");
+
+        let triangles: Vec<Triangle> = vec![triangle_a, triangle_b, triangle_c];
+        let mesh = TriangleMesh::new(triangles, positions, None);
+
+        assert_eq!(3.0, mesh.surface_area(), "Mesh Surface Area");
     }
 
     #[test]
@@ -754,5 +875,232 @@ mod tests {
         assert_eq!(0, mesh.triangles.len());
     }
 
+    #[test]
+    fn test_join() {
+        let positions1: Vec<Vec3> = vec![Vec3::X, Vec3::Y, Vec3::Z];
+        let positions2: Vec<Vec3> = vec![Vec3::NEG_X, Vec3::NEG_Y, Vec3::NEG_Z];
+
+        let triangles = vec![[0, 1, 2]];
+        let mut mesh1 = TriangleMesh::new(triangles.clone(), positions1.clone(), None);
+        let mesh2 = TriangleMesh::new(triangles.clone(), positions2.clone(), None);
+
+        assert_eq!(
+            1,
+            mesh1.triangles.len(),
+            "mesh 1 should only have one triangle"
+        );
+        assert_eq!(
+            1,
+            mesh2.triangles.len(),
+            "mesh 2 should only have one triangle"
+        );
+        assert_eq!(3, mesh1.positions.len(), "mesh 1 should have 3 vertices");
+        assert_eq!(3, mesh2.positions.len(), "mesh 2 should have 3 vertices");
+
+        mesh1.join(&mesh2);
+        assert_eq!(
+            6,
+            mesh1.positions.len(),
+            "joined mesh should have 6 vertices"
+        );
+        assert_eq!(
+            2,
+            mesh1.triangles.len(),
+            "joined mesh should have 2 triangles"
+        );
+
+        assert_eq!(
+            vec![
+                Vec3::X,
+                Vec3::Y,
+                Vec3::Z,
+                Vec3::NEG_X,
+                Vec3::NEG_Y,
+                Vec3::NEG_Z
+            ],
+            mesh1.positions
+        );
+        assert_eq!(vec![[0, 1, 2], [3, 4, 5]], mesh1.triangles);
+    }
+
+    #[test]
+    fn test_merge_by_distance() {
+        let positions: Vec<Vec3> = vec![
+            vec3(1.0, 0.0, -1.0),
+            vec3(-1.0, 0.0, -1.0),
+            vec3(0.0, 0.0, 1.0),
+            vec3(1.0, 1e-6, -1.0),
+            vec3(-1.0, 1e-6, -1.0),
+            vec3(0.0, 0.0, -1.0),
+        ];
+        let triangles = vec![[0, 1, 2], [3, 4, 5]];
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+
+        mesh.merge_by_distance(1e-5);
+
+        assert_eq!(2, mesh.triangles.len()); // Mesh still retains both triangles
+        assert_eq!(
+            vec![[0, 1, 2], [0, 1, 5]],
+            mesh.triangles,
+            "mesh uses only necessary points"
+        );
+        assert_eq!(6, mesh.positions.len()); // Mesh retained vertices but is not using them
+
+        mesh.remove_unused();
+        assert_eq!(4, mesh.positions.len(), "unused vertices should be removed");
+
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        mesh.optimize(1e-5);
+        assert_eq!(
+            vec![[0, 1, 2], [0, 1, 3]],
+            mesh.triangles,
+            "optimize only uses necessary points"
+        );
+        assert_eq!(4, mesh.positions.len(), "optimize should do all cleanup");
+    }
+
     // TODO: edge map test using a manifold cube
+
+    #[test]
+    fn test_raycast_backface_triangles() {
+        let positions: Vec<Vec3> = vec![
+            vec3(1.0, 0.0, -1.0),
+            vec3(-1.0, 0.0, -1.0),
+            vec3(0.0, 0.0, 1.0),
+        ];
+        let triangles: Vec<Triangle> = vec![[0, 1, 2]];
+        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+
+        let result = mesh
+            .raycast(RaycastParameters::new(
+                Vec3::Y,
+                Vec3::NEG_Y,
+                f32::INFINITY,
+                false,
+            ))
+            .expect("raycast should hit directly");
+
+        assert_eq!(
+            Vec3::ZERO,
+            result.point,
+            "ray should should intersect at origin"
+        );
+        assert_eq!(result.normal, Vec3::Y, "normal should be facing the ray");
+        assert_eq!(result.depth, 1.0, "depth should be 1");
+        assert_eq!(
+            0,
+            result
+                .face_index
+                .expect("face index should be set for trimesh")
+        );
+
+        assert!(
+            mesh.raycast(RaycastParameters::new(
+                Vec3::NEG_Y,
+                Vec3::Y,
+                f32::INFINITY,
+                false
+            ))
+            .is_none(),
+            "raycast should miss backface"
+        );
+        assert!(
+            mesh.raycast(RaycastParameters::new(
+                Vec3::NEG_Y,
+                Vec3::Y,
+                f32::INFINITY,
+                true
+            ))
+            .is_some(),
+            "raycast should hit backface"
+        );
+
+        assert!(
+            mesh.raycast(RaycastParameters::new(
+                Vec3::new(5.0, 5.0, 5.0),
+                Vec3::NEG_Y,
+                f32::INFINITY,
+                true
+            ))
+            .is_none(),
+            "raycast should miss triangle during barycentric projection"
+        );
+    }
+
+    #[test]
+    fn test_raycast_offset() {
+        let positions: Vec<Vec3> = vec![
+            vec3(1.0, 1.0, -1.0),
+            vec3(-1.0, 1.0, -1.0),
+            vec3(0.0, 1.0, 1.0),
+        ];
+        let triangles: Vec<Triangle> = vec![[0, 1, 2]];
+        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+
+        let result = mesh
+            .raycast(RaycastParameters::new(
+                Vec3::new(0.1, 2.0, -0.5),
+                Vec3::NEG_Y,
+                f32::INFINITY,
+                false,
+            ))
+            .expect("raycast should hit directly");
+
+        assert_eq!(
+            Vec3::new(0.1, 1.0, -0.5),
+            result.point,
+            "ray should should intersect at expected point"
+        );
+        assert_eq!(result.normal, Vec3::Y, "normal should be facing the ray");
+        assert_eq!(result.depth, 1.0, "depth should be 1");
+        assert_eq!(
+            0,
+            result
+                .face_index
+                .expect("face index should be set for trimesh")
+        );
+
+        // raycast that should completely miss
+        let result = mesh.raycast(RaycastParameters::new(
+            Vec3::new(0.1, 10.0, -0.5),
+            Vec3::Y,
+            f32::INFINITY,
+            false,
+        ));
+
+        assert_eq!(None, result, "raycast should have missed");
+    }
+
+    #[test]
+    fn test_raycast_layered() {
+        // Should return nearest face index
+        let positions_layered: Vec<Vec3> = vec![
+            vec3(1.0, 0.0, -1.0),
+            vec3(-1.0, 0.0, -1.0),
+            vec3(0.0, 0.0, 1.0),
+            vec3(1.0, 1.0, -1.0),
+            vec3(-1.0, 1.0, -1.0),
+            vec3(0.0, 1.0, 1.0),
+        ];
+        let triangles_layered: Vec<Triangle> = vec![[0, 1, 2], [3, 4, 5]];
+        let mesh_layered =
+            TriangleMesh::new(triangles_layered.clone(), positions_layered.clone(), None);
+
+        let result = mesh_layered
+            .raycast(RaycastParameters::new(
+                Vec3::Y * 3.0,
+                Vec3::NEG_Y,
+                f32::INFINITY,
+                false,
+            ))
+            .expect("raycast should hit directly");
+
+        assert_eq!(2.0, result.depth, "raycast should be 2 units from surface");
+        assert_eq!(1, result.face_index.expect("face_index should exist"));
+        assert_eq!(
+            Vec3::Y,
+            result.point,
+            "raycast should intersect at (0, 1, 0)"
+        );
+    }
 }
