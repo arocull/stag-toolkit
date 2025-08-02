@@ -30,15 +30,15 @@ import:
 	@cd godot && godot --headless --import
 
 build: bindir
-	@cargo build --release --features godot
+	@cargo build --release --features godot,physics_server
 	@cp target/release/libstag_toolkit.so godot/addons/stag_toolkit/bin/release/libstag_toolkit.so
 
 build-windows: bindir
-	@cargo build --target x86_64-pc-windows-gnu --release --features godot
+	@cargo build --target x86_64-pc-windows-gnu --release --features godot,physics_server
 	@cp target/x86_64-pc-windows-gnu/release/stag_toolkit.dll godot/addons/stag_toolkit/bin/release/stag_toolkit.dll
 
 build-mac: bindir
-	@cargo build --target x86_64-apple-darwin  --release --features godot
+	@cargo build --target x86_64-apple-darwin  --release --features godot,physics_server
 	@cp target/x86_64-apple-darwin/release/libstag_toolkit.dylib godot/addons/stag_toolkit/bin/release/libstag_toolkit.dylib
 
 debug: bindir
@@ -58,7 +58,7 @@ test-rust:
 	@cargo test --all-features
 
 test-rust-release:
-	@cargo test --release --features godot
+	@cargo test --release --features godot,physics_server
 
 test-godot: build
 	@godot --path godot/ --headless --no-header --stagtest --timeout=40 --timescale=5.0
@@ -70,7 +70,7 @@ test-sanity: build test-rust
 bench: bench-rust bench-godot
 
 bench-rust:
-	@cargo bench --no-default-features
+	@cargo bench --no-default-features --features physics_server
 
 bench-godot: build
 	@godot --path godot/ --headless --no-header --stagtest --bench --timeout=300

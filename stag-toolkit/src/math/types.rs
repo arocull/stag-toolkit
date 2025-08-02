@@ -70,6 +70,12 @@ pub mod gdmath {
         }
     }
 
+    impl ToVector3<Vec<Vec3>> for PackedVector3Array {
+        fn to_vector3(self) -> Vec<Vec3> {
+            Vec::from_iter(self.to_vec().iter().map(|val| -> Vec3 { val.to_vector3() }))
+        }
+    }
+
     // 2D VECTORS //
     /// Implements 2D Vector conversion and ineroperability between math libraries.
     pub trait ToVector2<T> {

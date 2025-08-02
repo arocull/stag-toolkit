@@ -159,21 +159,18 @@ mod tests {
 
         assert_eq!(
             dist_min, 3,
-            "minimum point index should be 3, got {0}",
-            dist_min
+            "minimum point index should be 3, got {dist_min}"
         );
         assert_eq!(
             dist_max, 0,
-            "maximum point index should be 0, got {0}",
-            dist_max
+            "maximum point index should be 0, got {dist_max}"
         );
 
         // Test distance to line
         let furthest_from_line = pts.distant_line(pts[dist_min], pts[dist_max]);
         assert_eq!(
             furthest_from_line, 2,
-            "furthest point from line should be 2, got {0}",
-            furthest_from_line
+            "furthest point from line should be 2, got {furthest_from_line}"
         );
 
         // Test distance to plane
@@ -183,8 +180,7 @@ mod tests {
         let furthest_from_plane = pts.distant_plane(p);
         assert_eq!(
             furthest_from_plane, 1,
-            "furthest point from plane should be 1, got {0}",
-            furthest_from_plane
+            "furthest point from plane should be 1, got {furthest_from_plane}"
         );
     }
 }
