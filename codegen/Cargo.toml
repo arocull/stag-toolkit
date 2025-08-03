@@ -6,7 +6,7 @@ edition = "2024"
 [lib]
 path = "src/lib.rs"
 crate-type = ["proc-macro"]
-proc-macro = true
+#proc-macro = true
 
 [dependencies]
 quote = "1.0.40"

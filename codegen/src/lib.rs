@@ -22,7 +22,6 @@ pub fn expose_settings_fn(input: TokenStream) -> TokenStream {
                 let identifier = field.ident.as_ref().unwrap();
                 let mut use_default: bool = true;
 
-                // hash_map.insert(stringify!(#identifier).to_string(), String::from(value.#identifier));
                 if let Some(attr) = field
                     .attrs
                     .iter()
@@ -173,20 +172,29 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
             let base_class = args.base_class;
 
             let mut class_fields = quote! {};
-            let setters = quote! {};
+            let mut setters = quote! {};
 
             for field in fields {
                 let identifier = field.ident.as_ref().unwrap();
-                let mut use_default: bool = true;
 
                 // Fetch type
                 let mut type_tokens = field.ty.to_token_stream();
                 let mut type_conversion = quote! {};
-                // Perform Rust -> Godot type conversions as necessary
+
+                // Perform Rust -> Godot type conversions as necessary for the field type
                 (type_tokens, type_conversion) = match type_tokens.to_string().as_str() {
                     "Vec3" => (quote! {Vector3}, quote! {.to_vector3()}),
                     _ => (type_tokens, type_conversion),
                 };
+
+                let mut doc_comment = quote! {};
+                if let Some(attr) = field.attrs.iter().find(|attr| attr.path().is_ident("doc")) {
+                    doc_comment = attr.to_token_stream();
+                }
+
+                // Default field attributes
+                let mut exporter = quote! {#[export]};
+                let mut initializer = quote! {#[init(val=#type_tokens::default())]};
 
                 if let Some(attr) = field
                     .attrs
@@ -197,20 +205,58 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
 
                     // Check if we have a default argument
                     if let Some(settings) = args.setting {
-                        if let Some(default) = settings.default {
-                            use_default = false;
-                            class_fields.extend(quote! {#[init(val=#default #type_conversion)]});
+                        if let Some(min) = settings.min {
+                            let mut range = quote! {#min};
+
+                            if let Some(max) = settings.max {
+                                range.extend(quote! {,#max});
+
+                                if let Some(increment) = settings.incr {
+                                    range.extend(quote! {,#increment});
+                                }
+
+                                if settings.soft_min {
+                                    range.extend(quote! {,or_lesser});
+                                }
+
+                                if settings.soft_max {
+                                    range.extend(quote! {,or_greater});
+                                }
+
+                                if let Some(unit) = settings.unit {
+                                    range.extend(quote! {,suffix=#unit});
+                                }
+
+                                // Godot requires both minimum and maximum to be specified
+                                exporter = quote! {#[export(range=(#range))]};
+                            }
                         }
-                    } else {
-                        class_fields.extend(quote! {#[export]})
+
+                        if let Some(default) = settings.default {
+                            initializer = quote! {#[init(val=#default #type_conversion)]};
+                        }
                     }
                 }
 
-                if use_default {
-                    class_fields.extend(quote! {#[init(val=#type_tokens::default())]});
-                }
+                let setter_name_str = format!("set_{identifier}");
+                let setter_name = syn::Ident::new(&setter_name_str, identifier.span());
 
-                class_fields.extend(quote! {#identifier:#type_tokens,});
+                class_fields.extend(quote! {
+                    #doc_comment
+                    #[var(get, set = #setter_name)]
+                    #exporter
+                    #initializer
+                    #identifier:#type_tokens,
+                });
+
+                setters.extend(quote! {
+                    #[func]
+                    fn #setter_name(&mut self, value: #type_tokens) {
+                        self.#identifier = value;
+                        self.signals().setting_changed().emit();
+                    }
+
+                })
             }
 
             quote! {
@@ -225,11 +271,10 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                 }
                 #[godot_api]
                 impl #class_name {
-                    #setters
-
                     /// Emitted when any setting changes.
                     #[signal]
                     fn setting_changed();
+                    #setters
                 }
             }
         }
