@@ -3,12 +3,15 @@ use crate::math::sdf::{Shape, sample_shape_list, shape_list_bounds};
 use crate::math::volumetric::VolumeData;
 use crate::mesh::nets::mesh_from_nets;
 use crate::mesh::trimesh::TriangleMesh;
-use codegen::ExposeSettings;
+use codegen::{ExposeSettings, settings_resource_from};
 use fast_surface_nets::{SurfaceNetsBuffer, ndshape::ConstShape, surface_nets};
 use glam::{Mat4, Quat, Vec3};
 use ndshape::ConstShape3u32;
 use rayon::prelude::*;
 use std::mem::swap;
+
+#[cfg(feature = "godot")]
+use {crate::math::types::ToVector3, godot::prelude::*};
 
 const VOLUME_MAX_CELLS: u32 = 48;
 const VOLUME_MAX_CELLS_TRIM: u32 = 44;
@@ -16,55 +19,60 @@ type IslandChunkSize = ConstShape3u32<VOLUME_MAX_CELLS, VOLUME_MAX_CELLS, VOLUME
 
 /// Settings for voxel generation.
 #[derive(Copy, Clone, PartialEq, ExposeSettings)]
+#[settings_resource_from(IslandBuilderSettingsVoxels, Resource)]
 pub struct SettingsVoxels {
     /// Number of voxels to pad on each side of the [IslandBuilder] volume.
+    #[setting(default = 3, min = 0.0, max = 6.0, soft_max)]
     pub voxel_padding: u32,
     /// Width/height/depth of a voxel. This is the approximate resolution of the resulting [IslandBuilder] mesh.
     #[setting(default=Vec3::splat(0.275), min=0.05, max=1.0, incr=0.001, soft_max, unit="m")]
     pub voxel_size: Vec3,
 
     /// Rounding distance to apply to edges of Signed Distance Field primitives.
+    #[setting(default = 1.6, min = 0.0, max = 2.0, soft_max, unit = "m")]
     pub sdf_edge_radius: f32,
     /// Number of smoothing iterations to apply to voxels immediately after sampling Signed Distance Fields.
+    #[setting(default = 4, min = 0.0, max = 20.0, soft_max)]
     pub sdf_smooth_iterations: u32,
     /// Radius of voxels to include in each smoothing pass applied immediately after sampling Signed Distance Fields.
+    #[setting(default = 3, min = 0.0, max = 5.0, soft_max)]
     pub sdf_smooth_radius_voxels: u32,
     /// Weighting of each smoothing pass applied immediately after sampling Signed Distance Fields.
+    #[setting(default = 0.95, min = 0.0, max = 1.0)]
     pub sdf_smooth_weight: f32,
 
     /// Frequency scale for striation noise on local X and Z axii.
+    #[setting(default = 0.1, min = 0.0, max = 10.0, incr = 0.001, soft_max)]
     pub striation_scale_xz: f32,
     /// Frequency scale for striation noise on local Y axis.
+    #[setting(default = 10.0, min = 0.0, max = 10.0, incr = 0.001, soft_max)]
     pub striation_scale_y: f32,
     /// Amplitude of striation noise on local X and Z axii.
+    #[setting(
+        default = 0.2,
+        min = 0.0,
+        max = 10.0,
+        incr = 0.001,
+        soft_max,
+        unit = "m"
+    )]
     pub striation_amplitude_xz: f32,
     /// Amplitude of striation noise on local Y axis.
+    #[setting(
+        default = 0.01,
+        min = 0.0,
+        max = 10.0,
+        incr = 0.001,
+        soft_max,
+        unit = "m"
+    )]
     pub striation_amplitude_y: f32,
 
     /// Number of voxels per worker group.
     /// This is a performance setting and will not affect the output result.
+    #[setting(default=VOLUME_MAX_CELLS*VOLUME_MAX_CELLS*VOLUME_MAX_CELLS,min=1.0)]
     pub worker_group_size: u32,
 }
-
-// impl Default for SettingsVoxels {
-//     fn default() -> Self {
-//         Self {
-//             voxel_padding: 3,
-//             voxel_size: Vec3::splat(0.275),
-//             sdf_edge_radius: 1.6,
-//             sdf_smooth_iterations: 4,
-//             sdf_smooth_radius_voxels: 3,
-//             sdf_smooth_weight: 0.95,
-//
-//             striation_scale_xz: 0.1,
-//             striation_scale_y: 10.0,
-//             striation_amplitude_xz: 0.2,
-//             striation_amplitude_y: 0.01,
-//
-//             worker_group_size: VOLUME_MAX_CELLS * VOLUME_MAX_CELLS * VOLUME_MAX_CELLS,
-//         }
-//     }
-// }
 
 /// Settings for mesh generation.
 #[derive(Copy, Clone, PartialEq, Default)]
