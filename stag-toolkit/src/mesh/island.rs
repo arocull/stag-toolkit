@@ -75,57 +75,91 @@ pub struct SettingsVoxels {
 }
 
 /// Settings for mesh generation.
-#[derive(Copy, Clone, PartialEq, Default)]
+#[derive(Copy, Clone, PartialEq, ExposeSettings)]
+#[settings_resource_from(IslandBuilderSettingsMesh, Resource)]
 pub struct SettingsMesh {
     /// Distance threshold for vertices to be merged for the visual mesh.
+    #[setting(
+        default = 0.04,
+        min = 0.0,
+        max = 1.0,
+        incr = 0.001,
+        soft_max,
+        unit = "m"
+    )]
     pub mesh_vertex_merge_distance: f32,
 
     /// Whether to bake Ambient Occlusion to the Red channel.
     /// The Red channel defaults to 1.0 if Ambient Occlusion is not baked.
+    #[setting(default = true)]
     pub ao_enabled: bool,
     /// Weighting value for linearly blending a base value of 1.0 with the baked Ambient Occlusion.
+    #[setting(default = 1.0, min = 0.0, max = 1.0, incr = 0.001)]
     pub ao_strength: f32,
 
     /// Minimum dot value for adding dirt gradation into the Green channel.
     /// The dot value is computed from a dot product of the triangle's normal to the local-space up vector.
+    #[setting(default=-0.2,min=-1.0,max=1.0,incr=0.001)]
     pub mask_dirt_minimum: f32,
     /// Maximum dot value for adding dirt gradation into the Green channel.
     /// The dot value is computed from a dot product of the triangle's normal to the local-space up vector.
+    #[setting(default=0.8,min=-1.0,max=1.0,incr=0.001)]
     pub mask_dirt_maximum: f32,
     /// Arbitrary exponent to apply to the dirt gradient.
+    #[setting(default = 1.0, min = 5.0, max = 5.0, incr = 0.001, soft_max)]
     pub mask_dirt_exponent: f32,
 
     /// Minimum dot value for adding sand gradation into the Blue channel.
     /// The dot value is computed from a dot product of the triangle's normal to the local-space up vector.
+    #[setting(default=0.7,min=-1.0,max=1.0,incr=0.001)]
     pub mask_sand_minimum: f32,
     /// Maximum dot value for baking sand gradation into the Blue channel.
     /// The dot value is computed from a dot product of the triangle's normal to the local-space up vector.
+    #[setting(default=1.0,min=-1.0,max=1.0,incr=0.001)]
     pub mask_sand_maximum: f32,
     /// Arbitrary exponent to apply to the sand gradient.
+    #[setting(default=3.0,min=-5.0,max=5.0,incr=0.001,soft_max)]
     pub mask_sand_exponent: f32,
 
-    /// X frequency scale when sampling perlin noise for baking into the Alpha channel.
-    pub mask_perlin_scale_x: f32,
-    /// Y frequency scale when sampling perlin noise for baking into the Alpha channel.
-    pub mask_perlin_scale_y: f32,
-    /// Z frequency scale when sampling perlin noise for baking into the Alpha channel.
-    pub mask_perlin_scale_z: f32,
+    /// XYZ frequency scale when sampling perlin noise for baking into the Alpha channel.
+    #[setting(default=Vec3::new(0.75,0.33,0.75),min=0.0,max=2.0,incr=0.001,soft_max)]
+    pub mask_perlin_scale: Vec3,
 }
 
 /// Settings for collision generation.
-#[derive(Copy, Clone, PartialEq, Default)]
+#[derive(Copy, Clone, PartialEq, ExposeSettings)]
+#[settings_resource_from(IslandBuilderSettingsCollision, Resource)]
 pub struct SettingsCollision {
     /// Whether to merge collision vertices on non-manifold edges.
+    #[setting(default = false)]
     pub collision_merge_nonmanifold_edges: bool,
     /// Whether to perform collision decimation on non-manifold edges.
+    #[setting(default = false)]
     pub collision_decimate_nonmanifold_edges: bool,
     /// Distance threshold for vertices to be merged for the collision hull.
+    #[setting(
+        default = 0.15,
+        min = 0.0,
+        max = 1.0,
+        incr = 0.001,
+        soft_max,
+        unit = "m"
+    )]
     pub collision_vertex_merge_distance: f32,
     /// Angular threshold for decimating triangles used in physics collisions. In degrees.
     /// If zero, mesh decimation will not occur.
+    #[setting(
+        default = 2.0,
+        min = 0.0,
+        max = 179.9,
+        incr = 0.001,
+        soft_max,
+        unit = "degrees"
+    )]
     pub collision_decimation_angle: f32,
     /// Maximum number of iterations for performing collision mesh decimation.
     /// The mesh will automatically stop decimating if nothing changes after an iteration.
+    #[setting(default = 100, min = 0.0, max = 500.0, incr = 1.0, soft_max)]
     pub collision_decimation_iterations: u32,
 }
 
