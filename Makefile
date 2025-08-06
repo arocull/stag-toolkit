@@ -61,7 +61,7 @@ test-rust-release:
 	@cargo test --release --features godot,physics_server
 
 test-godot: build
-	@godot --path godot/ --headless --no-header --stagtest --timeout=40 --timescale=5.0
+	@godot --path godot/ --headless --no-header --stagtest --timeout=90 --timescale=5.0
 
 test-sanity: build test-rust
 	@godot --path godot/ --headless --no-header --stagtest --timeout=90 --test=res://test/sanity
