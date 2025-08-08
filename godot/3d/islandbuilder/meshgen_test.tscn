@@ -22,7 +22,6 @@ navigation_properties = SubResource("NavIslandProperties_rd51c")
 output_to = NodePath("../body")
 material_baked = ExtResource("2_lyvhm")
 material_preview = ExtResource("3_0xy63")
-bake_normals = true
 visible = false
 metadata/volume = 4.75614
 

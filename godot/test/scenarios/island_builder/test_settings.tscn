@@ -1,0 +1,18 @@
+[gd_scene load_steps=6 format=3 uid="uid://dq40hhqttmj80"]
+
+[ext_resource type="Script" uid="uid://bm6smftlsnx0s" path="res://test/scenarios/island_builder/test_settings.gd" id="1_x1sj7"]
+
+[sub_resource type="IslandBuilderSettingsCollision" id="IslandBuilderSettingsCollision_x1sj7"]
+
+[sub_resource type="IslandBuilderSettingsMesh" id="IslandBuilderSettingsMesh_x1sj7"]
+
+[sub_resource type="IslandBuilderSettingsVoxels" id="IslandBuilderSettingsVoxels_vs6un"]
+
+[sub_resource type="IslandBuilderSettings" id="IslandBuilderSettings_l2en3"]
+voxels = SubResource("IslandBuilderSettingsVoxels_vs6un")
+mesh = SubResource("IslandBuilderSettingsMesh_x1sj7")
+collision = SubResource("IslandBuilderSettingsCollision_x1sj7")
+
+[node name="TestSettings" type="Node"]
+script = ExtResource("1_x1sj7")
+settings = SubResource("IslandBuilderSettings_l2en3")

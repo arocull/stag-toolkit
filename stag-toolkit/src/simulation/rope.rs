@@ -130,10 +130,10 @@ impl RopeData {
         index: usize,
         binding_map: &HashMap<usize, Vec3>,
     ) -> Option<Vec3> {
-        if let Some(prev_bind) = binding_map.get(&self.tension[index].previous_bind_index) {
-            if let Some(next_bind) = binding_map.get(&self.tension[index].next_bind_index) {
-                return Some(prev_bind.lerp(*next_bind, self.tension[index].factor));
-            }
+        if let Some(prev_bind) = binding_map.get(&self.tension[index].previous_bind_index)
+            && let Some(next_bind) = binding_map.get(&self.tension[index].next_bind_index)
+        {
+            return Some(prev_bind.lerp(*next_bind, self.tension[index].factor));
         }
         None
     }

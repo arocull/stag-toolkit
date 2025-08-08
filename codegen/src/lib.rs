@@ -29,11 +29,11 @@ pub fn expose_settings_fn(input: TokenStream) -> TokenStream {
                 {
                     let args: SettingAttr = attr.parse_args().unwrap();
 
-                    if let Some(settings) = args.setting {
-                        if let Some(default) = settings.default {
-                            use_default = false;
-                            defaults_list.extend(quote! {#identifier:#default,})
-                        }
+                    if let Some(settings) = args.setting
+                        && let Some(default) = settings.default
+                    {
+                        use_default = false;
+                        defaults_list.extend(quote! {#identifier:#default,})
                     }
                 }
 
@@ -253,9 +253,9 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                     #[func]
                     fn #setter_name(&mut self, value: #type_tokens) {
                         self.#identifier = value;
+                        self.base_mut().emit_changed();
                         self.signals().setting_changed().emit();
                     }
-
                 })
             }
 

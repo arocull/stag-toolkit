@@ -425,10 +425,8 @@ impl Data {
             // Now, join all meshes together
             let mut mesh_final = TriangleMesh::default();
 
-            for mesh_option in meshes.iter() {
-                if let Some(mesh) = mesh_option {
-                    mesh_final.join(mesh);
-                }
+            for mesh in meshes.iter().flatten() {
+                mesh_final.join(mesh);
             }
 
             self.volume = volume;

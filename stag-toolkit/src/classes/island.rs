@@ -899,10 +899,10 @@ impl IslandBuilder {
             target.add_child(&shape); // Add shape to scene
 
             // Set shape owner so it is included and saved within the scene
-            if let Some(tree) = target.get_tree() {
-                if let Some(root) = tree.get_edited_scene_root() {
-                    shape.set_owner(&root);
-                }
+            if let Some(tree) = target.get_tree()
+                && let Some(root) = tree.get_edited_scene_root()
+            {
+                shape.set_owner(&root);
             }
         }
 
@@ -915,13 +915,13 @@ impl IslandBuilder {
         }
 
         // If possible, apply maximum health too
-        if let Some(mut p) = target.clone().get_parent() {
-            if p.has_method("set_maximum_health") {
-                p.call(
-                    "set_maximum_health",
-                    &[Variant::from(volume * self.gameplay_health_density)],
-                );
-            }
+        if let Some(mut p) = target.clone().get_parent()
+            && p.has_method("set_maximum_health")
+        {
+            p.call(
+                "set_maximum_health",
+                &[Variant::from(volume * self.gameplay_health_density)],
+            );
         }
     }
 
@@ -939,10 +939,10 @@ impl IslandBuilder {
         }
 
         // Otherwise, apply navigation properties to target's parent
-        if let Some(mut parent) = p.get_parent() {
-            if parent.has_method("set_navigation_properties") {
-                parent.callv("set_navigation_properties", &varray![Variant::from(props)]);
-            }
+        if let Some(mut parent) = p.get_parent()
+            && parent.has_method("set_navigation_properties")
+        {
+            parent.callv("set_navigation_properties", &varray![Variant::from(props)]);
         }
     }
 
