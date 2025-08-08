@@ -187,7 +187,9 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                 // Perform Rust -> Godot type conversions as necessary for the field type
                 // Type conversions should work both ways
                 (type_tokens, type_conversion) = match type_tokens.to_string().as_str() {
+                    "Vec2" => (quote! {Vector2}, quote! {.to_vector2()}),
                     "Vec3" => (quote! {Vector3}, quote! {.to_vector3()}),
+                    "Vec4" => (quote! {Vector4}, quote! {.to_vector4()}),
                     _ => (type_tokens, type_conversion),
                 };
 
@@ -291,7 +293,7 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                     #setters
 
                     /// Converts this resource into a corresponding pure Rust struct.
-                    fn to_struct(&self) -> #struct_identifier {
+                    pub fn to_struct(&self) -> #struct_identifier {
                         #struct_identifier {
                             #to_original_fields
                         }
@@ -299,7 +301,7 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
 
                     /// Applies the corresponding Pure rust struct to this Resource,
                     /// overriding all properties.
-                    fn from_struct(&mut self, settings: #struct_identifier) {
+                    pub fn from_struct(&mut self, settings: #struct_identifier) {
                         #from_original_fields
                     }
                 }

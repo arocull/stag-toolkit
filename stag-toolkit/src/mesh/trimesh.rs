@@ -5,7 +5,7 @@ use crate::math::{
 };
 use glam::Vec4Swizzles;
 use std::collections::HashMap;
-
+use std::num::NonZero;
 // EDGES //
 
 /// A mesh edge of vertex indices. In counter-clockwise winding order.
@@ -183,6 +183,9 @@ impl TriangleOperations for Triangle {
 
 // MESHES //
 
+/// An edge with a face (index 0), that may or may not have a corresponding face on the reversed edge (index 1).
+pub type EdgeTriangles = (usize, Option<NonZero<usize>>);
+
 /// Container for triangle mesh data.
 #[derive(Clone, PartialEq, Default)]
 pub struct TriangleMesh {
@@ -195,6 +198,9 @@ pub struct TriangleMesh {
     pub normals: Vec<Vec3>,
     /// Optional color data, assigned to vertices of the corresponding index.
     pub colors: Vec<Vec4>,
+
+    pub uv1: Option<Vec<Vec2>>,
+    pub uv2: Option<Vec<Vec2>>,
 }
 
 impl TriangleMesh {
@@ -211,21 +217,22 @@ impl TriangleMesh {
             // Default normals to an empty vector if not included
             normals: normals.unwrap_or_default(),
             colors: colors.unwrap_or_default(),
+            uv1: None,
+            uv2: None,
         }
     }
 
     /// Creates a new TriangleMesh from a list of indices.
     /// Every three indices are expected to represent a triangle, with counter-clockwise face winding.
     /// Each index has a corresponding vertex position and normal.
-    /// List of normals is optional.
+    /// A list of normals is optional.
     pub fn from_indices(
         indices: Vec<usize>,
         positions: Vec<Vec3>,
         normals: Option<Vec<Vec3>>,
     ) -> Self {
         // Reserve triangles
-        let mut tris: Vec<Triangle> = vec![];
-        tris.reserve_exact(indices.len() / 3);
+        let mut tris: Vec<Triangle> = Vec::with_capacity(indices.len() / 3);
 
         // Create triangles for each index
         for i in 0..(indices.len() / 3) {
@@ -238,6 +245,8 @@ impl TriangleMesh {
             // Default normals to an empty vector if not included
             normals: normals.unwrap_or_default(),
             colors: vec![],
+            uv1: None,
+            uv2: None,
         }
     }
 
@@ -246,7 +255,7 @@ impl TriangleMesh {
     pub fn join(&mut self, mesh: &Self) {
         let idx_count = self.positions.len();
 
-        // Glomp in other mesh's positions and normals
+        // Glomp in the other mesh's positions and normals
         self.positions.append(&mut mesh.positions.clone());
         self.normals.append(&mut mesh.normals.clone());
 
@@ -304,9 +313,10 @@ impl TriangleMesh {
 
     /// Returns a hash map of edges.
     /// For each edge, the left and right face index is returned, in order.
-    /// The mesh is assumed to be manifold (each edge has exactly two faces).
-    pub fn edge_map(&self) -> HashMap<Edge, [usize; 2]> {
-        let mut edges = HashMap::<Edge, [usize; 2]>::new();
+    /// This method assumes that each edge has a maximum of two faces,
+    /// but it does not expect the mesh to be watertight.
+    pub fn edge_map(&self) -> HashMap<Edge, EdgeTriangles> {
+        let mut edges = HashMap::<Edge, EdgeTriangles>::new();
 
         for (idx, tri) in self.triangles.iter().enumerate() {
             for edge in tri.edges() {
@@ -316,10 +326,13 @@ impl TriangleMesh {
                 // If we found a key already existing for our reverse edge,
                 // fill in our face index as the right face
                 if let Some(faces) = edges.get_mut(&flip) {
-                    faces[1] = idx;
+                    #[cfg(debug_assertions)]
+                    assert_ne!(0, idx, "face index on reverse edge should never be zero");
+
+                    faces.1 = NonZero::new(idx);
                 } else {
                     // Otherwise, insert a key with this face for our edge
-                    edges.insert(edge, [idx, 0]);
+                    edges.insert(edge, (idx, None));
                 }
             }
         }
@@ -348,11 +361,11 @@ impl TriangleMesh {
     }
 
     /// Decimates the mesh by removing all immediate edges with an angle less than the given threshold.
-    /// When the amount of triangles removed per decimation falls under the `minimum_dropout` threshold,
+    /// When the number of triangles removed per decimation falls under the `minimum_dropout` threshold,
     /// the algorithm stops decimating triangles.
-    pub fn decimate_planar(&mut self, threshold: f32, iterations: i32, minimum_dropout: u32) {
+    pub fn decimate_planar(&mut self, threshold: f32, iterations: u32, minimum_dropout: u32) {
         // Do nothing if invalid.
-        if iterations <= 0 {
+        if iterations == 0 {
             return;
         }
 
@@ -362,9 +375,10 @@ impl TriangleMesh {
 
             // Collapse all edges below the threshold
             let mut count = 0;
-            for (edge, [left_idx, right_idx]) in edges.iter() {
-                if self.face_angle(&self.triangles[*left_idx], &self.triangles[*right_idx])
-                    < threshold
+            for (edge, (left_idx, right_idx)) in edges.iter() {
+                if let Some(right_idx) = right_idx
+                    && self.face_angle(&self.triangles[*left_idx], &self.triangles[right_idx.get()])
+                        < threshold
                 {
                     self.edge_collapse(edge);
                     count += 1;
@@ -555,11 +569,28 @@ impl TriangleMesh {
         sum
     }
 
+    /// Shrinks mesh buffers to only use the necessary amount of memory.
+    pub fn shrink_to_fit(&mut self) {
+        self.triangles.shrink_to_fit();
+        self.positions.shrink_to_fit();
+        self.normals.shrink_to_fit();
+        self.colors.shrink_to_fit();
+        if let Some(mut uv1) = self.uv1.take() {
+            uv1.shrink_to_fit();
+            self.uv1 = Some(uv1);
+        }
+        if let Some(mut uv2) = self.uv2.take() {
+            uv2.shrink_to_fit();
+            self.uv1 = Some(uv2);
+        }
+    }
+
     /// Performs all existing optimization steps on the triangle mesh.
     pub fn optimize(&mut self, merge_distance: f32) {
         self.merge_by_distance(merge_distance);
         self.remove_degenerate();
         self.remove_unused();
+        self.shrink_to_fit();
     }
 }
 
@@ -613,7 +644,7 @@ impl Raycast for TriangleMesh {
 mod tests {
     use std::f32;
 
-    use super::TriangleMesh;
+    use super::{Edge, EdgeTriangles, TriangleMesh};
     use crate::math::raycast::RaycastParameters;
     use crate::{
         math::raycast::Raycast,
@@ -622,6 +653,19 @@ mod tests {
     use glam::{Vec3, vec3};
 
     const MAX_DIFFERENCE: f32 = 1e-7;
+
+    /// Sanity test. Validate that EdgeMapEdge does not take extra memory.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn type_sizes() {
+        assert_eq!(8 * 2, std::mem::size_of::<Edge>(), "edge");
+        assert_eq!(
+            8 * 2,
+            std::mem::size_of::<EdgeTriangles>(),
+            "edge triangles"
+        );
+        assert_eq!(8 * 3, std::mem::size_of::<Triangle>(), "triangle");
+    }
 
     #[test]
     fn test_calculate_normal() {

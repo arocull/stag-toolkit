@@ -65,9 +65,21 @@ impl GodotSurfaceArrays {
     pub fn from_trimesh(mesh: &TriangleMesh) -> Self {
         let mut surface = Self::new();
 
-        surface.set_vertices(mesh.positions.clone().to_vector3());
-        surface.set_normals(mesh.normals.clone().to_vector3());
         surface.set_indices(packed_index_array_usize(mesh.indices()));
+        surface.set_vertices(mesh.positions.to_vector3());
+
+        if !mesh.normals.is_empty() {
+            surface.set_normals(mesh.normals.to_vector3());
+        }
+        if !mesh.colors.is_empty() {
+            surface.set_colors(mesh.colors.to_color());
+        }
+        if let Some(uv1) = &mesh.uv1 {
+            surface.set_uv2(uv1.to_vector2());
+        }
+        if let Some(uv2) = &mesh.uv2 {
+            surface.set_uv1(uv2.to_vector2());
+        }
 
         surface
     }
@@ -107,8 +119,8 @@ impl GodotSurfaceArrays {
     }
 
     /// Returns a copy of the surface arrays, for passing to Godot.
-    pub fn get_surface_arrays(&self) -> Array<Variant> {
-        self.surface_arrays.clone()
+    pub fn get_surface_arrays(&self) -> &Array<Variant> {
+        &self.surface_arrays
     }
 }
 

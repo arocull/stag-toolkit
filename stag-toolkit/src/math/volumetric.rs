@@ -1,64 +1,6 @@
-use glam::{FloatExt, Mat4, Vec3};
-use noise::{NoiseFn, Perlin, Seedable};
+use crate::math::noise::Perlin1D;
+use glam::{FloatExt, Mat4, Vec3, Vec4};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
-
-/// Perlin noise implementation that generates a 3D output value
-#[derive(Clone, Copy)]
-pub struct PerlinField {
-    x: Perlin,
-    y: Perlin,
-    z: Perlin,
-    /// Frequency on each noise axis
-    pub frequency: [f64; 4],
-}
-
-impl PerlinField {
-    /// Creates a new 3D perlin noise field
-    pub fn new(seed_x: u32, seed_y: u32, seed_z: u32, frequency: f64) -> Self {
-        Self {
-            x: Perlin::new(seed_x),
-            y: Perlin::new(seed_y),
-            z: Perlin::new(seed_z),
-            frequency: [frequency, frequency, frequency, frequency],
-        }
-    }
-
-    /// Returns the X, Y, and Z seeds of the respective noise generators
-    pub fn get_seed(&self) -> (u32, u32, u32) {
-        (self.x.seed(), self.y.seed(), self.z.seed())
-    }
-    /// Sets the X, Y, and Z seeds of the respective noise generator
-    pub fn set_seed(&mut self, seed_x: u32, seed_y: u32, seed_z: u32) {
-        self.x.set_seed(seed_x);
-        self.y.set_seed(seed_y);
-        self.z.set_seed(seed_z);
-    }
-
-    /// Samples the noise field and returns a 3D vector, each value between -1 and 1
-    pub fn sample(&self, position: Vec3, w: f64) -> Vec3 {
-        let sample_pt = self.get_sample_point(position, w);
-        Vec3::new(
-            self.x.get(sample_pt) as f32,
-            self.y.get(sample_pt) as f32,
-            self.z.get(sample_pt) as f32,
-        )
-    }
-
-    /// Samples the noise field and returns a single value between -1 and 1
-    pub fn sample_single(&self, position: Vec3, w: f64) -> f64 {
-        let sample_pt = self.get_sample_point(position, w);
-        self.x.get(sample_pt)
-    }
-
-    fn get_sample_point(&self, position: Vec3, w: f64) -> [f64; 4] {
-        [
-            position.x as f64 * self.frequency[0],
-            position.y as f64 * self.frequency[1],
-            position.z as f64 * self.frequency[2],
-            w * self.frequency[3],
-        ]
-    }
-}
 
 /// A container for storing volume data
 #[derive(Clone)]
@@ -231,13 +173,13 @@ impl VolumeData<f32> {
     }
 
     /// In-place adds noise to the volumetric.
-    pub fn noise_add(&mut self, noise: &PerlinField, transform: Mat4, w: f64, amplitude: f32) {
+    pub fn noise_add(&mut self, noise: &Perlin1D, transform: Mat4, w: f32) {
         for i in 0usize..self.size {
             let [x, y, z] = self.delinearize(i as u32);
 
             let sample_pos = transform.transform_point3(Vec3::new(x as f32, y as f32, z as f32));
 
-            self.data[i] += (noise.sample_single(sample_pos, w) as f32) * amplitude;
+            self.data[i] += noise.sample(Vec4::from((sample_pos, w))) as f32;
         }
     }
 }

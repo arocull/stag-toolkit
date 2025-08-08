@@ -1,5 +1,6 @@
 use crate::mesh::island::{
     IslandBuilderSettingsCollision, IslandBuilderSettingsMesh, IslandBuilderSettingsVoxels,
+    SettingsCollision, SettingsMesh, SettingsVoxels,
 };
 use godot::classes::Material;
 use godot::prelude::*;
@@ -213,4 +214,25 @@ impl IslandBuilderSettings {
     /// Emitted when the `collision` settings resource is changed, or a collision setting changes.
     #[signal]
     fn setting_changed_collision();
+
+    pub fn get_internal_voxel_settings(&self) -> SettingsVoxels {
+        if let Some(settings) = self.voxels.clone() {
+            return settings.bind().to_struct();
+        }
+        SettingsVoxels::default()
+    }
+
+    pub fn get_internal_mesh_settings(&self) -> SettingsMesh {
+        if let Some(settings) = self.mesh.clone() {
+            return settings.bind().to_struct();
+        }
+        SettingsMesh::default()
+    }
+
+    pub fn get_internal_collision_settings(&self) -> SettingsCollision {
+        if let Some(settings) = self.collision.clone() {
+            return settings.bind().to_struct();
+        }
+        SettingsCollision::default()
+    }
 }

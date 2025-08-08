@@ -1,15 +1,15 @@
 use crate::math::bounding_box::BoundingBox;
-use crate::math::sdf::{Shape, sample_shape_list, shape_list_bounds};
+use crate::math::noise::{Perlin1D, Perlin3D};
+use crate::math::sdf::{Shape, ShapeOperation, sample_shape_list, shape_list_bounds};
 use crate::math::volumetric::VolumeData;
 use crate::mesh::nets::mesh_from_nets;
-use crate::mesh::trimesh::TriangleMesh;
+use crate::mesh::trimesh::{TriangleMesh, TriangleOperations};
 use fast_surface_nets::{SurfaceNetsBuffer, ndshape::ConstShape, surface_nets};
-use glam::{Mat4, Quat, Vec3};
+use glam::{FloatExt, Mat4, Quat, Vec2, Vec3, Vec4};
 use ndshape::ConstShape3u32;
 use rayon::prelude::*;
 use stag_toolkit_codegen::{ExposeSettings, settings_resource_from};
 use std::mem::swap;
-
 #[cfg(feature = "godot")]
 use {crate::math::types::ToVector3, godot::prelude::*};
 
@@ -28,6 +28,27 @@ pub struct SettingsVoxels {
     #[setting(default=Vec3::splat(0.275), min=0.05, max=1.0, incr=0.001, soft_max, unit="m")]
     pub voxel_size: Vec3,
 
+    /// Frequency of noise directly added to the SDF sampling value, in local space.
+    #[setting(default=Vec3::splat(0.05),min=0.0,max=10.0,incr=0.001,soft_max)]
+    pub sampling_density_noise_frequency: Vec3,
+    /// Amplitude of noise directly added to the SDF sampling value.
+    #[setting(
+        default = 0.1,
+        min = 0.0,
+        max = 1.5,
+        incr = 0.001,
+        soft_max,
+        unit = "m"
+    )]
+    pub sampling_density_noise_amplitude: f64,
+
+    /// Frequency of noise directly added to the SDF sampling position.
+    #[setting(default=Vec3::splat(0.07),min=0.0,max=1.0,incr=0.001,soft_max)]
+    pub sampling_offset_noise_frequency: Vec3,
+    #[setting(default=Vec3::splat(0.01),min=0.0,max=1.0,incr=0.001,soft_max,unit="m")]
+    /// Amplitude of noise directly added to the SDF sampling position.
+    pub sampling_offset_noise_amplitude: Vec3,
+
     /// Rounding distance to apply to edges of Signed Distance Field primitives.
     #[setting(default = 1.6, min = 0.0, max = 2.0, soft_max, unit = "m")]
     pub sdf_edge_radius: f32,
@@ -41,13 +62,10 @@ pub struct SettingsVoxels {
     #[setting(default = 0.95, min = 0.0, max = 1.0)]
     pub sdf_smooth_weight: f32,
 
-    /// Frequency scale for striation noise on local X and Z axii.
-    #[setting(default = 0.1, min = 0.0, max = 10.0, incr = 0.001, soft_max)]
-    pub striation_scale_xz: f32,
-    /// Frequency scale for striation noise on local Y axis.
-    #[setting(default = 10.0, min = 0.0, max = 10.0, incr = 0.001, soft_max)]
-    pub striation_scale_y: f32,
-    /// Amplitude of striation noise on local X and Z axii.
+    /// Frequency scale for striation noise on each local axis.
+    #[setting(default = Vec3::new(0.1,10.0,0.1), min = 0.0, max = 10.0, incr = 0.001, soft_max)]
+    pub striation_frequency: Vec3,
+    /// Amplitude of striation noise on each local axis.
     #[setting(
         default = 0.2,
         min = 0.0,
@@ -56,17 +74,7 @@ pub struct SettingsVoxels {
         soft_max,
         unit = "m"
     )]
-    pub striation_amplitude_xz: f32,
-    /// Amplitude of striation noise on local Y axis.
-    #[setting(
-        default = 0.01,
-        min = 0.0,
-        max = 10.0,
-        incr = 0.001,
-        soft_max,
-        unit = "m"
-    )]
-    pub striation_amplitude_y: f32,
+    pub striation_amplitude: f64,
 
     /// Number of voxels per worker group.
     /// This is a performance setting and will not affect the output result.
@@ -87,7 +95,7 @@ pub struct SettingsMesh {
         soft_max,
         unit = "m"
     )]
-    pub mesh_vertex_merge_distance: f32,
+    pub vertex_merge_distance: f32,
 
     /// Whether to bake Ambient Occlusion to the Red channel.
     /// The Red channel defaults to 1.0 if Ambient Occlusion is not baked.
@@ -123,7 +131,7 @@ pub struct SettingsMesh {
 
     /// XYZ frequency scale when sampling perlin noise for baking into the Alpha channel.
     #[setting(default=Vec3::new(0.75,0.33,0.75),min=0.0,max=2.0,incr=0.001,soft_max)]
-    pub mask_perlin_scale: Vec3,
+    pub mask_perlin_frequency: Vec3,
 }
 
 /// Settings for collision generation.
@@ -132,10 +140,10 @@ pub struct SettingsMesh {
 pub struct SettingsCollision {
     /// Whether to merge collision vertices on non-manifold edges.
     #[setting(default = false)]
-    pub collision_merge_nonmanifold_edges: bool,
+    pub merge_nonmanifold_edges: bool,
     /// Whether to perform collision decimation on non-manifold edges.
-    #[setting(default = false)]
-    pub collision_decimate_nonmanifold_edges: bool,
+    // #[setting(default = false)]
+    // pub decimate_nonmanifold_edges: bool,
     /// Distance threshold for vertices to be merged for the collision hull.
     #[setting(
         default = 0.15,
@@ -145,7 +153,7 @@ pub struct SettingsCollision {
         soft_max,
         unit = "m"
     )]
-    pub collision_vertex_merge_distance: f32,
+    pub vertex_merge_distance: f32,
     /// Angular threshold for decimating triangles used in physics collisions. In degrees.
     /// If zero, mesh decimation will not occur.
     #[setting(
@@ -156,11 +164,33 @@ pub struct SettingsCollision {
         soft_max,
         unit = "degrees"
     )]
-    pub collision_decimation_angle: f32,
+    pub decimation_angle: f32,
     /// Maximum number of iterations for performing collision mesh decimation.
     /// The mesh will automatically stop decimating if nothing changes after an iteration.
     #[setting(default = 100, min = 0.0, max = 500.0, incr = 1.0, soft_max)]
-    pub collision_decimation_iterations: u32,
+    pub decimation_iterations: u32,
+
+    /// Stops the decimation if this many triangles or less were removed during the last decimation step.
+    /// This makes collision much faster to generate as it avoids chaining many steps with little gain,
+    /// at the cost of some determinism and a (very *very* slightly) more optimized mesh.
+    ///
+    /// Example: scanning a 5000-triangle mesh only to remove 1 edge is a lot of wasted computation time.
+    #[setting(default = 8, min = 0.0, max = 24.0, incr = 1.0, soft_max)]
+    pub decimation_dropout: u32,
+}
+
+/// Tweakable settings for a specific [IslandBuilder].
+#[derive(Copy, Clone, PartialEq, ExposeSettings)]
+#[settings_resource_from(IslandBuilderSettingsTweaks, Resource)]
+pub struct SettingsTweaks {
+    /// Seed for noise parameters.
+    #[setting(default = 0, min = 0.0, max = 4294967295.0)]
+    pub seed: u32,
+
+    pub w_sampling_density: f64,
+    pub w_sampling_offset: f64,
+    pub w_striation: f64,
+    pub w_mask: f64,
 }
 
 #[derive(Clone, Default)]
@@ -168,6 +198,12 @@ pub struct Data {
     settings_voxels: SettingsVoxels,
     settings_mesh: SettingsMesh,
     settings_collision: SettingsCollision,
+    tweaks: SettingsTweaks,
+
+    noise_sdf_density: Perlin1D,
+    noise_sdf_sampling: Perlin3D,
+    noise_striation: Perlin1D,
+    noise_mask: Perlin1D,
 
     shapes: Vec<Shape>,
 
@@ -187,11 +223,17 @@ impl Data {
         settings_voxels: SettingsVoxels,
         settings_mesh: SettingsMesh,
         settings_collision: SettingsCollision,
+        settings_tweaks: SettingsTweaks,
     ) -> Self {
         Self {
             settings_voxels,
             settings_mesh,
             settings_collision,
+            tweaks: settings_tweaks,
+            noise_sdf_density: Perlin1D::default(),
+            noise_sdf_sampling: Perlin3D::default(),
+            noise_striation: Perlin1D::default(),
+            noise_mask: Perlin1D::default(),
             shapes: vec![],
             bounds: BoundingBox::default(),
             voxels: None,
@@ -200,6 +242,30 @@ impl Data {
             hulls: vec![],
             volume: 0.0,
         }
+    }
+
+    pub fn get_volume(&self) -> f32 {
+        self.volume
+    }
+
+    pub fn get_bounds(&self) -> BoundingBox {
+        self.bounds
+    }
+
+    pub fn get_shapes(&self) -> &Vec<Shape> {
+        &self.shapes
+    }
+
+    pub fn get_mesh_preview(&self) -> Option<&TriangleMesh> {
+        self.mesh_preview.as_ref()
+    }
+
+    pub fn get_mesh_baked(&self) -> Option<&TriangleMesh> {
+        self.mesh_baked.as_ref()
+    }
+
+    pub fn get_hulls(&self) -> &Vec<TriangleMesh> {
+        self.hulls.as_ref()
     }
 
     /// Clears all generated data.
@@ -226,6 +292,36 @@ impl Data {
         if self.settings_voxels != settings {
             self.settings_voxels = settings;
             self.dirty_voxels();
+
+            let frequency = self.settings_voxels.sampling_density_noise_frequency;
+            self.noise_sdf_density.frequency = [
+                frequency.x as f64,
+                frequency.y as f64,
+                frequency.z as f64,
+                self.tweaks.w_sampling_density,
+            ];
+            self.noise_sdf_density.amplitude =
+                self.settings_voxels.sampling_density_noise_amplitude;
+
+            let frequency = self.settings_voxels.sampling_offset_noise_frequency;
+            self.noise_sdf_sampling.frequency = [
+                frequency.x as f64,
+                frequency.y as f64,
+                frequency.z as f64,
+                self.tweaks.w_sampling_offset,
+            ];
+            let amplitude = self.settings_voxels.sampling_offset_noise_amplitude;
+            self.noise_sdf_sampling.amplitude =
+                [amplitude.x as f64, amplitude.y as f64, amplitude.z as f64];
+
+            let frequency = self.settings_voxels.striation_frequency;
+            self.noise_striation.frequency = [
+                frequency.x as f64,
+                frequency.y as f64,
+                frequency.z as f64,
+                self.tweaks.w_striation,
+            ];
+            self.noise_striation.amplitude = self.settings_voxels.striation_amplitude;
         }
     }
 
@@ -234,6 +330,14 @@ impl Data {
         if self.settings_mesh != settings {
             self.settings_mesh = settings;
             self.dirty_mesh();
+
+            let frequency = self.settings_mesh.mask_perlin_frequency;
+            self.noise_mask.frequency = [
+                frequency.x as f64,
+                frequency.y as f64,
+                frequency.z as f64,
+                self.tweaks.w_mask,
+            ];
         }
     }
 
@@ -242,6 +346,19 @@ impl Data {
         if self.settings_collision != settings {
             self.settings_collision = settings;
             self.dirty_collision();
+        }
+    }
+
+    pub fn set_tweaks(&mut self, settings: SettingsTweaks) {
+        if self.tweaks != settings {
+            self.tweaks = settings;
+            self.dirty_voxels();
+
+            // update noise seeds
+            self.noise_sdf_sampling.set_seed(settings.seed);
+            self.noise_sdf_sampling.set_seed(settings.seed + 3);
+            self.noise_striation.set_seed(settings.seed + 6);
+            self.noise_mask.set_seed(settings.seed + 9);
         }
     }
 
@@ -260,17 +377,11 @@ impl Data {
             return;
         }
 
-        let striation_amplitude = Vec3::new(
-            self.settings_voxels.striation_amplitude_xz,
-            self.settings_voxels.striation_amplitude_y,
-            self.settings_voxels.striation_amplitude_xz,
-        )
-        .abs();
         let padding_size: Vec3 =
             self.settings_voxels.voxel_size * self.settings_voxels.voxel_padding as f32;
 
         let bounds = shape_list_bounds(&self.shapes)
-            .expand_vector(striation_amplitude.abs())
+            .expand_margin(self.settings_voxels.striation_amplitude as f32)
             .expand_vector(padding_size.abs());
 
         let approx_cells = bounds.size() / self.settings_voxels.voxel_size;
@@ -290,17 +401,28 @@ impl Data {
         );
 
         // Sample island SDF in chunks
+        let noise_density = &self.noise_sdf_density;
+        let noise_sampling = &self.noise_sdf_sampling;
         voxels.data = voxel_workers
             .par_iter_mut()
             .flat_map(|worker| -> Vec<f32> {
                 for i in 0u32..worker.range_width {
                     let [x, y, z] = voxels.delinearize(i + worker.range_min);
 
-                    let sample_pos =
+                    let mut sample_pos =
                         transform.transform_point3(Vec3::new(x as f32, y as f32, z as f32));
-                    let sample = sample_shape_list(&self.shapes, sample_pos);
+                    sample_pos += noise_sampling.sample(Vec4::from((
+                        sample_pos,
+                        self.tweaks.w_sampling_offset as f32,
+                    )));
 
-                    worker.data[i as usize] = sample;
+                    let sample = sample_shape_list(&self.shapes, sample_pos);
+                    let add_in = noise_density.sample(Vec4::from((
+                        sample_pos,
+                        self.tweaks.w_sampling_density as f32,
+                    )));
+
+                    worker.data[i as usize] = sample + add_in as f32;
                 }
 
                 worker.data.clone()
@@ -328,7 +450,11 @@ impl Data {
             }
         }
 
-        // TODO: add noise
+        voxels.noise_add(
+            &self.noise_striation,
+            transform,
+            self.tweaks.w_striation as f32,
+        );
 
         voxels.set_padding(self.settings_voxels.voxel_padding, 10.0);
 
@@ -336,7 +462,7 @@ impl Data {
         self.voxels = Some(voxels);
     }
 
-    // Bakes a preview mesh if able.
+    /// Bakes a preview mesh if able.
     pub fn bake_preview(&mut self) {
         if self.mesh_preview.is_some() {
             return;
@@ -432,6 +558,135 @@ impl Data {
 
             self.volume = volume;
             self.mesh_preview = Some(mesh_final);
+        }
+    }
+
+    pub fn bake_mesh(&mut self) {
+        if self.mesh_baked.is_some() {
+            return;
+        }
+
+        self.bake_preview();
+        if let Some(mut mesh) = self.mesh_preview.clone() {
+            mesh.optimize(self.settings_mesh.vertex_merge_distance);
+            mesh.bake_normals_smooth();
+
+            let mut colors: Vec<Vec4> = Vec::with_capacity(mesh.count_vertices());
+            let mut uv1: Vec<Vec2> = Vec::with_capacity(mesh.count_vertices());
+            let mut uv2: Vec<Vec2> = Vec::with_capacity(mesh.count_vertices());
+
+            for idx in 0..mesh.count_vertices() {
+                let position = mesh.positions[idx];
+                let normal = mesh.normals[idx];
+
+                uv1.push(Vec2::new(position.x + position.z, position.y));
+                uv2.push(Vec2::new(position.x, position.z));
+
+                // TODO: bake ambient occlusion
+                let ao = 1.0;
+
+                let dot = normal.dot(normal);
+                let mask_dirt = dot
+                    .remap(
+                        self.settings_mesh.mask_dirt_minimum,
+                        self.settings_mesh.mask_dirt_maximum,
+                        0.0,
+                        1.0,
+                    )
+                    .powf(self.settings_mesh.mask_dirt_exponent)
+                    .clamp(0.0, 1.0);
+                let mask_sand = dot
+                    .remap(
+                        self.settings_mesh.mask_sand_minimum,
+                        self.settings_mesh.mask_sand_maximum,
+                        0.0,
+                        1.0,
+                    )
+                    .powf(self.settings_mesh.mask_sand_exponent)
+                    .clamp(0.0, 1.0);
+
+                let noise = self
+                    .noise_mask
+                    .sample(Vec4::from((position, self.tweaks.w_striation as f32)));
+
+                colors.push(Vec4::new(ao, mask_dirt, mask_sand, noise as f32));
+            }
+
+            mesh.colors = colors;
+            self.mesh_baked = Some(mesh);
+        }
+    }
+
+    pub fn bake_collision(&mut self) {
+        if !self.hulls.is_empty() {
+            return;
+        }
+
+        if let Some(mesh) = self.mesh_preview.clone() {
+            // Get a list of all union shapes
+            let mut shapes = self.shapes.clone();
+            shapes.retain(|shape| shape.operation == ShapeOperation::Union);
+
+            if shapes.is_empty() {
+                return;
+            }
+
+            let mut hulls: Vec<TriangleMesh> = Vec::with_capacity(shapes.len());
+            let tri_prealloc = mesh.triangles.len(); // At most, we can hold this many triangles
+
+            // Generate each triangle mesh with our original mesh positions
+            for _ in shapes.iter() {
+                let trimesh = TriangleMesh::new(
+                    Vec::with_capacity(tri_prealloc),
+                    mesh.positions.clone(),
+                    None,
+                    None,
+                );
+
+                hulls.push(trimesh);
+            }
+
+            // Assign each triangle to the nearest collision hull
+            for tri in mesh.triangles.iter() {
+                let mut min_dist = f32::INFINITY;
+                let mut min_shape_idx = 0;
+
+                // Fetch centerpoint of triangle to use for comparison
+                let center = tri.centerpoint(&mesh.positions);
+
+                for (shape_idx, shape) in shapes.iter().enumerate() {
+                    // TODO: somehow take Intersection CSG into account when sampling shapes,
+                    // so collision shapes that are cut off via intersections,
+                    // do not include shapes added after said intersection.
+
+                    let d = shape.sample(center);
+                    if d < min_dist {
+                        min_dist = d;
+                        min_shape_idx = shape_idx;
+                    }
+                }
+
+                hulls[min_shape_idx].triangles.push(*tri);
+            }
+
+            // Optimize collision meshes in parallel
+            hulls.par_iter_mut().for_each(|mesh| {
+                if self.settings_collision.decimation_angle > 0.0 {
+                    mesh.decimate_planar(
+                        self.settings_collision.decimation_angle.to_radians(),
+                        self.settings_collision.decimation_iterations,
+                        self.settings_collision.decimation_dropout,
+                    );
+                }
+
+                // TODO: optionally do not merge non-manifold edges, if it matters
+                mesh.optimize(self.settings_collision.vertex_merge_distance);
+            });
+
+            // Remove hulls with an insignificant triangle count
+            hulls.retain(|hull| hull.triangles.len() >= 6);
+
+            self.hulls = hulls;
         }
     }
 }
