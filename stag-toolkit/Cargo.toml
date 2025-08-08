@@ -23,7 +23,7 @@ godot = { version = "0.3.0", features = ["api-4-4", "experimental-threads", "reg
 ndshape = "0.3.0"
 noise = "0.9.0"
 rayon = "1.10.0"
-codegen = { path = "../codegen" }
+stag-toolkit-codegen = { path = "../stag-toolkit-codegen" }
 
 [dev-dependencies]
 criterion = { version = "0.6.0", features = ["html_reports"] }

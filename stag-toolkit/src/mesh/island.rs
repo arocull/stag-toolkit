@@ -3,11 +3,11 @@ use crate::math::sdf::{Shape, sample_shape_list, shape_list_bounds};
 use crate::math::volumetric::VolumeData;
 use crate::mesh::nets::mesh_from_nets;
 use crate::mesh::trimesh::TriangleMesh;
-use codegen::{ExposeSettings, settings_resource_from};
 use fast_surface_nets::{SurfaceNetsBuffer, ndshape::ConstShape, surface_nets};
 use glam::{Mat4, Quat, Vec3};
 use ndshape::ConstShape3u32;
 use rayon::prelude::*;
+use stag_toolkit_codegen::{ExposeSettings, settings_resource_from};
 use std::mem::swap;
 
 #[cfg(feature = "godot")]
