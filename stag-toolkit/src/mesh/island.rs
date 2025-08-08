@@ -370,6 +370,7 @@ impl Data {
                 * self.settings_voxels.voxel_size.z;
             let mut volume: f32 = 0.0;
 
+            // Fill our constant-size grids with voxel data for surface nets
             for x in 0..grids_x {
                 for y in 0..grids_y {
                     for z in 0..grids_z {

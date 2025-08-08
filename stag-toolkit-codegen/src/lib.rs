@@ -30,7 +30,7 @@ pub fn expose_settings_fn(input: TokenStream) -> TokenStream {
                     let args: SettingAttr = attr.parse_args().unwrap();
 
                     if let Some(settings) = args.setting
-                        && let Some(default) = settings.default
+                        && let Some(default) = settings.default.clone()
                     {
                         use_default = false;
                         defaults_list.extend(quote! {#identifier:#default,})
@@ -165,6 +165,7 @@ impl Parse for SettingAttr {
 pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(attr as SettingResourceAttr);
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
+    let struct_identifier = &input.ident;
 
     match &input.data {
         syn::Data::Struct(syn::DataStruct { fields, .. }) => {
@@ -173,6 +174,8 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
 
             let mut class_fields = quote! {};
             let mut setters = quote! {};
+            let mut to_original_fields = quote! {};
+            let mut from_original_fields = quote! {};
 
             for field in fields {
                 let identifier = field.ident.as_ref().unwrap();
@@ -182,6 +185,7 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                 let mut type_conversion = quote! {};
 
                 // Perform Rust -> Godot type conversions as necessary for the field type
+                // Type conversions should work both ways
                 (type_tokens, type_conversion) = match type_tokens.to_string().as_str() {
                     "Vec3" => (quote! {Vector3}, quote! {.to_vector3()}),
                     _ => (type_tokens, type_conversion),
@@ -256,7 +260,17 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                         self.base_mut().emit_changed();
                         self.signals().setting_changed().emit();
                     }
-                })
+                });
+
+                // Add a field for creating structs from this Resource
+                // Type conversions should work both ways
+                to_original_fields.extend(quote! {
+                    #identifier: self.#identifier #type_conversion,
+                });
+
+                from_original_fields.extend(quote! {
+                    self.#identifier = settings.#identifier #type_conversion;
+                });
             }
 
             quote! {
@@ -275,6 +289,19 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                     #[signal]
                     fn setting_changed();
                     #setters
+
+                    /// Converts this resource into a corresponding pure Rust struct.
+                    fn to_struct(&self) -> #struct_identifier {
+                        #struct_identifier {
+                            #to_original_fields
+                        }
+                    }
+
+                    /// Applies the corresponding Pure rust struct to this Resource,
+                    /// overriding all properties.
+                    fn from_struct(&mut self, settings: #struct_identifier) {
+                        #from_original_fields
+                    }
                 }
             }
         }
