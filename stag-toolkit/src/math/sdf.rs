@@ -97,7 +97,7 @@ pub struct Shape {
     /// Describes a sphere or cylinder's radius.
     radius: f32,
     /// Describes the edge rounding on the given shape, if available.
-    radius_edge: f32,
+    pub radius_edge: f32,
     /// Describes the dimensions of a box or cylinder.
     dimensions: Vec3,
     /// Transform of the shape. Applied to position before sampling.

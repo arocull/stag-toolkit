@@ -57,6 +57,16 @@ pub struct IslandBuilderSettings {
     #[init(val=None)]
     material_preview: Option<Gd<Material>>,
 
+    #[var(get,set = set_collision_color)]
+    #[export]
+    #[init(val=Color::from_rgba(1.0, 0.0, 0.667, 1.0))]
+    collision_color: Color,
+
+    #[var(get,set = set_render_layers,hint=LAYERS_3D_RENDER)]
+    #[export]
+    #[init(val = 5)]
+    render_layers: u32,
+
     /// A signal connection handle for disconnecting when the [IslandBuilderSettingsVoxels] resource is reassigned.
     #[init(val=None)]
     handle_voxels: Option<ConnectHandle>,
@@ -179,6 +189,18 @@ impl IslandBuilderSettings {
     #[func]
     fn set_material_preview(&mut self, material: Option<Gd<Material>>) {
         self.material_preview = material;
+        self.base_mut().emit_changed();
+    }
+
+    #[func]
+    fn set_collision_color(&mut self, collision_color: Color) {
+        self.collision_color = collision_color;
+        self.base_mut().emit_changed();
+    }
+
+    #[func]
+    fn set_render_layers(&mut self, render_layers: u32) {
+        self.render_layers = render_layers;
         self.base_mut().emit_changed();
     }
 

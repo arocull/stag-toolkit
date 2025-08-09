@@ -1,8 +1,5 @@
 use crate::classes::island_settings::IslandBuilderSettings;
-use crate::mesh::island::{
-    Data, IslandBuilderSettingsTweaks, SettingsCollision, SettingsMesh, SettingsTweaks,
-    SettingsVoxels,
-};
+use crate::mesh::island::{Data, IslandBuilderSettingsTweaks, SettingsTweaks};
 use crate::{
     classes::utils::editor_lock,
     math::types::{ToVector3, gdmath::Vec3Godot},
@@ -10,7 +7,8 @@ use crate::{
 };
 use core::f32;
 use glam::Vec3;
-use godot::classes::ImporterMesh;
+use godot::classes::{Engine, ImporterMesh, ResourceLoader};
+use godot::register::ConnectHandle;
 use godot::{
     classes::{
         ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, MeshInstance3D, ProjectSettings,
@@ -59,12 +57,29 @@ pub struct IslandBuilder {
     #[init(val=NodePath::from("."))]
     output_to: NodePath,
 
+    /// If true, the node will watch for changes in its settings, and regenerate when needed.
+    /// Only during editor.
+    #[var(get,set = set_realtime_preview)]
+    #[export]
+    #[init(val = false)]
+    realtime_preview: bool,
+    /// Task ID for WorkerThreadPool.
+    #[init(val=None)]
+    realtime_preview_task: Option<i64>,
+
+    #[var(get, set=set_tweaks)]
     #[export]
     #[init(val=None)]
     tweaks: Option<Gd<IslandBuilderSettingsTweaks>>,
+    #[var(get, set=set_settings)]
     #[export]
     #[init(val=None)]
     settings: Option<Gd<IslandBuilderSettings>>,
+
+    #[init(val=None)]
+    handle_tweaks: Option<ConnectHandle>,
+    #[init(val=None)]
+    handle_settings: Option<ConnectHandle>,
 
     settings_internal: Gd<IslandBuilderSettings>,
 
@@ -80,11 +95,162 @@ impl INode3D for IslandBuilder {
             .add_to_group_ex(GROUP_NAME)
             .persistent(true)
             .done();
+
+        self.apply_settings();
+        self.apply_tweaks();
+    }
+
+    fn exit_tree(&mut self) {
+        self.wait_for_preview_finish();
     }
 }
 
 #[godot_api]
 impl IslandBuilder {
+    // Setters //
+
+    #[func]
+    fn set_tweaks(&mut self, tweaks: Option<Gd<IslandBuilderSettingsTweaks>>) {
+        // Disconnect existing tweaks handle if it exists
+        if let Some(handle) = self.handle_tweaks.take()
+            && handle.is_connected()
+        {
+            handle.disconnect();
+        }
+
+        self.tweaks = tweaks;
+
+        let changed = self.data.set_tweaks(match &self.tweaks {
+            Some(tweaks) => {
+                // Connect to change events
+                let builder = self.to_gd();
+                self.handle_tweaks = Some(
+                    tweaks
+                        .signals()
+                        .changed()
+                        .builder()
+                        .connect_other_mut(&builder, Self::apply_tweaks),
+                );
+
+                tweaks.bind().to_struct()
+            }
+            _ => SettingsTweaks::default(),
+        });
+        if changed {
+            self.update_preview();
+        }
+    }
+
+    #[func]
+    fn set_settings(&mut self, settings: Option<Gd<IslandBuilderSettings>>) {
+        // Disconnect existing settings handle if it exists
+        if let Some(handle) = self.handle_settings.take()
+            && handle.is_connected()
+        {
+            handle.disconnect();
+        }
+
+        self.settings = settings;
+
+        // Pick best valid settings Resource (provided, project default, default)
+        self.settings_internal = {
+            match &self.settings {
+                Some(settings) => settings.clone(),
+                _ => {
+                    let project_settings = ProjectSettings::singleton();
+                    let defaults_path = project_settings
+                        .get_setting_ex("addons/stag_toolkit/island_builder/default_settings")
+                        .default_value(&"".to_variant())
+                        .done();
+                    let defaults_path: GString = defaults_path.to();
+
+                    let new_settings: Gd<IslandBuilderSettings>;
+
+                    // Attempt to load default settings if necessary
+                    let mut resource_loader = ResourceLoader::singleton();
+                    if !defaults_path.is_empty() && resource_loader.exists(&defaults_path) {
+                        // Load the settings from the path
+                        new_settings = try_load::<IslandBuilderSettings>(&defaults_path).unwrap_or_else(|bad_settings| {
+                            godot_warn!(
+                                "IslandBuilder failed to load default IslandBuilderSettings resource from project settings (addons/stag_toolkit/island_builder/default_settings): {0}",
+                                bad_settings
+                            );
+                            IslandBuilderSettings::new_gd()
+                        })
+                    } else {
+                        new_settings = IslandBuilderSettings::new_gd();
+                    }
+
+                    new_settings
+                }
+            }
+        };
+
+        // Listen for future events
+        let builder = self.to_gd();
+        self.handle_settings = Some(
+            self.settings_internal
+                .signals()
+                .changed()
+                .builder()
+                .connect_other_mut(&builder, Self::apply_settings),
+        );
+    }
+
+    #[func]
+    fn set_realtime_preview(&mut self, realtime_preview: bool) {
+        self.realtime_preview = realtime_preview;
+
+        // Wait for any existing preview to finish before moving on
+        self.wait_for_preview_finish();
+
+        if realtime_preview {
+            self.update_preview();
+        }
+    }
+
+    fn wait_for_preview_finish(&mut self) {
+        if let Some(task_id) = self.realtime_preview_task.take() {
+            WorkerThreadPool::singleton().wait_for_task_completion(task_id);
+        }
+    }
+
+    /// Copies the tweak settings into the builder data.
+    #[func]
+    fn apply_tweaks(&mut self) {
+        if self.data.set_tweaks(match &self.tweaks {
+            Some(tweaks) => tweaks.bind().to_struct(),
+            _ => SettingsTweaks::default(),
+        }) {
+            self.update_preview();
+        }
+    }
+
+    /// Applies Godot settings to corresponding whitebox and mesh data.
+    #[func]
+    fn apply_settings(&mut self) {
+        let settings = self.settings_internal.bind();
+        let changed = self
+            .data
+            .set_voxel_settings(settings.get_internal_voxel_settings())
+            || self
+                .data
+                .set_mesh_settings(settings.get_internal_mesh_settings())
+            || self
+                .data
+                .set_collision_settings(settings.get_internal_collision_settings());
+        drop(settings);
+
+        if changed {
+            self.update_preview();
+        }
+    }
+
+    #[func]
+    fn fetch_settings(&self) -> Gd<IslandBuilderSettings> {
+        self.settings_internal.clone()
+    }
+
     // Signals //
 
     /// Emitted when build data is applied. Useful for awaiting in multi-threaded contexts.
@@ -111,34 +277,7 @@ impl IslandBuilder {
         self.data.get_shapes().len() as i32
     }
 
-    // Setters //
-
     // Build Steps //
-
-    /// Applies Godot settings to corresponding whitebox and mesh data.
-    fn apply_settings(&mut self) {
-        if let Some(settings) = self.settings.clone() {
-            let settings = settings.bind();
-            self.data
-                .set_voxel_settings(settings.get_internal_voxel_settings());
-            self.data
-                .set_mesh_settings(settings.get_internal_mesh_settings());
-            self.data
-                .set_collision_settings(settings.get_internal_collision_settings());
-        } else {
-            // TODO: attempt to load default config from project settings
-            self.data.set_voxel_settings(SettingsVoxels::default());
-            self.data.set_mesh_settings(SettingsMesh::default());
-            self.data
-                .set_collision_settings(SettingsCollision::default());
-        }
-
-        if let Some(tweaks) = self.tweaks.clone() {
-            self.data.set_tweaks(tweaks.bind().to_struct());
-        } else {
-            self.data.set_tweaks(SettingsTweaks::default());
-        }
-    }
 
     /// Reads and stores children CSG shapes as whitebox geometry for processing.
     /// Supports Union, Intersection and Subtraction.
@@ -148,7 +287,70 @@ impl IslandBuilder {
     pub fn serialize(&mut self) {
         let mut whitebox = GodotWhitebox::new();
         whitebox.serialize_from(self.base().to_godot());
-        self.data.set_shapes(whitebox.get_shapes().clone());
+        let changed = self.data.set_shapes(whitebox.get_shapes().clone());
+        if changed {
+            self.update_preview();
+        }
+    }
+
+    /// Generates a preview mesh, but only in the editor.
+    pub fn update_preview(&mut self) {
+        // Ensure we're running in the editor.
+        if !Engine::singleton().is_editor_hint() || !self.realtime_preview {
+            return;
+        }
+
+        // TODO: debounce this so last change is applied later?
+        if let Some(task_id) = self.realtime_preview_task {
+            if WorkerThreadPool::singleton().is_task_completed(task_id) {
+                // collect task resources
+                self.wait_for_preview_finish();
+            } else {
+                return; // Don't spawn multiple tasks on top of each other
+            }
+        }
+
+        let mesh_node = self.target_mesh();
+        let mut mesh: Option<Gd<ArrayMesh>> = None;
+
+        if let Some(base_mesh) = mesh_node.get_mesh() {
+            mesh = match base_mesh.try_cast::<ArrayMesh>() {
+                Ok(mut array_mesh) => {
+                    array_mesh.clear_surfaces();
+                    Some(array_mesh)
+                }
+                Err(_) => None,
+            }
+        }
+
+        // compute this on another thread
+        let callable = Callable::from_sync_fn("all_bake_single", |args: &[&Variant]| {
+            // godot_print!("STARTING TASK");
+            // TODO: type safety checks, return Error if safety fails
+            let mut builder: Gd<Self> = args[0].to();
+            // let recycle_mesh: Option<Gd<ArrayMesh>> = args[1].to();
+            let mut mesh_node: Gd<MeshInstance3D> = args[2].to();
+            mesh_node.call_deferred(
+                "set_mesh",
+                &[builder.bind_mut().generate_preview_mesh(None).to_variant()],
+            );
+
+            // godot_print!("SET MESH PROPERTY");
+            Result::Ok(Variant::from(true))
+        })
+        .bind(&[
+            self.to_gd().to_variant(),
+            mesh.to_variant(),
+            mesh_node.to_variant(),
+        ]);
+
+        self.realtime_preview_task = Some(
+            WorkerThreadPool::singleton()
+                .add_task_ex(&callable)
+                .high_priority(false)
+                .description("IslandBuilder preview")
+                .done(),
+        );
     }
 
     /// Returns an unoptimized triangle mesh for previewing with no extra information baked-in.
@@ -159,34 +361,28 @@ impl IslandBuilder {
         self.data.bake_voxels();
         self.data.bake_preview();
 
-        let mut mesh: Gd<ArrayMesh>;
-        match recycle_mesh {
+        let mut mesh: Gd<ArrayMesh> = match recycle_mesh {
             Some(recycle) => {
-                mesh = recycle;
-                mesh.clear_surfaces();
+                // recycle.clear_surfaces(); // done beforehand
+                recycle
             }
-            _ => {
-                mesh = ArrayMesh::new_gd();
+            _ => ArrayMesh::new_gd(),
+        };
+
+        if let Some(trimesh) = self.data.get_mesh_preview() {
+            let surface_arrays = GodotSurfaceArrays::from_trimesh(trimesh);
+            mesh.add_surface_from_arrays(
+                PrimitiveType::TRIANGLES,
+                surface_arrays.get_surface_arrays(),
+            );
+            mesh.surface_set_name(0, "island");
+            // Add a material, if valid
+            if let Some(material) = &self.settings_internal.bind().get_material_baked() {
+                mesh.surface_set_material(0, material);
             }
         }
 
-        match self.data.get_mesh_baked() {
-            Some(trimesh) => {
-                let surface_arrays = GodotSurfaceArrays::from_trimesh(trimesh);
-                mesh.add_surface_from_arrays(
-                    PrimitiveType::TRIANGLES,
-                    surface_arrays.get_surface_arrays(),
-                );
-                mesh.surface_set_name(0, "island");
-                // Add a material, if valid
-                if let Some(material) = &self.settings_internal.bind().get_material_baked() {
-                    mesh.surface_set_material(0, material);
-                }
-
-                mesh
-            }
-            _ => mesh,
-        }
+        mesh
     }
     /// Bakes and returns a triangle mesh with vertex colors, UVs, and LODs.
     /// Bakes underlying voxel and mesh data if necessary.
@@ -301,20 +497,7 @@ impl IslandBuilder {
         }
 
         // Fetch color for debug drawing
-        let settings = ProjectSettings::singleton();
-        let debug_color_variant: Variant = settings
-            .get_setting_ex("addons/stag_toolkit/island_builder/collision_color")
-            .default_value(&Variant::from(Color::from_rgba(1.0, 0.0, 0.667, 1.0)))
-            .done();
-        let debug_color: Color;
-
-        // Ensure variant is of proper type
-        if let Ok(color) = debug_color_variant.try_to::<Color>() {
-            debug_color = color;
-        } else {
-            // Otherwise, use default
-            debug_color = Color::from_rgba(1.0, 0.0, 0.667, 1.0);
-        }
+        let debug_color: Color = self.settings_internal.bind().get_collision_color();
 
         // Get collision hulls
         for (idx, hull) in hulls.iter_shared().enumerate() {
@@ -389,9 +572,6 @@ impl IslandBuilder {
 
     /// Fetches the output mesh for this IslandBuilder.
     /// Creates one if none was found.
-    /// If the mesh is newly created, its render layers are specified by
-    /// `"addons/stag_toolkit/island_builder/render_layers"`
-    /// in the Project Settings.
     #[func]
     fn target_mesh(&mut self) -> Gd<MeshInstance3D> {
         let mut target = self.target();
@@ -409,13 +589,7 @@ impl IslandBuilder {
         // Editor lock the mesh so users don't mess with it
         editor_lock(mesh.clone().upcast(), true); // Lock editing
 
-        // Get render layers mask from Project Settings
-        let settings = ProjectSettings::singleton();
-        let mask = settings
-            .get_setting_ex("addons/stag_toolkit/island_builder/render_layers")
-            .default_value(&Variant::from(5))
-            .done();
-        mesh.set_layer_mask(mask.to());
+        mesh.set_layer_mask(self.settings_internal.bind().get_render_layers());
 
         // Add mesh to scene
         mesh.set_name("mesh_island");

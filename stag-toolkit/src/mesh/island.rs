@@ -29,7 +29,7 @@ pub struct SettingsVoxels {
     pub voxel_size: Vec3,
 
     /// Frequency of noise directly added to the SDF sampling value, in local space.
-    #[setting(default=Vec3::splat(0.05),min=0.0,max=10.0,incr=0.001,soft_max)]
+    #[setting(default=Vec3::splat(1.0),min=0.0,max=10.0,incr=0.001,soft_max)]
     pub sampling_density_noise_frequency: Vec3,
     /// Amplitude of noise directly added to the SDF sampling value.
     #[setting(
@@ -43,9 +43,9 @@ pub struct SettingsVoxels {
     pub sampling_density_noise_amplitude: f64,
 
     /// Frequency of noise directly added to the SDF sampling position.
-    #[setting(default=Vec3::splat(0.07),min=0.0,max=1.0,incr=0.001,soft_max)]
+    #[setting(default=Vec3::splat(0.3),min=0.0,max=1.0,incr=0.001,soft_max)]
     pub sampling_offset_noise_frequency: Vec3,
-    #[setting(default=Vec3::splat(0.01),min=0.0,max=1.0,incr=0.001,soft_max,unit="m")]
+    #[setting(default=Vec3::splat(0.05),min=0.0,max=1.0,incr=0.001,soft_max,unit="m")]
     /// Amplitude of noise directly added to the SDF sampling position.
     pub sampling_offset_noise_amplitude: Vec3,
 
@@ -63,11 +63,11 @@ pub struct SettingsVoxels {
     pub sdf_smooth_weight: f32,
 
     /// Frequency scale for striation noise on each local axis.
-    #[setting(default = Vec3::new(0.1,10.0,0.1), min = 0.0, max = 10.0, incr = 0.001, soft_max)]
+    #[setting(default = Vec3::new(0.1,1.0,0.1), min = 0.0, max = 10.0, incr = 0.001, soft_max)]
     pub striation_frequency: Vec3,
     /// Amplitude of striation noise on each local axis.
     #[setting(
-        default = 0.2,
+        default = 0.15,
         min = 0.0,
         max = 10.0,
         incr = 0.001,
@@ -288,7 +288,8 @@ impl Data {
     }
 
     /// Updates the settings, dirtying the data if changed.
-    pub fn set_voxel_settings(&mut self, settings: SettingsVoxels) {
+    /// Returns true if changed.
+    pub fn set_voxel_settings(&mut self, settings: SettingsVoxels) -> bool {
         if self.settings_voxels != settings {
             self.settings_voxels = settings;
             self.dirty_voxels();
@@ -322,11 +323,15 @@ impl Data {
                 self.tweaks.w_striation,
             ];
             self.noise_striation.amplitude = self.settings_voxels.striation_amplitude;
+            return true;
         }
+
+        false
     }
 
     /// Updates the settings, dirtying the data if changed.
-    pub fn set_mesh_settings(&mut self, settings: SettingsMesh) {
+    /// Returns true if changed.
+    pub fn set_mesh_settings(&mut self, settings: SettingsMesh) -> bool {
         if self.settings_mesh != settings {
             self.settings_mesh = settings;
             self.dirty_mesh();
@@ -338,18 +343,25 @@ impl Data {
                 frequency.z as f64,
                 self.tweaks.w_mask,
             ];
+
+            return true;
         }
+        false
     }
 
     /// Updates the settings, dirtying the data if changed.
-    pub fn set_collision_settings(&mut self, settings: SettingsCollision) {
+    /// Returns true if changed.
+    pub fn set_collision_settings(&mut self, settings: SettingsCollision) -> bool {
         if self.settings_collision != settings {
             self.settings_collision = settings;
             self.dirty_collision();
+
+            return true;
         }
+        false
     }
 
-    pub fn set_tweaks(&mut self, settings: SettingsTweaks) {
+    pub fn set_tweaks(&mut self, settings: SettingsTweaks) -> bool {
         if self.tweaks != settings {
             self.tweaks = settings;
             self.dirty_voxels();
@@ -359,15 +371,23 @@ impl Data {
             self.noise_sdf_sampling.set_seed(settings.seed + 3);
             self.noise_striation.set_seed(settings.seed + 6);
             self.noise_mask.set_seed(settings.seed + 9);
+
+            return true;
         }
+        false
     }
 
     /// Updates the shape list, dirtying the data if changed.
-    pub fn set_shapes(&mut self, shapes: Vec<Shape>) {
+    pub fn set_shapes(&mut self, shapes: Vec<Shape>) -> bool {
         if self.shapes != shapes {
             self.shapes = shapes;
+            for shape in self.shapes.iter_mut() {
+                shape.radius_edge = self.settings_voxels.sdf_edge_radius;
+            }
             self.dirty_voxels();
+            return true;
         }
+        false
     }
 
     /// Bakes the voxel data if able.
@@ -381,14 +401,21 @@ impl Data {
             self.settings_voxels.voxel_size * self.settings_voxels.voxel_padding as f32;
 
         let bounds = shape_list_bounds(&self.shapes)
-            .expand_margin(self.settings_voxels.striation_amplitude as f32)
+            .expand_margin(
+                (self.settings_voxels.striation_amplitude
+                    + self.settings_voxels.sampling_density_noise_amplitude) as f32
+                    + self
+                        .settings_voxels
+                        .sampling_offset_noise_amplitude
+                        .max_element(),
+            )
             .expand_vector(padding_size.abs());
 
         let approx_cells = bounds.size() / self.settings_voxels.voxel_size;
         let dim = [
-            approx_cells.x.ceil() as u32,
-            approx_cells.y.ceil() as u32,
-            approx_cells.z.ceil() as u32,
+            approx_cells.x.ceil() as u32 + self.settings_voxels.voxel_padding * 2,
+            approx_cells.y.ceil() as u32 + self.settings_voxels.voxel_padding * 2,
+            approx_cells.z.ceil() as u32 + self.settings_voxels.voxel_padding * 2,
         ];
 
         let mut voxels = VolumeData::new(1.0f32, dim);

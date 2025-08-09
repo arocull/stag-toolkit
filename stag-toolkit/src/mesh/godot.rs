@@ -208,6 +208,7 @@ impl GodotWhitebox {
         }
 
         // Then, cast to each type of CSG class
+        // TODO: use match_class!
         if let Ok(csg) = node.clone().try_cast::<CsgBox3D>() {
             // Since we have a box, we can pull out the scale
             let mut scale = transform.basis.get_scale();
