@@ -22,6 +22,11 @@ web.release.wasm32 =         "res://addons/stag_toolkit/bin/release/stag_toolkit
 
 [icons]
 IslandBuilder = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
+IslandBuilderSettings = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
+IslandBuilderSettingsVoxels = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
+IslandBuilderSettingsMesh = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
+IslandBuilderSettingsCollision = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
+IslandBuilderSettingsTweaks = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
 NavIslandProperties = "res://addons/stag_toolkit/icons/icon_islandbuilder.svg"
 QueueFloat = "res://addons/stag_toolkit/icons/icon_queuefloat.svg"
 SimulatedRope = "res://addons/stag_toolkit/icons/icon_simulatedrope.svg"

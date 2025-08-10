@@ -1,7 +1,8 @@
+use crate::math::bounding_box::BoundingBox;
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles, Vec4, Vec4Swizzles, vec2, vec3};
 
 /// Joins two distance functions, using a logarithm for smoothing values.
-/// `k = 32.0`` was original suggestion for smoothing value.
+/// `k = 32.0`` was the original suggestion for smoothing value.
 pub fn smooth_union(a: f32, b: f32, k: f32) -> f32 {
     let res = (-k * a).exp() + (-k * b).exp();
     -res.max(0.0001).log10() / k
@@ -96,7 +97,7 @@ pub struct Shape {
     /// Describes a sphere or cylinder's radius.
     radius: f32,
     /// Describes the edge rounding on the given shape, if available.
-    radius_edge: f32,
+    pub radius_edge: f32,
     /// Describes the dimensions of a box or cylinder.
     dimensions: Vec3,
     /// Transform of the shape. Applied to position before sampling.
@@ -194,29 +195,38 @@ impl Shape {
         }
     }
     /// Returns the minimum and maximum boundary points of the shape, NOT transformed
-    pub fn relative_bounds(&self) -> (Vec3, Vec3) {
+    pub fn relative_bounds(&self) -> BoundingBox {
         match self.shape {
-            ShapeType::Sphere => (Vec3::splat(-self.radius), Vec3::splat(self.radius)),
-            ShapeType::RoundedBox => (
+            ShapeType::Sphere => {
+                BoundingBox::new(Vec3::splat(-self.radius), Vec3::splat(self.radius))
+            }
+            ShapeType::RoundedBox => BoundingBox::new(
                 self.dimensions * Vec3::splat(-0.5),
                 self.dimensions * Vec3::splat(0.5),
             ),
-            ShapeType::RoundedCylinder => (
+            ShapeType::RoundedCylinder => BoundingBox::new(
                 vec3(-self.radius, -self.dimensions.y * 0.5, -self.radius),
                 vec3(self.radius, self.dimensions.y * 0.5, self.radius),
             ),
             ShapeType::Torus => {
                 let width = self.radius + self.radius_edge;
-                (
+                BoundingBox::new(
                     vec3(-width, -self.radius_edge, -width),
                     vec3(width, self.radius_edge, width),
                 )
             }
         }
     }
+
     /// Returns the transform of the given shape.
     pub fn transform(&self) -> Mat4 {
         self.transform
+    }
+
+    /// Sets the transform of the given shape.
+    pub fn set_transform(&mut self, transform: Mat4) {
+        self.transform_inv = transform.inverse();
+        self.transform = transform;
     }
 }
 
@@ -244,13 +254,37 @@ pub fn sample_shape_list(list: &[Shape], point: Vec3) -> f32 {
     d
 }
 
+/// Creates an axis-aligned bounding box that encloses all provided Union shapes.
+/// If the shape list is empty, returns a zero-volume bounding box centered on (0, 0, 0).
+pub fn shape_list_bounds(list: &[Shape]) -> BoundingBox {
+    // We use an option here so we don't forcibly enclose 0,0,0
+    let mut aabb: Option<BoundingBox> = None;
+
+    for shape in list.iter() {
+        if shape.operation == ShapeOperation::Union {
+            // Get transformed bounding box of shape
+            let shape_aabb = shape.transform() * shape.relative_bounds();
+
+            // If we already set a bounding box, update it to include the shape
+            if let Some(unwrapped_aabb) = aabb {
+                aabb = Some(unwrapped_aabb.join(&shape_aabb));
+            } else {
+                // Otherwise, set a new bounding box
+                aabb = Some(shape_aabb);
+            }
+        }
+    }
+
+    aabb.unwrap_or_default()
+}
+
 // UNIT TESTS //
 #[cfg(test)]
 mod tests {
-    use crate::math::delta::assert_in_delta;
-    use glam::Quat;
-
     use super::*;
+    use crate::math::delta::assert_in_delta;
+
+    use glam::Quat;
 
     #[test]
     fn test_smooth_union() {
@@ -487,5 +521,28 @@ mod tests {
                 case.note
             );
         }
+    }
+
+    #[test]
+    fn test_shape_list_bounds() {
+        let shapes = vec![
+            // Scaled and translated sphere union
+            Shape::sphere(
+                Mat4::from_scale_rotation_translation(Vec3::splat(0.5), Quat::IDENTITY, Vec3::ONE),
+                1.0,
+                ShapeOperation::Union,
+            ),
+            // Non-union shapes are ignored
+            Shape::torus(
+                Mat4::from_translation(Vec3::NEG_ONE),
+                1.0,
+                0.5,
+                ShapeOperation::Intersection,
+            ),
+        ];
+
+        // Boundaries should not include 0, 0, 0
+        let bounds = shape_list_bounds(&shapes);
+        assert_eq!(bounds, BoundingBox::new(Vec3::splat(0.5), Vec3::splat(1.5)));
     }
 }

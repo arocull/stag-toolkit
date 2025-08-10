@@ -1,460 +1,24 @@
-use core::f32;
-use godot::classes::ImporterMesh;
-use rayon::prelude::*;
-use std::f32::consts::PI;
-use std::mem::swap;
-
+use crate::classes::island_settings::IslandBuilderSettings;
+use crate::mesh::island::{Data, IslandBuilderSettingsTweaks, SettingsTweaks};
 use crate::{
     classes::utils::editor_lock,
-    math::{
-        sdf::{ShapeOperation, sample_shape_list},
-        types::{
-            ToVector3,
-            gdmath::{ToColor, ToVector2, Vec3Godot},
-        },
-        volumetric::{PerlinField, VolumeData},
-    },
-    mesh::{
-        godot::{GodotSurfaceArrays, GodotWhitebox},
-        nets::mesh_from_nets,
-        trimesh::{TriangleMesh, TriangleOperations},
-    },
+    math::types::{ToVector3, gdmath::Vec3Godot},
+    mesh::godot::{GodotSurfaceArrays, GodotWhitebox},
 };
-use fast_surface_nets::{
-    SurfaceNetsBuffer,
-    ndshape::{ConstShape, ConstShape3u32},
-    surface_nets,
-};
-use glam::{FloatExt, Mat4, Vec2, Vec3, Vec4};
+use core::f32;
+use glam::Vec3;
+use godot::classes::{Engine, ImporterMesh, ResourceLoader};
+use godot::register::ConnectHandle;
 use godot::{
     classes::{
-        ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, Material, MeshInstance3D,
-        ProjectSettings, RigidBody3D, WorkerThreadPool, mesh::PrimitiveType,
-        physics_server_3d::BodyAxis,
+        ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, MeshInstance3D, ProjectSettings,
+        RigidBody3D, WorkerThreadPool, mesh::PrimitiveType, physics_server_3d::BodyAxis,
     },
     prelude::*,
 };
 
 /// The node group IslandBuilder nodes should be stored in.
 pub const GROUP_NAME: &str = "StagToolkit_IslandBuilder";
-
-const VOLUME_MAX_CELLS: u32 = 48;
-const VOLUME_MAX_CELLS_TRIM: u32 = 44;
-const VOLUME_WORK_GROUP_SIZE: u32 = 48 * 48 * 48;
-type IslandChunkSize = ConstShape3u32<VOLUME_MAX_CELLS, VOLUME_MAX_CELLS, VOLUME_MAX_CELLS>;
-
-/// Container for working data about a given island.
-#[derive(Clone)]
-struct IslandBuildData {
-    whitebox: GodotWhitebox,
-    noise: PerlinField,
-
-    // CONFIGURATION //
-    cell_padding: u32,
-    cell_size: f32,
-    smoothing_repetitions: u32,
-    smoothing_radius_voxels: u32,
-    smoothing_weight: f32,
-    noise_amplitude: f32,
-    noise_w: f64,
-    /// Distance threshold for triangles to be merged together and collapsed for the visual mesh.
-    mesh_merge_distance: f32,
-    /// Distance threshold for triangles to be merged together and collapsed for the physics collisions.
-    collision_merge_distance: f32,
-    /// Angle threshold for decimating triangles used in physics collisions. In radians.
-    collision_decimate_angle: f32,
-    /// Max number of iterations for performing decimation.
-    collision_decimate_iterations: i32,
-    mask_range_dirt: Vec2,
-    mask_range_sand: Vec2,
-    mask_power_sand: f32,
-    mask_perlin_scale: Vec3,
-    bake_normals: bool,
-
-    /// Mesh generated via surface nets.
-    /// Stored as option in case it was not already generated.
-    mesh: Option<TriangleMesh>,
-    /// Whether this mesh has been optimized since generation.
-    optimized: bool,
-
-    // OUTPUTS //
-    /// Estimated volume of island.
-    volume: f32,
-}
-impl Default for IslandBuildData {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl IslandBuildData {
-    /// Generate a new set of IslandBuildData for working with.
-    pub fn new() -> Self {
-        Self {
-            whitebox: GodotWhitebox::new(),
-            noise: PerlinField::new(0, 1, 2, 1.0),
-
-            cell_padding: 2,
-            cell_size: 0.275,
-            smoothing_repetitions: 3,
-            smoothing_radius_voxels: 2,
-            smoothing_weight: 0.5,
-            noise_amplitude: 0.3,
-            noise_w: 1.0,
-            mesh_merge_distance: 0.04,
-            collision_merge_distance: 0.15,
-            collision_decimate_angle: PI / 60.0,
-            collision_decimate_iterations: 100,
-            mask_range_dirt: Vec2::new(-0.1, 0.8),
-            mask_range_sand: Vec2::new(0.7, 1.0),
-            mask_power_sand: 3.0,
-            mask_perlin_scale: Vec3::new(0.75, 0.33, 0.75),
-            bake_normals: true,
-
-            mesh: None,
-            optimized: false,
-
-            volume: 0.0,
-        }
-    }
-
-    /// Perform Naive Surface Nets algorithm on geometry.
-    fn nets(&mut self) {
-        let aabb: Aabb = self
-            .whitebox
-            .get_aabb()
-            .grow(self.noise_amplitude.abs() + self.cell_size * (self.cell_padding as f32));
-        let minimum_bound: Vec3 = aabb.position.to_vector3();
-        let aabb_size: Vec3 = aabb.size.to_vector3();
-
-        // Transformation matrix for quickly moving points
-        let cell_size: Vec3 = Vec3::splat(self.cell_size);
-        let trans: Mat4 = Mat4::from_translation(minimum_bound) * Mat4::from_scale(cell_size);
-
-        // Prepare volume estimates
-        let mut volume: f32 = 0.0;
-        let volume_per_voxel = self.cell_size * self.cell_size * self.cell_size;
-
-        let shapes = self.whitebox.get_shapes();
-        let approx_cells = aabb_size / Vec3::splat(self.cell_size);
-        let dim = [
-            approx_cells.x.ceil() as u32,
-            approx_cells.y.ceil() as u32,
-            approx_cells.z.ceil() as u32,
-        ];
-
-        // If voxel data was not already initialized, initialize it
-        let mut voxels = VolumeData::new(1.0f32, dim);
-
-        // Sample SDF at every voxel
-        let mut voxel_workers = voxels.to_workers(VOLUME_WORK_GROUP_SIZE, false);
-
-        // Sample island SDF in chunks
-        voxels.data = voxel_workers
-            .par_iter_mut()
-            .flat_map(|worker| -> Vec<f32> {
-                for i in 0u32..worker.range_width {
-                    let [x, y, z] = voxels.delinearize(i + worker.range_min);
-
-                    let sample_pos: Vec3 =
-                        trans.transform_point3(Vec3::new(x as f32, y as f32, z as f32));
-                    let sample = sample_shape_list(shapes, sample_pos);
-
-                    worker.data[i as usize] = sample;
-                }
-
-                worker.data.clone()
-            })
-            .collect();
-
-        // Factor noise in
-        voxels.noise_add(&self.noise, trans, self.noise_w, self.noise_amplitude);
-
-        if self.smoothing_repetitions > 0 {
-            // Perform smoothing blurs, swapping between current and a buffer.
-            // DON'T recreate the buffer each time, because it guzzles performance.
-            let mut blur_buffer = VolumeData::new(1.0, dim);
-
-            for _i in 0u32..self.smoothing_repetitions {
-                voxels.blur(
-                    self.smoothing_radius_voxels,
-                    self.smoothing_weight,
-                    VOLUME_WORK_GROUP_SIZE,
-                    &mut blur_buffer,
-                );
-
-                // Swap buffers
-                swap(&mut voxels, &mut blur_buffer);
-            }
-        }
-
-        // Perform padding
-        voxels.set_padding(self.cell_padding, 10.0);
-
-        // NOW, convert voxel data to buffers for Surface Nets
-
-        // First, figure out how many grids we need...
-        let grids_x = (dim[0] as f32 / VOLUME_MAX_CELLS_TRIM as f32).ceil() as usize;
-        let grids_y = (dim[1] as f32 / VOLUME_MAX_CELLS_TRIM as f32).ceil() as usize;
-        let grids_z = (dim[2] as f32 / VOLUME_MAX_CELLS_TRIM as f32).ceil() as usize;
-        let gridcount = grids_x * grids_y * grids_z;
-        let grid_strides = [1, grids_x, grids_x * grids_y];
-
-        fn linearize_nets(strides: [usize; 3], x: usize, y: usize, z: usize) -> usize {
-            x + strides[1].wrapping_mul(y) + strides[2].wrapping_mul(z)
-        }
-
-        // Then, allocate our grids
-        let mut grids: Vec<[f32; IslandChunkSize::USIZE]> = vec![];
-        let mut grid_offset: Vec<Vec3> = vec![];
-        grids.reserve_exact(gridcount);
-        for _ in 0..gridcount {
-            grids.push([1.0f32; IslandChunkSize::USIZE]);
-            grid_offset.push(Vec3::ZERO);
-        }
-
-        // Begin filling our grids
-        for x in 0..grids_x {
-            for y in 0..grids_y {
-                for z in 0..grids_z {
-                    let grid_idx = linearize_nets(grid_strides, x, y, z);
-                    let offset = Vec3::new(
-                        ((x as u32) * (VOLUME_MAX_CELLS - 2)) as f32,
-                        ((y as u32) * (VOLUME_MAX_CELLS - 2)) as f32,
-                        ((z as u32) * (VOLUME_MAX_CELLS - 2)) as f32,
-                    ) * cell_size
-                        + minimum_bound;
-                    grid_offset[grid_idx] = offset;
-
-                    for i in 0usize..IslandChunkSize::USIZE {
-                        // Local XYZ coordinate of Surface Nets volume
-                        let coord = IslandChunkSize::delinearize(i as u32);
-                        // Global index of Voxel Grid
-                        let voxels_idx = voxels.linearize(
-                            (x as u32) * (VOLUME_MAX_CELLS - 2) + coord[0],
-                            (y as u32) * (VOLUME_MAX_CELLS - 2) + coord[1],
-                            (z as u32) * (VOLUME_MAX_CELLS - 2) + coord[2],
-                        );
-
-                        let sample = voxels.get_linear(voxels_idx as usize);
-                        grids[grid_idx][i] = -sample;
-
-                        if sample < 0.0 {
-                            volume += volume_per_voxel;
-                        }
-                    }
-                }
-            }
-        }
-
-        self.volume = volume;
-        self.optimized = false; // This new mesh has not been optimized yet
-
-        // Perform Surface Nets algorithm on all grids in parallel, storing corresponding mesh
-        let mut meshes: Vec<Option<TriangleMesh>> = grids
-            .par_iter_mut()
-            .enumerate()
-            .map(|(idx, grid)| -> Option<TriangleMesh> {
-                // Perform surface nets
-                let mut buffer = SurfaceNetsBuffer::default();
-                surface_nets(
-                    grid,
-                    &IslandChunkSize {},
-                    [0; 3],
-                    [VOLUME_MAX_CELLS - 1; 3],
-                    &mut buffer,
-                );
-
-                // Parse and store result
-                mesh_from_nets(buffer, cell_size, grid_offset[idx])
-            })
-            .collect();
-
-        // Now, join all meshes together
-        let mesh = meshes.iter_mut().reduce(|a, b| {
-            // If we have a mesh on left side
-            if let Some(amesh) = a {
-                // ...and a mesh on right side...
-                if let Some(bmesh) = b {
-                    // ...join them!
-                    amesh.join(bmesh);
-                    return a;
-                }
-                return a;
-            }
-            b
-        });
-
-        // Unwrap result once
-        if let Some(m) = mesh {
-            self.mesh = m.clone();
-        } else {
-            self.mesh = None;
-        }
-
-        if self.mesh.is_none() {
-            godot_warn!("IslandBuilder: Generated mesh buffer was empty.");
-        }
-    }
-
-    /// Optimizes the mesh, if it exists and has not been optimized already.
-    fn optimize_mesh(&mut self) {
-        // Mesh has already been optimized, or does not exist. No-op.
-        if self.optimized || self.mesh.is_none() {
-            return;
-        }
-
-        if let Some(mesh) = self.mesh.as_mut() {
-            mesh.optimize(self.mesh_merge_distance);
-            if self.bake_normals {
-                mesh.bake_normals_smooth();
-            }
-
-            self.optimized = true;
-        }
-    }
-
-    /// Returns a SurfaceArrays object containing preview mesh data.
-    /// Returns `None` if no mesh is currently stored.
-    fn get_mesh(&self) -> Option<GodotSurfaceArrays> {
-        self.mesh.as_ref().map(GodotSurfaceArrays::from_trimesh)
-    }
-    /// Fetches the preview mesh and bakes additional data for shading into it.
-    /// Returns `None` if no mesh is currently stored.
-    fn get_mesh_baked(&self) -> Option<GodotSurfaceArrays> {
-        let arr = self.get_mesh();
-        match arr {
-            Some(mut x) => {
-                // We know that there is a mesh, because get_mesh returned data
-                if let Some(mesh) = self.mesh.as_ref() {
-                    let buffer_len = mesh.count_vertices();
-                    let normals = mesh.normals.clone().to_vector3();
-
-                    let mut colors: Vec<Vec4> = vec![];
-                    let mut uv1: Vec<Vec2> = vec![];
-                    let mut uv2: Vec<Vec2> = vec![];
-                    colors.reserve_exact(buffer_len);
-                    uv1.reserve_exact(buffer_len);
-                    uv2.reserve_exact(buffer_len);
-
-                    for idx in 0..buffer_len {
-                        let pos = mesh.positions[idx];
-                        let norm = mesh.normals[idx];
-
-                        // Bake normals
-                        uv1.push(Vec2::new(pos.x + pos.z, pos.y));
-                        uv2.push(Vec2::new(pos.x, pos.z));
-
-                        // TODO: Bake ambient occlusion, somehow
-
-                        // Dot product with up vector for masking, then build dirt and sand masks
-                        let dot = norm.dot(Vec3::Y);
-                        let mask_dirt = dot
-                            .remap(self.mask_range_dirt.x, self.mask_range_dirt.y, 0.0, 1.0)
-                            .clamp(0.0, 1.0);
-                        let mask_sand = dot
-                            .remap(self.mask_range_sand.x, self.mask_range_sand.y, 0.0, 1.0)
-                            .clamp(0.0, 1.0)
-                            .powf(self.mask_power_sand);
-
-                        // Sample noise and store it in mesh for extra variation
-                        let noise_sample = self.noise.sample(pos * self.mask_perlin_scale, 100.0);
-                        let noise = (noise_sample.x + noise_sample.y + noise_sample.z)
-                            .remap(-3.0, 3.0, 0.0, 1.0);
-
-                        // Store masks in vertex color data
-                        colors.push(Vec4::new(1.0, mask_dirt, mask_sand, noise));
-                    }
-
-                    x.set_colors(colors.to_color());
-                    x.set_uv1(uv1.to_vector2());
-                    x.set_uv2(uv2.to_vector2());
-
-                    if self.bake_normals {
-                        x.set_normals(normals);
-                    }
-
-                    return Some(x);
-                }
-                None
-            }
-            None => None,
-        }
-    }
-
-    /// Iterates through all positions on the mesh, assigning them to nearby collision hulls.
-    /// Returns an empty vector if no hulls were generated.
-    fn get_hulls(&self) -> Vec<TriangleMesh> {
-        let mesh: &TriangleMesh = match &self.mesh {
-            Some(trimesh) => trimesh,
-            None => return vec![],
-        };
-
-        let mut hulls: Vec<TriangleMesh> = vec![];
-
-        // Fetch the shape list, retaining only Union shapes
-        let mut shapes = self.whitebox.get_shapes().clone();
-        shapes.retain(|shape| shape.operation == ShapeOperation::Union);
-
-        // Allocate a collision hull for each shape
-        hulls.reserve_exact(shapes.len());
-
-        // Number of triangles to pre-allocate, based on mesh + shape size
-        let tri_prealloc = mesh.triangles.len() / shapes.len();
-
-        for _ in shapes.iter() {
-            // Pre-allocate some space for triangles, and build trimesh
-            let trimesh = TriangleMesh::new(
-                Vec::with_capacity(tri_prealloc),
-                mesh.positions.clone(),
-                None,
-            );
-
-            hulls.push(trimesh);
-        }
-
-        // Assign each triangle to the nearest collision hull
-        for tri in mesh.triangles.iter() {
-            let mut min_dist = f32::INFINITY;
-            let mut min_shape_idx = 0;
-
-            // Fetch centerpoint of triangle to use for comparison
-            let center = tri.centerpoint(&mesh.positions);
-
-            for (shape_idx, shape) in shapes.iter().enumerate() {
-                // TODO: somehow take Intersection CSG into account when sampling shapes,
-                // so collision shapes that are cut off via intersections,
-                // do not include shapes added after said intersection.
-
-                let d = shape.sample(center);
-                if d < min_dist {
-                    min_dist = d;
-                    min_shape_idx = shape_idx;
-                }
-            }
-
-            hulls[min_shape_idx].triangles.push(*tri);
-        }
-
-        // Optimize collision meshes in parallel
-        hulls.par_iter_mut().for_each(|mesh| {
-            if self.collision_decimate_angle > 0.0 {
-                mesh.decimate_planar(
-                    self.collision_decimate_angle,
-                    self.collision_decimate_iterations,
-                    8,
-                );
-            }
-
-            mesh.optimize(self.collision_merge_distance);
-        });
-
-        // Remove hulls with an insignificant amount of triangles.
-        hulls.retain(|hull| hull.triangles.len() >= 6);
-
-        hulls
-    }
-}
 
 // GODOT CLASSES //
 
@@ -482,117 +46,48 @@ pub struct NavIslandProperties {
 /// To create a mesh, add CSGBox and CSGSphere nodes as descendants to the IslandBuilder,
 /// then `serialize()`, `net()` and fetch your related data.
 #[derive(GodotClass)]
-#[class(base=Node3D,tool)]
+#[class(init,base=Node3D,tool)]
 pub struct IslandBuilder {
-    data: IslandBuildData,
+    #[init(val=Data::default())]
+    data: Data,
 
     /// Node to target for storing generation output, and modifying data.
     /// If empty or target is not found, uses this node instead.
     #[export]
+    #[init(val=NodePath::from("."))]
     output_to: NodePath,
 
-    /// Number of cells to pad on each side of the IslandBuilder volume.
-    #[export(range = (0.0, 6.0, or_greater))]
-    generation_cell_padding: u32,
-    /// Number of cells to pad on each side of the IslandBuilder volume.
-    #[export(range = (0.01, 1.0, 0.001, or_greater, suffix="m"))]
-    generation_cell_size: f32,
-    /// Number of times box-blur should be applied to the volume.
-    #[export(range = (0.0, 20.0, or_greater))]
-    generation_smoothing_iterations: u32,
-    /// Radius (in cells) that box-blur smoothing should utilize.
-    #[export(range = (1.0, 4.0, or_greater))]
-    generation_smoothing_radius_voxels: u32,
-    /// What proportion of the smoothing should be used.
-    #[export(range = (0.0, 1.0))]
-    generation_smoothing_weight: f32,
-    /// Corner radius, in meters, to use around boxes.
-    #[export(range = (0.0, 2.0, or_greater, suffix="m"))]
-    generation_edge_radius: f32,
-    /// Noise seed to use for generation.
-    #[export(range = (0.0, 1000.0, or_greater))]
-    noise_seed: u32,
-    /// Noise frequency.
+    /// If true, the node will watch for changes in its settings, and regenerate when needed.
+    /// Only during editor.
+    #[var(get,set = set_realtime_preview)]
     #[export]
-    noise_frequency: f32,
-    /// Noise amplitude, in meters.
-    /// This value is directly added to the SDF result in the volume pass.
-    /// Advized to keep below 1.0 meter.
-    #[export(range = (0.0, 1.0, or_greater, suffix="m"))]
-    noise_amplitude: f32,
-    /// W position for sampling noise.
-    #[export]
-    noise_w: f64,
+    #[init(val = false)]
+    realtime_preview: bool,
+    /// Task ID for WorkerThreadPool.
+    #[init(val=None)]
+    realtime_preview_task: Option<i64>,
 
-    /// Distance threshold for triangles to be merged together and collapsed for the visual mesh.
-    #[export(range = (0.0, 0.5, 0.001, or_greater, suffix="m"))]
-    mesh_merge_distance: f32,
-    /// Distance threshold for triangles to be merged together and collapsed for the physics collisions.
-    #[export(range = (0.0, 1.0, 0.001, or_greater, suffix="m"))]
-    collision_merge_distance: f32,
-    /// Angular threshold for decimating triangles used in physics collisions. In degrees.
-    /// If zero, mesh decimation will not occur.
-    #[export(range = (0.0, 179.9, 0.001, or_greater, degrees))]
-    collision_decimation_angle: f32,
-    /// Maximum number of iterations for performing collision mesh decimation.
-    /// If the mesh has not changed after an iteration, not all iterations will be used.
-    #[export(range = (0.0, 500.0, 1.0, or_greater))]
-    collision_decimate_iterations: i32,
-
-    /// Approximate physical density of material to use when calculating mass.
-    /// Kilograms per meter cubed.
-    #[export(range = (0.01,50.0,0.01, or_greater, suffix="kg/m³"))]
-    gameplay_density: f32,
-    /// Approximate health density of material to use when calculating island health.
-    /// Hit Points per meter cubed.
-    #[export(range = (0.001,10.0,0.001, or_greater, suffix="HP/m³"))]
-    gameplay_health_density: f32,
-
-    /// Material to use in final product.
+    #[var(get, set=set_tweaks)]
     #[export]
-    material_baked: Option<Gd<Material>>,
-    /// Material to use in preview modes.
+    #[init(val=None)]
+    tweaks: Option<Gd<IslandBuilderSettingsTweaks>>,
+    #[var(get, set=set_settings)]
     #[export]
-    material_preview: Option<Gd<Material>>,
+    #[init(val=None)]
+    settings: Option<Gd<IslandBuilderSettings>>,
 
-    /// If true, bakes smooth mesh normals using StagToolkit before providing the mesh to Godot.
-    /// Otherwise, Godot handles mesh normals on mesh import.
-    #[export]
-    bake_normals: bool,
+    #[init(val=None)]
+    handle_tweaks: Option<ConnectHandle>,
+    #[init(val=None)]
+    handle_settings: Option<ConnectHandle>,
+
+    settings_internal: Gd<IslandBuilderSettings>,
 
     base: Base<Node3D>,
 }
 
 #[godot_api]
 impl INode3D for IslandBuilder {
-    /// Initializes the IslandBuilder.
-    fn init(base: Base<Node3D>) -> Self {
-        Self {
-            data: IslandBuildData::new(),
-            output_to: NodePath::from("."),
-            generation_cell_padding: 2,
-            generation_cell_size: 0.275,
-            generation_smoothing_iterations: 3,
-            generation_smoothing_radius_voxels: 2,
-            generation_smoothing_weight: 0.5,
-            generation_edge_radius: 1.0,
-            noise_seed: 0,
-            noise_frequency: 0.335,
-            noise_amplitude: 0.3,
-            noise_w: 1.0,
-            mesh_merge_distance: 0.04,
-            collision_merge_distance: 0.15,
-            collision_decimation_angle: 2.0,
-            collision_decimate_iterations: 100,
-            gameplay_density: 23.23,
-            gameplay_health_density: 1.0,
-            material_baked: None,
-            material_preview: None,
-            bake_normals: true,
-            base,
-        }
-    }
-
     /// Called upon ready notification.
     fn ready(&mut self) {
         // Add the IslandBuilder to a node group for indexing
@@ -600,14 +95,163 @@ impl INode3D for IslandBuilder {
             .add_to_group_ex(GROUP_NAME)
             .persistent(true)
             .done();
+
+        self.apply_settings();
+        self.apply_tweaks();
     }
 
-    // Modifies property list of node. Godot 4.3 and onward only
-    // fn get_property_list(&mut self) -> Vec<PropertyInfo> { return vec![] }
+    fn exit_tree(&mut self) {
+        self.wait_for_preview_finish();
+    }
 }
 
 #[godot_api]
 impl IslandBuilder {
+    // Setters //
+
+    #[func]
+    fn set_tweaks(&mut self, tweaks: Option<Gd<IslandBuilderSettingsTweaks>>) {
+        // Disconnect existing tweaks handle if it exists
+        if let Some(handle) = self.handle_tweaks.take()
+            && handle.is_connected()
+        {
+            handle.disconnect();
+        }
+
+        self.tweaks = tweaks;
+
+        let changed = self.data.set_tweaks(match &self.tweaks {
+            Some(tweaks) => {
+                // Connect to change events
+                let builder = self.to_gd();
+                self.handle_tweaks = Some(
+                    tweaks
+                        .signals()
+                        .changed()
+                        .builder()
+                        .connect_other_mut(&builder, Self::apply_tweaks),
+                );
+
+                tweaks.bind().to_struct()
+            }
+            _ => SettingsTweaks::default(),
+        });
+        if changed {
+            self.update_preview();
+        }
+    }
+
+    #[func]
+    fn set_settings(&mut self, settings: Option<Gd<IslandBuilderSettings>>) {
+        // Disconnect existing settings handle if it exists
+        if let Some(handle) = self.handle_settings.take()
+            && handle.is_connected()
+        {
+            handle.disconnect();
+        }
+
+        self.settings = settings;
+
+        // Pick best valid settings Resource (provided, project default, default)
+        self.settings_internal = {
+            match &self.settings {
+                Some(settings) => settings.clone(),
+                _ => {
+                    let project_settings = ProjectSettings::singleton();
+                    let defaults_path = project_settings
+                        .get_setting_ex("addons/stag_toolkit/island_builder/default_settings")
+                        .default_value(&"".to_variant())
+                        .done();
+                    let defaults_path: GString = defaults_path.to();
+
+                    let new_settings: Gd<IslandBuilderSettings>;
+
+                    // Attempt to load default settings if necessary
+                    let mut resource_loader = ResourceLoader::singleton();
+                    if !defaults_path.is_empty() && resource_loader.exists(&defaults_path) {
+                        // Load the settings from the path
+                        new_settings = try_load::<IslandBuilderSettings>(&defaults_path).unwrap_or_else(|bad_settings| {
+                            godot_warn!(
+                                "IslandBuilder failed to load default IslandBuilderSettings resource from project settings (addons/stag_toolkit/island_builder/default_settings): {0}",
+                                bad_settings
+                            );
+                            IslandBuilderSettings::new_gd()
+                        })
+                    } else {
+                        new_settings = IslandBuilderSettings::new_gd();
+                    }
+
+                    new_settings
+                }
+            }
+        };
+
+        // Listen for future events
+        let builder = self.to_gd();
+        self.handle_settings = Some(
+            self.settings_internal
+                .signals()
+                .changed()
+                .builder()
+                .connect_other_mut(&builder, Self::apply_settings),
+        );
+    }
+
+    #[func]
+    fn set_realtime_preview(&mut self, realtime_preview: bool) {
+        self.realtime_preview = realtime_preview;
+
+        // Wait for any existing preview to finish before moving on
+        self.wait_for_preview_finish();
+
+        if realtime_preview {
+            self.update_preview();
+        }
+    }
+
+    fn wait_for_preview_finish(&mut self) {
+        if let Some(task_id) = self.realtime_preview_task.take() {
+            WorkerThreadPool::singleton().wait_for_task_completion(task_id);
+        }
+    }
+
+    /// Copies the tweak settings into the builder data.
+    #[func]
+    fn apply_tweaks(&mut self) {
+        if self.data.set_tweaks(match &self.tweaks {
+            Some(tweaks) => tweaks.bind().to_struct(),
+            _ => SettingsTweaks::default(),
+        }) {
+            self.update_preview();
+        }
+    }
+
+    /// Applies Godot settings to corresponding whitebox and mesh data.
+    #[func]
+    fn apply_settings(&mut self) {
+        let settings = self.settings_internal.bind();
+        let changed = self
+            .data
+            .set_voxel_settings(settings.get_internal_voxel_settings())
+            || self
+                .data
+                .set_mesh_settings(settings.get_internal_mesh_settings())
+            || self
+                .data
+                .set_collision_settings(settings.get_internal_collision_settings());
+        drop(settings);
+
+        if changed {
+            self.base_mut().update_gizmos(); // Force redraw of IslandBuilder gizmo
+            self.update_preview();
+        }
+    }
+
+    #[func]
+    fn fetch_settings(&self) -> Gd<IslandBuilderSettings> {
+        self.settings_internal.clone()
+    }
+
     // Signals //
 
     /// Emitted when build data is applied. Useful for awaiting in multi-threaded contexts.
@@ -619,167 +263,153 @@ impl IslandBuilder {
     /// Computes and returns the Axis-Aligned Bounding Box with the current serialization.
     #[func]
     pub fn get_aabb(&self) -> Aabb {
-        self.data.whitebox.get_aabb()
+        self.data.get_bounds().to_aabb()
     }
 
     /// Returns the pre-computed volume of the SDF. Returns 0 if not pre-computed.
     #[func]
     pub fn get_volume(&self) -> f32 {
-        self.data.volume
+        self.data.get_volume()
     }
 
     /// Returns the number of currently serialized shapes.
     #[func]
     pub fn get_shape_count(&self) -> i32 {
-        self.data.whitebox.get_shape_count() as i32
+        self.data.get_shapes().len() as i32
     }
-
-    /// Checks if there is valid IslandBuilderData for working with.
-    #[func]
-    pub fn is_precomputed(&self) -> bool {
-        self.data.mesh.is_some()
-    }
-
-    /// Returns an estimation of the AABB for the island based off the serialized whitebox,
-    /// factoring noise into account.
-    #[func]
-    fn estimate_aabb(&self) -> Aabb {
-        self.data
-            .whitebox
-            .get_aabb()
-            .expand(Vec3Godot::splat(self.noise_amplitude))
-    }
-
-    // Setters //
 
     // Build Steps //
-
-    /// Applies Godot settings to corresponding whitebox and mesh data.
-    fn apply_settings(&mut self) {
-        // Apply whitebox settings
-        self.data.cell_padding = self.generation_cell_padding;
-        self.data.cell_size = self.generation_cell_size;
-        self.data.smoothing_repetitions = self.generation_smoothing_iterations;
-        self.data.smoothing_radius_voxels = self.generation_smoothing_radius_voxels;
-        self.data.smoothing_weight = self.generation_smoothing_weight;
-        self.data.whitebox.default_edge_radius = self.generation_edge_radius;
-
-        // Force a mesh re-optimize
-        if self.data.mesh_merge_distance != self.mesh_merge_distance {
-            self.data.optimized = false;
-            self.data.mesh_merge_distance = self.mesh_merge_distance;
-        }
-        self.data.collision_merge_distance = self.collision_merge_distance;
-        self.data.collision_decimate_angle = self.collision_decimation_angle.to_radians();
-        self.data.collision_decimate_iterations = self.collision_decimate_iterations;
-
-        if self.data.bake_normals != self.bake_normals {
-            self.data.optimized = false;
-            self.data.bake_normals = self.bake_normals;
-        }
-
-        // Check if random seeds have changed
-        // Don't bother setting seed if they haven't changed
-        let (seed_x, seed_y, seed_z) = self.data.noise.get_seed();
-        let nseed_x: u32 = self.noise_seed;
-        let nseed_y: u32 = self.noise_seed + 1;
-        let nseed_z: u32 = self.noise_seed + 2;
-        if seed_x != nseed_x || seed_y != nseed_y || seed_z != nseed_z {
-            self.data.noise.set_seed(nseed_x, nseed_y, nseed_z);
-        }
-
-        // Apply noise settings
-        self.data.noise.frequency = [
-            self.noise_frequency as f64,
-            self.noise_frequency as f64,
-            self.noise_frequency as f64,
-            self.noise_frequency as f64,
-        ];
-        self.data.noise_amplitude = self.noise_amplitude;
-        self.data.noise_w = self.noise_w;
-    }
 
     /// Reads and stores children CSG shapes as whitebox geometry for processing.
     /// Supports Union, Intersection and Subtraction.
     ///
     /// Supported shapes include: [CSGBox3D], [CSGSphere3D], [CSGCylinder3D], and [CSGTorus3D].
-    ///
-    /// **Note**: The IslandBuilder only utilizes convex hulls in order to support Godot's physics implmentation.
-    /// A corresponding hull is generated for each of the provided provided CSG shape Unions.
-    /// Shapes with holes punctured through them via Subtract operations--or the [CSGTorus3D] node--will
-    /// *not* generate accurate collisions, because they are concave.
-    /// These operations are still permitted for cosmetic usage.
     #[func]
     pub fn serialize(&mut self) {
-        self.data.whitebox.clear();
-        self.apply_settings();
-        self.data.whitebox.serialize_from(self.base().to_godot());
+        let mut whitebox = GodotWhitebox::new();
+        whitebox.serialize_from(self.base().to_godot());
+        let changed = self.data.set_shapes(whitebox.get_shapes().clone());
+
+        if changed {
+            self.base_mut().update_gizmos(); // Force redraw of IslandBuilder gizmo
+            self.update_preview();
+        }
     }
 
-    /// Performs Surface Nets Algorithm, storing it in the IslandBuilderData for future use.
-    /// Returns true if the generated mesh is empty.
-    #[func]
-    pub fn net(&mut self) -> bool {
-        self.apply_settings();
-        self.data.nets();
-        self.data.mesh.is_none()
-    }
+    /// Generates a preview mesh, but only in the editor.
+    pub fn update_preview(&mut self) {
+        // Ensure we're running in the editor.
+        if !Engine::singleton().is_editor_hint() || !self.realtime_preview {
+            return;
+        }
 
-    /// Optimizes the mesh, if it has not been optimized already, for baking steps.
-    #[func]
-    pub fn optimize(&mut self) {
-        self.data.optimize_mesh();
+        // TODO: debounce this so last change is applied later?
+        if let Some(task_id) = self.realtime_preview_task
+            && !WorkerThreadPool::singleton().is_task_completed(task_id)
+        {
+            return; // Don't spawn multiple tasks on top of each other
+        }
+
+        self.wait_for_preview_finish(); // collect task resources if necessary
+
+        let mesh_node = self.target_mesh();
+        let mut mesh: Option<Gd<ArrayMesh>> = None;
+
+        if let Some(base_mesh) = mesh_node.get_mesh() {
+            mesh = match base_mesh.try_cast::<ArrayMesh>() {
+                Ok(mut array_mesh) => {
+                    array_mesh.clear_surfaces();
+                    Some(array_mesh)
+                }
+                Err(_) => None,
+            }
+        }
+
+        // compute this on another thread
+        let callable = Callable::from_sync_fn("all_bake_single", |args: &[&Variant]| {
+            // godot_print!("STARTING TASK");
+            // TODO: type safety checks, return Error if safety fails
+            let mut builder: Gd<Self> = args[0].to();
+            // let recycle_mesh: Option<Gd<ArrayMesh>> = args[1].to();
+            let mut mesh_node: Gd<MeshInstance3D> = args[2].to();
+            mesh_node.call_deferred(
+                "set_mesh",
+                &[builder.bind_mut().generate_preview_mesh(None).to_variant()],
+            );
+
+            // godot_print!("SET MESH PROPERTY");
+            Result::Ok(Variant::from(true))
+        })
+        .bind(&[
+            self.to_gd().to_variant(),
+            mesh.to_variant(),
+            mesh_node.to_variant(),
+        ]);
+
+        self.realtime_preview_task = Some(
+            WorkerThreadPool::singleton()
+                .add_task_ex(&callable)
+                .high_priority(false)
+                .description("IslandBuilder preview")
+                .done(),
+        );
     }
 
     /// Returns an unoptimized triangle mesh for previewing with no extra information baked-in.
-    /// Returns an empty mesh if not pre-computed.
+    /// Bakes underlying voxel and mesh data if necessary.
+    /// Returns an empty mesh if there is no data to bake.
     #[func]
-    pub fn generate_preview_mesh(&self, recycle_mesh: Option<Gd<ArrayMesh>>) -> Gd<ArrayMesh> {
-        let mut mesh: Gd<ArrayMesh>;
-        match recycle_mesh {
+    pub fn generate_preview_mesh(&mut self, recycle_mesh: Option<Gd<ArrayMesh>>) -> Gd<ArrayMesh> {
+        self.data.bake_voxels();
+        self.data.bake_preview();
+
+        let mut mesh: Gd<ArrayMesh> = match recycle_mesh {
             Some(recycle) => {
-                mesh = recycle;
-                mesh.clear_surfaces();
+                // recycle.clear_surfaces(); // done beforehand
+                recycle
             }
-            _ => {
-                mesh = ArrayMesh::new_gd();
+            _ => ArrayMesh::new_gd(),
+        };
+
+        if let Some(trimesh) = self.data.get_mesh_preview() {
+            let surface_arrays = GodotSurfaceArrays::from_trimesh(trimesh);
+            mesh.add_surface_from_arrays(
+                PrimitiveType::TRIANGLES,
+                surface_arrays.get_surface_arrays(),
+            );
+            mesh.surface_set_name(0, "island");
+            // Add a material, if valid
+            if let Some(material) = &self.settings_internal.bind().get_material_baked() {
+                mesh.surface_set_material(0, material);
             }
         }
-        let arrs_opt = self.data.get_mesh();
 
-        match arrs_opt {
-            Some(arrs) => {
-                mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
-                mesh.surface_set_name(0, "island");
-                // Add a material, if valid
-                if let Some(mat) = &self.material_preview {
-                    mesh.surface_set_material(0, mat);
-                }
-
-                mesh
-            }
-            _ => mesh,
-        }
+        mesh
     }
     /// Bakes and returns a triangle mesh with vertex colors, UVs, and LODs.
-    /// Returns an empty mesh if not pre-computed.
-    /// Optimizes the mesh data beforehand, if not already optimized.
+    /// Bakes underlying voxel and mesh data if necessary.
+    /// Returns an empty mesh if there is no data to bake.
     #[func]
     pub fn generate_baked_mesh(&mut self) -> Gd<ArrayMesh> {
-        self.apply_settings();
-        self.optimize();
+        self.data.bake_voxels();
+        self.data.bake_preview();
+        self.data.bake_mesh();
 
-        let arrs_opt = self.data.get_mesh_baked();
-        match arrs_opt {
-            Some(arrs) => {
+        match self.data.get_mesh_baked() {
+            Some(trimesh) => {
+                let surface_arrays = GodotSurfaceArrays::from_trimesh(trimesh);
                 let mut importer = ImporterMesh::new_gd();
-                importer.add_surface(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
+                importer.add_surface(
+                    PrimitiveType::TRIANGLES,
+                    surface_arrays.get_surface_arrays(),
+                );
                 importer.generate_lods(25.0, 60.0, &varray![]);
                 importer.set_surface_name(0, "island");
 
                 // If we have a material, assign it!
-                if let Some(mat) = &self.material_baked {
-                    importer.set_surface_material(0, mat);
+                let material = &self.settings_internal.bind().get_material_baked();
+                if let Some(material) = material {
+                    importer.set_surface_material(0, material);
                 }
 
                 // If we were able to successfully generate a mesh, return it
@@ -791,11 +421,14 @@ impl IslandBuilder {
                 godot_warn!("IslandBuilder: LOD generation failed. Returning island with no LODs.");
 
                 let mut mesh = ArrayMesh::new_gd();
-                mesh.add_surface_from_arrays(PrimitiveType::TRIANGLES, &arrs.get_surface_arrays());
+                mesh.add_surface_from_arrays(
+                    PrimitiveType::TRIANGLES,
+                    surface_arrays.get_surface_arrays(),
+                );
                 mesh.surface_set_name(0, "island");
 
-                if let Some(mat) = &self.material_baked {
-                    mesh.surface_set_material(0, mat);
+                if let Some(material) = material {
+                    mesh.surface_set_material(0, material);
                 }
 
                 mesh
@@ -803,28 +436,22 @@ impl IslandBuilder {
             _ => ArrayMesh::new_gd(),
         }
     }
-    /// Computes and returns a list of collision hulls for the IslandBuilder shape.
-    /// Returns an empty array if not pre-computed.
-    /// Optimizes the mesh data beforehand, if not already optimized.
+    /// Computes and returns a list of collision hulls.
+    /// Bakes underlying voxel and mesh data if necessary.
+    /// Returns an empty array if there is no data to bake.
     #[func]
     pub fn generate_collision_hulls(&mut self) -> Array<Gd<ConvexPolygonShape3D>> {
-        self.apply_settings();
-        self.optimize();
+        self.data.bake_voxels();
+        self.data.bake_preview();
+        self.data.bake_collision();
 
         let hull_pts = self.data.get_hulls();
 
-        let mut hulls = Array::<Gd<ConvexPolygonShape3D>>::new();
-        for hull in hull_pts.iter() {
+        Array::<Gd<ConvexPolygonShape3D>>::from_iter(hull_pts.iter().map(|pts| {
             let mut shape = ConvexPolygonShape3D::new_gd();
-
-            // Fetch remaining positions from the hull
-            let pos: PackedVector3Array = hull.positions.clone().to_vector3();
-
-            shape.set_points(&pos);
-            hulls.push(&shape);
-        }
-
-        hulls
+            shape.set_points(&pts.positions.to_vector3()); // Fetch remaining positions from the hull
+            shape
+        }))
     }
     /// Computes and returns the navigation properties of the island.
     /// Properties will be zero'd if not pre-computed.
@@ -872,20 +499,7 @@ impl IslandBuilder {
         }
 
         // Fetch color for debug drawing
-        let settings = ProjectSettings::singleton();
-        let debug_color_variant: Variant = settings
-            .get_setting_ex("addons/stag_toolkit/island_builder/collision_color")
-            .default_value(&Variant::from(Color::from_rgba(1.0, 0.0, 0.667, 1.0)))
-            .done();
-        let debug_color: Color;
-
-        // Ensure variant is of proper type
-        if let Ok(color) = debug_color_variant.try_to::<Color>() {
-            debug_color = color;
-        } else {
-            // Otherwise, use default
-            debug_color = Color::from_rgba(1.0, 0.0, 0.667, 1.0);
-        }
+        let debug_color: Color = self.settings_internal.bind().get_collision_color();
 
         // Get collision hulls
         for (idx, hull) in hulls.iter_shared().enumerate() {
@@ -898,29 +512,31 @@ impl IslandBuilder {
             target.add_child(&shape); // Add shape to scene
 
             // Set shape owner so it is included and saved within the scene
-            if let Some(tree) = target.get_tree() {
-                if let Some(root) = tree.get_edited_scene_root() {
-                    shape.set_owner(&root);
-                }
+            if let Some(tree) = target.get_tree()
+                && let Some(root) = tree.get_edited_scene_root()
+            {
+                shape.set_owner(&root);
             }
         }
 
         // Apply physics properties
         if let Ok(mut rigid) = target.clone().try_cast::<RigidBody3D>() {
-            rigid.set_mass(volume * self.gameplay_density);
+            rigid.set_mass(volume * self.settings_internal.bind().get_physics_density());
             rigid.set_axis_lock(BodyAxis::ANGULAR_X, true);
             rigid.set_axis_lock(BodyAxis::ANGULAR_Z, true);
             rigid.set_axis_lock(BodyAxis::LINEAR_Y, true);
         }
 
         // If possible, apply maximum health too
-        if let Some(mut p) = target.clone().get_parent() {
-            if p.has_method("set_maximum_health") {
-                p.call(
-                    "set_maximum_health",
-                    &[Variant::from(volume * self.gameplay_health_density)],
-                );
-            }
+        if let Some(mut p) = target.clone().get_parent()
+            && p.has_method("set_maximum_health")
+        {
+            p.call(
+                "set_maximum_health",
+                &[Variant::from(
+                    volume * self.settings_internal.bind().get_physics_health_density(),
+                )],
+            );
         }
     }
 
@@ -938,10 +554,10 @@ impl IslandBuilder {
         }
 
         // Otherwise, apply navigation properties to target's parent
-        if let Some(mut parent) = p.get_parent() {
-            if parent.has_method("set_navigation_properties") {
-                parent.callv("set_navigation_properties", &varray![Variant::from(props)]);
-            }
+        if let Some(mut parent) = p.get_parent()
+            && parent.has_method("set_navigation_properties")
+        {
+            parent.callv("set_navigation_properties", &varray![Variant::from(props)]);
         }
     }
 
@@ -958,9 +574,6 @@ impl IslandBuilder {
 
     /// Fetches the output mesh for this IslandBuilder.
     /// Creates one if none was found.
-    /// If the mesh is newly created, its render layers are specified by
-    /// `"addons/stag_toolkit/island_builder/render_layers"`
-    /// in the Project Settings.
     #[func]
     fn target_mesh(&mut self) -> Gd<MeshInstance3D> {
         let mut target = self.target();
@@ -978,13 +591,7 @@ impl IslandBuilder {
         // Editor lock the mesh so users don't mess with it
         editor_lock(mesh.clone().upcast(), true); // Lock editing
 
-        // Get render layers mask from Project Settings
-        let settings = ProjectSettings::singleton();
-        let mask = settings
-            .get_setting_ex("addons/stag_toolkit/island_builder/render_layers")
-            .default_value(&Variant::from(5))
-            .done();
-        mesh.set_layer_mask(mask.to());
+        mesh.set_layer_mask(self.settings_internal.bind().get_render_layers());
 
         // Add mesh to scene
         mesh.set_name("mesh_island");
@@ -1004,16 +611,15 @@ impl IslandBuilder {
     /// Removes PackedScene references on the IslandBuilder's target node.
     #[func]
     fn destroy_bakes(&mut self) {
-        self.data.whitebox.clear();
-        self.data.mesh = None;
-        self.data.optimized = false;
+        self.data.dirty_voxels();
 
         let mut out = self.target();
-
         out.set_scene_file_path(""); // Clear scene file path
 
         // Iterate over all children.
         for child in out.get_children().iter_shared() {
+            // match_class! {}
+
             // If this is a MeshInstance3D, destroy it
             match child.try_cast::<MeshInstance3D>() {
                 Ok(mut mesh) => {
@@ -1042,8 +648,6 @@ impl IslandBuilder {
         if !threaded {
             self.serialize();
         }
-        self.net();
-        self.optimize();
 
         // Generate result data
         let mesh = self.generate_baked_mesh();

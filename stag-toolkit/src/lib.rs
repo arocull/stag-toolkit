@@ -12,10 +12,16 @@
 
 // MODULE DECLARATION //
 
+mod codegen {}
+
 /// General math utilities and conversions.
 pub mod math {
+    /// Rust-only implementation of an Axis-Aligned Bounding Box.
+    pub mod bounding_box;
     /// Methods for asserting values are within a given delta, for unit tests.
     pub mod delta;
+    /// 3D noise types.
+    pub mod noise;
     /// Internal implementation for primitive queues.
     pub mod primqueue;
     /// Ray, plane and point projections.
@@ -26,7 +32,7 @@ pub mod math {
     pub mod sdf;
     /// Type conversions for ineroperability between libraries.
     pub mod types;
-    /// Volumetric data handling and 3D noise.
+    /// Volumetric data handling.
     pub mod volumetric;
 }
 /// Mesh data handling and operating with Godot.
@@ -37,6 +43,9 @@ pub mod mesh {
     pub mod nets;
     /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
+
+    /// Godot-agnostic Island Builder utilities.
+    pub mod island;
 
     /// Ineroperable mesh data with Godot Engine.
     #[cfg(feature = "godot")]
@@ -86,6 +95,9 @@ pub mod animation {
 pub mod classes {
     // IMPORTS //
     use godot::prelude::*;
+
+    /// Island Builder data handling.
+    pub mod island_settings;
 
     /// Godot interfaces for Abyss' IslandBuilder tool.
     pub mod island;

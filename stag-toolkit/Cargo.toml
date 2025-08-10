@@ -6,6 +6,7 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
+path = "src/lib.rs"
 crate-type = ["cdylib", "lib"]  # Compile this crate to a dynamic C library.
 # doc = true
 
@@ -16,12 +17,13 @@ godot = ["dep:godot"] # Enables compiling as a Godot plugin
 physics_server = [] # Experimental physics server
 
 [dependencies]
-fast-surface-nets = "0.2.0"
-glam = { version = "0.30.2", features = ["approx"] }
-godot = { version = "0.3.0", features = ["api-4-4", "experimental-threads", "register-docs"], optional = true }
+fast-surface-nets = "0.2.1"
+glam = { version = "0.30.5", features = ["approx"] }
+godot = { version = "0.3.4", features = ["api-4-4", "experimental-threads", "register-docs"], optional = true }
 ndshape = "0.3.0"
 noise = "0.9.0"
 rayon = "1.10.0"
+stag-toolkit-codegen = { path = "../stag-toolkit-codegen" }
 
 [dev-dependencies]
 criterion = { version = "0.6.0", features = ["html_reports"] }
@@ -30,6 +32,11 @@ criterion = { version = "0.6.0", features = ["html_reports"] }
 name = "simulation"
 harness = false
 path = "benches/simulation.rs"
+
+[[bench]]
+name = "island"
+harness = false
+path = "benches/island.rs"
 
 [lints.rust]
 missing_docs = "allow"

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "stag-toolkit-codegen",
     "stag-toolkit",
 ]
 

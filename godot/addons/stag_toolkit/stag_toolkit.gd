@@ -25,22 +25,17 @@ var settings: Array[Dictionary] = [
 	},
 	{
 		"name": "addons/stag_toolkit/island_builder/enabled",
-		"type": TYPE_BOOL,
+		"type": TYPE_STRING,
+		"hint": PROPERTY_HINT_FILE,
 		"description": "Whether the IslandBuilder tool is enabled or not. Requires plugin reload.",
-		"default": true,
+		"default": "",
 	},
 	{
-		"name": "addons/stag_toolkit/island_builder/render_layers",
+		"name": "addons/stag_toolkit/island_builder/settings",
 		"type": TYPE_INT,
 		"hint": PROPERTY_HINT_LAYERS_3D_RENDER,
-		"description": "What render layers that newly generated IslandBuilder meshes will appear on.",
+		"description": "Default IslandBuilderSettings resource when one is not defined by the project developer.",
 		"default": 5,
-	},
-	{
-		"name": "addons/stag_toolkit/island_builder/collision_color",
-		"type": TYPE_COLOR,
-		"description": "Debug draw color for generated IslandBuilder collision shapes.",
-		"default": Color("#ff00abff"),
 	},
 	{
 		"name": "addons/stag_toolkit/island_builder/save_to_directory",
@@ -89,6 +84,15 @@ var dockers: Array[Dictionary] = [
 	}
 ]
 
+## Editor gizmo configurations
+var gizmos: Array[Dictionary] = [
+	{
+		"toggle": "addons/stag_toolkit/island_builder/enabled",
+		"resource": "res://addons/stag_toolkit/plugin/island_builder/aabb_gizmo.gd",
+		"constructed": null,
+	}
+]
+
 ## Initializes all configuration options for StagToolkit
 func initialize_settings() -> void:
 	for setting in settings:
@@ -123,7 +127,20 @@ func _enter_tree() -> void:
 			if docker.has("init"):
 				dock.call(docker.init)
 
+	# Register gizmos
+	for gizmo in gizmos:
+		if ProjectSettings.get_setting(gizmo.toggle, true):
+			var giz = load(gizmo.resource).new()
+			gizmo["constructed"] = gizmo
+			add_node_3d_gizmo_plugin(giz)
+
 func _exit_tree() -> void:
+	# Unregister gizmos
+	for gizmo in gizmos:
+		var giz = gizmo.get("constructed", null)
+		if is_instance_valid(giz):
+			remove_node_3d_gizmo_plugin(giz)
+
 	# Unregister docks and importers
 	for docker in dockers:
 		if ProjectSettings.get_setting(docker.toggle, true) and is_instance_valid(docker.get("constructed", null)):

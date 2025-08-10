@@ -60,7 +60,7 @@ impl StagPhysicsServer {
                 }
 
                 // Build and optimize a collision mesh
-                let mut mesh = TriangleMesh::new(tris, vertices, None);
+                let mut mesh = TriangleMesh::new(tris, vertices, None, None);
                 mesh.optimize(1e-6);
 
                 meshes.push(Arc::new(mesh));
@@ -134,11 +134,11 @@ impl StagPhysicsServer {
             let mut dictionary = Dictionary::new();
             dictionary.set(
                 "point",
-                <Vec3 as ToVector3<Vector3>>::to_vector3(result.raycast_result.point),
+                <Vec3 as ToVector3<Vector3>>::to_vector3(&result.raycast_result.point),
             );
             dictionary.set(
                 "normal",
-                <Vec3 as ToVector3<Vector3>>::to_vector3(result.raycast_result.normal),
+                <Vec3 as ToVector3<Vector3>>::to_vector3(&result.raycast_result.normal),
             );
             dictionary.set("depth", result.raycast_result.depth);
             dictionary.set("body", result.body_identifier);

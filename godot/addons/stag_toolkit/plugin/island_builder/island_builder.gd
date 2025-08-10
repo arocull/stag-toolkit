@@ -34,7 +34,6 @@ func _parse_begin(object: Object) -> void:
 	update_volume(builder)
 	update_mass(builder)
 	update_hitpoints(builder)
-	update_button_availability(builder)
 
 	var this_is_previous: bool = last_builder == builder
 	if not this_is_previous:
@@ -107,31 +106,24 @@ func fetch_builder_ancestor(object: Node) -> IslandBuilder:
 		return null
 	return fetch_builder_ancestor(object.get_parent())
 
-func update_button_availability(builder: IslandBuilder):
-	panel.get_node("%btn_precompute").disabled = builder.get_shape_count() <= 0
-	var disable_precomps = not builder.is_precomputed()
-	for btn_path in PRECOMPUTE_REQUIRED_BUTTONS:
-		panel.get_node("%" + btn_path).disabled = disable_precomps
-
 func update_shapecount(builder: IslandBuilder):
 	panel.get_node("%shape_count").text = "{0} shapes".format([builder.get_shape_count()])
 func update_volume(builder: IslandBuilder):
 	panel.get_node("%volume").text = "%.2f m³" % builder.get_volume()
 func update_mass(builder: IslandBuilder):
-	panel.get_node("%mass").text = "%.2f kg" % (builder.get_volume() * builder.gameplay_density)
+	var settings := builder.fetch_settings()
+	panel.get_node("%mass").text = "%.2f kg" % (builder.get_volume() * settings.physics_density)
 func update_hitpoints(builder: IslandBuilder):
-	panel.get_node("%hitpoints").text = "%.2f HP" % (builder.get_volume() * builder.gameplay_health_density)
+	var settings := builder.fetch_settings()
+	panel.get_node("%hitpoints").text = "%.2f HP" % (builder.get_volume() * settings.physics_health_density)
 
 func do_serialize(builder: IslandBuilder):
 	builder.serialize()
 	update_shapecount(builder)
-	update_button_availability(builder)
 func do_precompute(builder: IslandBuilder):
-	builder.net()
 	update_volume(builder)
 	update_mass(builder)
 	update_hitpoints(builder)
-	update_button_availability(builder)
 
 func do_metaclear(node: Node):
 	for child in node.get_children():
@@ -143,7 +135,6 @@ func do_metaclear(node: Node):
 func do_destroy(node: IslandBuilder):
 	node.destroy_bakes()
 	update_shapecount(node)
-	update_button_availability(node)
 
 func do_mesh_preview(builder: IslandBuilder):
 	builder.apply_mesh(builder.generate_preview_mesh(builder.target_mesh().mesh))
@@ -228,9 +219,7 @@ func save_island(builder: IslandBuilder):
 func _destroy_all_bakes():
 	if is_instance_valid(last_builder):
 		IslandBuilder.all_destroy_bakes(last_builder.get_tree())
-
 		update_shapecount(last_builder)
-		update_button_availability(last_builder)
 
 func _bake_everything():
 	if is_instance_valid(last_builder):
@@ -396,7 +385,7 @@ func _check_transforms() -> void:
 		# If we have new changes, but haven't updated our generation in a while, do a clean pass to ensure we're at final
 		if realtime_dirty and not realtime_queued:
 			if t > realtime_last_update + TWEAK_TIMER_THRESHOLD:
-				update_realtime_preview(false)
+				update_realtime_preview()
 		# If somehow our thread failed, reset our queue status
 		if realtime_queued and t > realtime_last_update + TWEAK_TIMEOUT_THRESHOLD:
 			realtime_queued = false
@@ -411,26 +400,7 @@ func _check_transforms_internal(node: Node) -> void:
 		_check_transforms_internal(child)
 
 ## Called if the IslandBuilder tree changed somehow
-func update_realtime_preview(dirty: bool = true):
+func update_realtime_preview():
 	if not realtime_enabled: return
-
-	realtime_dirty = dirty
-
-	if realtime_queued: return
-	realtime_queued = true
-	_update_realtime_preview_deferred.call_deferred()
-
-func _update_realtime_preview_deferred():
 	last_builder.serialize()
-	if realtime_thread.is_started():
-		realtime_thread.wait_to_finish()
-	realtime_thread.start(_realtime_preview.bind(last_builder, _realtime_preview_finish.bind(last_builder)))
-
-func _realtime_preview(builder: IslandBuilder, on_finish: Callable) -> void:
-	Thread.set_thread_safety_checks_enabled(false)
-	if builder.net(): return # Buffer was empty
-	on_finish.call_deferred(builder.generate_preview_mesh(null))
-func _realtime_preview_finish(new_mesh: ArrayMesh, builder: IslandBuilder) -> void:
-	builder.target_mesh().mesh = new_mesh
-	realtime_queued = false
 	realtime_last_update = Time.get_ticks_msec()

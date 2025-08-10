@@ -1,6 +1,6 @@
 use super::trimesh::TriangleMesh;
 use crate::math::sdf;
-use crate::math::sdf::ShapeOperation;
+use crate::math::sdf::{ShapeOperation, shape_list_bounds};
 use crate::math::types::ToVector3;
 use crate::math::types::gdmath::*;
 use godot::builtin::Array;
@@ -65,9 +65,21 @@ impl GodotSurfaceArrays {
     pub fn from_trimesh(mesh: &TriangleMesh) -> Self {
         let mut surface = Self::new();
 
-        surface.set_vertices(mesh.positions.clone().to_vector3());
-        surface.set_normals(mesh.normals.clone().to_vector3());
         surface.set_indices(packed_index_array_usize(mesh.indices()));
+        surface.set_vertices(mesh.positions.to_vector3());
+
+        if !mesh.normals.is_empty() {
+            surface.set_normals(mesh.normals.to_vector3());
+        }
+        if !mesh.colors.is_empty() {
+            surface.set_colors(mesh.colors.to_color());
+        }
+        if let Some(uv1) = &mesh.uv1 {
+            surface.set_uv2(uv1.to_vector2());
+        }
+        if let Some(uv2) = &mesh.uv2 {
+            surface.set_uv1(uv2.to_vector2());
+        }
 
         surface
     }
@@ -107,8 +119,8 @@ impl GodotSurfaceArrays {
     }
 
     /// Returns a copy of the surface arrays, for passing to Godot.
-    pub fn get_surface_arrays(&self) -> Array<Variant> {
-        self.surface_arrays.clone()
+    pub fn get_surface_arrays(&self) -> &Array<Variant> {
+        &self.surface_arrays
     }
 }
 
@@ -154,58 +166,51 @@ impl GodotWhitebox {
     }
     /// Calculates the Axis-Aligned Bounding Box for the whitebox.
     pub fn get_aabb(&self) -> Aabb {
-        let mut aabb = Aabb::new(Vec3Godot::ZERO, Vec3Godot::ZERO);
-
-        // If we have no shapes, return nothing
-        if self.shapes.is_empty() {
-            return aabb;
-        }
-
-        // Create an iterator
-        for shape in self.shapes.iter() {
-            // Only include Unions in AABB, as all other operations take away
-            if shape.operation != ShapeOperation::Union {
-                continue;
-            }
-
-            let (min_bound, max_bound) = shape.relative_bounds();
-            let shape_aabb = shape.transform().to_transform3d()
-                * Aabb::new(min_bound.to_vector3(), (max_bound - min_bound).to_vector3());
-            aabb = aabb.merge(shape_aabb);
-        }
-
-        aabb
+        let bounds = shape_list_bounds(&self.shapes);
+        Aabb::new(bounds.minimum.to_vector3(), bounds.size().to_vector3())
     }
 
-    /// Serializes CSG geometry into a whitebox. Temporarily shows the parent node in case it is hidden.
-    pub fn serialize_from(&mut self, mut node: Gd<Node3D>) {
-        let was_visible = node.is_visible();
-        node.set_visible(true);
-        self.serialize_walk(node.clone(), node.clone().upcast::<Node>());
-        node.set_visible(was_visible);
+    /// Serializes CSG geometry into a whitebox.
+    pub fn serialize_from(&mut self, node: Gd<Node3D>) {
+        self.serialize_walk(
+            node.clone(),
+            node.clone(),
+            node.clone().upcast::<Node>(),
+            Transform3D::IDENTITY,
+        );
     }
 
     /// Walks a single step in the node tree, serializing the current shape
-    fn serialize_walk(&mut self, parent: Gd<Node3D>, node: Gd<Node>) {
+    fn serialize_walk(
+        &mut self,
+        top_level_parent: Gd<Node3D>,
+        parent: Gd<Node3D>,
+        node: Gd<Node>,
+        mut transform: Transform3D,
+    ) {
         for child in node.get_children().iter_shared() {
-            self.serialize_walk(parent.clone(), child);
+            match_class! { child.clone(),
+                child3d @ Node3D => {
+                    // Continue to build transform stack
+                    let stack = transform * child3d.get_transform();
+
+                    // Only continue walk if node is visible
+                    if child3d.is_visible() {
+                        self.serialize_walk(top_level_parent.clone(), parent.clone(), child, stack);
+                    }
+                },
+                _ => self.serialize_walk(top_level_parent.clone(), parent.clone(), child, transform),
+            }
         }
 
-        let mut transform: Transform3D; // relative transform of node
         let op: ShapeOperation; // CSG operation of node
 
         // First, do generic cast to get basic Node3D properties
         if let Ok(shape) = node.clone().try_cast::<CsgShape3D>() {
             // If the shape is hidden, don't serialize it!
-            if !shape.is_visible_in_tree() {
+            if !shape.is_visible() {
                 return;
             }
-
-            // Get relative transform
-            // TODO: use a recursive transform tree until we get to the top-level IslandBuilder,
-            // instead of just using the immediate parent
-            transform =
-                parent.get_global_transform().affine_inverse() * shape.get_global_transform();
 
             // Get node's CSG operation
             op = csg_operation(shape.get_operation());
@@ -215,60 +220,54 @@ impl GodotWhitebox {
         }
 
         // Then, cast to each type of CSG class
-        if let Ok(csg) = node.clone().try_cast::<CsgBox3D>() {
-            // Since we have a box, we can pull out the scale
-            let mut scale = transform.basis.get_scale();
-            // ...and unscale the transform!
-            transform = transform.scaled_local(Vec3Godot::ONE / scale);
-            // Also, don't forget to factor in the original CSG box scale on top
-            scale *= csg.get_size();
+        match_class! {node.clone(),
+            csg @ CsgBox3D => {
+                // Since we have a box, we can pull out the scale
+                let mut scale = transform.basis.get_scale();
+                // ...and unscale the transform!
+                transform = transform.scaled_local(Vec3Godot::ONE / scale);
+                // Also, don't forget to factor in the original CSG box scale on top
+                scale *= csg.get_size();
 
-            // Finally, store shape
-            self.shapes.push(sdf::Shape::rounded_box(
-                transform.to_transform3d(),
-                scale.to_vector3(),
-                self.fetch_edge_radius(csg.upcast::<Node>()),
-                op,
-            ));
-        } else if let Ok(csg) = node.clone().try_cast::<CsgSphere3D>() {
-            self.shapes.push(sdf::Shape::sphere(
-                transform.to_transform3d(),
-                csg.get_radius(),
-                op,
-            ));
-        } else if let Ok(csg) = node.clone().try_cast::<CsgCylinder3D>() {
-            let mut scale = transform.basis.get_scale();
-            transform = transform.scaled_local(Vec3Godot::ONE / Vec3Godot::new(1.0, scale.y, 1.0));
-            scale.y *= csg.get_height();
+                // Finally, store shape
+                self.shapes.push(sdf::Shape::rounded_box(
+                    transform.to_transform3d(),
+                    scale.to_vector3(),
+                    0.0,
+                    op,
+                ));
+            },
+            csg @ CsgSphere3D => {
+                self.shapes.push(sdf::Shape::sphere(
+                    transform.to_transform3d(),
+                    csg.get_radius(),
+                    op,
+                ));
+            },
+            csg @ CsgCylinder3D => {
+                let mut scale = transform.basis.get_scale();
+                transform = transform.scaled_local(Vec3Godot::ONE / Vec3Godot::new(1.0, scale.y, 1.0));
+                scale.y *= csg.get_height();
 
-            self.shapes.push(sdf::Shape::rounded_cylinder(
-                transform.to_transform3d(),
-                scale.y,
-                csg.get_radius(),
-                self.fetch_edge_radius(csg.upcast::<Node>()),
-                op,
-            ));
-        } else if let Ok(csg) = node.clone().try_cast::<CsgTorus3D>() {
-            let thickness = (csg.get_outer_radius() - csg.get_inner_radius()).abs() * 0.5;
-            self.shapes.push(sdf::Shape::torus(
-                transform.to_transform3d(),
-                thickness,
-                (csg.get_outer_radius() - thickness).abs(),
-                op,
-            ));
+                self.shapes.push(sdf::Shape::rounded_cylinder(
+                    transform.to_transform3d(),
+                    scale.y,
+                    csg.get_radius(),
+                    0.0,
+                    op,
+                ));
+            },
+            csg @ CsgTorus3D => {
+                let thickness = (csg.get_outer_radius() - csg.get_inner_radius()).abs() * 0.5;
+                self.shapes.push(sdf::Shape::torus(
+                    transform.to_transform3d(),
+                    thickness,
+                    (csg.get_outer_radius() - thickness).abs(),
+                    op,
+                ));
+            },
+            _ => {}
         }
-    }
-
-    /// Fetches the given metadata float from a node, or returns a default
-    fn fetch_meta(node: Gd<Node>, meta_name: StringName, default: f32) -> f32 {
-        if node.has_meta(&meta_name) {
-            return node.get_meta(&meta_name).to();
-        }
-        default
-    }
-    /// Fetches the edge radius of a whitebox node
-    fn fetch_edge_radius(&self, node: Gd<Node>) -> f32 {
-        Self::fetch_meta(node, "edge_radius".into(), self.default_edge_radius)
     }
 }
 

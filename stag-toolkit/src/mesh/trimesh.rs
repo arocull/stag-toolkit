@@ -5,13 +5,13 @@ use crate::math::{
 };
 use glam::Vec4Swizzles;
 use std::collections::HashMap;
-
+use std::num::NonZero;
 // EDGES //
 
 /// A mesh edge of vertex indices. In counter-clockwise winding order.
 pub type Edge = [usize; 2];
 
-/// A set of two indices, that can be operated from any set of positions.
+/// A set of two indices that can be operated from any set of positions.
 pub trait EdgeOperations {
     /// Returns a new, flipped edge by changing vertex order.
     fn flip(&self) -> Self;
@@ -34,7 +34,7 @@ impl EdgeOperations for Edge {
 /// A mesh triangle of vertex indices. In counter-clockwise face winding order.
 pub type Triangle = [usize; 3];
 
-/// A set of three indices, that can be operated on from any set of positions.
+/// A set of three indices that can be operated on from any set of positions.
 pub trait TriangleOperations {
     /// Returns a positive value if the triangle's points are oriented counter-clockwise,
     /// negative if clockwise, and zero if they are collinear.
@@ -183,40 +183,56 @@ impl TriangleOperations for Triangle {
 
 // MESHES //
 
+/// An edge with a face (index 0), that may or may not have a corresponding face on the reversed edge (index 1).
+pub type EdgeTriangles = (usize, Option<NonZero<usize>>);
+
 /// Container for triangle mesh data.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Default)]
 pub struct TriangleMesh {
     /// Primary mesh buffer, listing the index of corresponding vertex positions and normals, in counter-clockwise face winding.
     pub triangles: Vec<Triangle>,
     // pub indices: Vec<usize>,
     /// Individual vertices of the mesh.
     pub positions: Vec<Vec3>,
-    /// Normals of the mesh, assigned to vertices of corresponding index.
+    /// Normals of the mesh, assigned to vertices of the corresponding index.
     pub normals: Vec<Vec3>,
+    /// Optional color data, assigned to vertices of the corresponding index.
+    pub colors: Vec<Vec4>,
+
+    pub uv1: Option<Vec<Vec2>>,
+    pub uv2: Option<Vec<Vec2>>,
 }
+
 impl TriangleMesh {
     /// Creates a new TriangleMesh from the given mesh data.
-    pub fn new(triangles: Vec<Triangle>, positions: Vec<Vec3>, normals: Option<Vec<Vec3>>) -> Self {
+    pub fn new(
+        triangles: Vec<Triangle>,
+        positions: Vec<Vec3>,
+        normals: Option<Vec<Vec3>>,
+        colors: Option<Vec<Vec4>>,
+    ) -> Self {
         Self {
             triangles,
             positions,
             // Default normals to an empty vector if not included
             normals: normals.unwrap_or_default(),
+            colors: colors.unwrap_or_default(),
+            uv1: None,
+            uv2: None,
         }
     }
 
     /// Creates a new TriangleMesh from a list of indices.
     /// Every three indices are expected to represent a triangle, with counter-clockwise face winding.
     /// Each index has a corresponding vertex position and normal.
-    /// List of normals is optional.
+    /// A list of normals is optional.
     pub fn from_indices(
         indices: Vec<usize>,
         positions: Vec<Vec3>,
         normals: Option<Vec<Vec3>>,
     ) -> Self {
         // Reserve triangles
-        let mut tris: Vec<Triangle> = vec![];
-        tris.reserve_exact(indices.len() / 3);
+        let mut tris: Vec<Triangle> = Vec::with_capacity(indices.len() / 3);
 
         // Create triangles for each index
         for i in 0..(indices.len() / 3) {
@@ -228,6 +244,9 @@ impl TriangleMesh {
             positions,
             // Default normals to an empty vector if not included
             normals: normals.unwrap_or_default(),
+            colors: vec![],
+            uv1: None,
+            uv2: None,
         }
     }
 
@@ -236,7 +255,7 @@ impl TriangleMesh {
     pub fn join(&mut self, mesh: &Self) {
         let idx_count = self.positions.len();
 
-        // Glomp in other mesh's positions and normals
+        // Glomp in the other mesh's positions and normals
         self.positions.append(&mut mesh.positions.clone());
         self.normals.append(&mut mesh.normals.clone());
 
@@ -294,9 +313,10 @@ impl TriangleMesh {
 
     /// Returns a hash map of edges.
     /// For each edge, the left and right face index is returned, in order.
-    /// The mesh is assumed to be manifold (each edge has exactly two faces).
-    pub fn edge_map(&self) -> HashMap<Edge, [usize; 2]> {
-        let mut edges = HashMap::<Edge, [usize; 2]>::new();
+    /// This method assumes that each edge has a maximum of two faces,
+    /// but it does not expect the mesh to be watertight.
+    pub fn edge_map(&self) -> HashMap<Edge, EdgeTriangles> {
+        let mut edges = HashMap::<Edge, EdgeTriangles>::new();
 
         for (idx, tri) in self.triangles.iter().enumerate() {
             for edge in tri.edges() {
@@ -306,10 +326,13 @@ impl TriangleMesh {
                 // If we found a key already existing for our reverse edge,
                 // fill in our face index as the right face
                 if let Some(faces) = edges.get_mut(&flip) {
-                    faces[1] = idx;
+                    #[cfg(debug_assertions)]
+                    assert_ne!(0, idx, "face index on reverse edge should never be zero");
+
+                    faces.1 = NonZero::new(idx);
                 } else {
                     // Otherwise, insert a key with this face for our edge
-                    edges.insert(edge, [idx, 0]);
+                    edges.insert(edge, (idx, None));
                 }
             }
         }
@@ -338,11 +361,11 @@ impl TriangleMesh {
     }
 
     /// Decimates the mesh by removing all immediate edges with an angle less than the given threshold.
-    /// When the amount of triangles removed per decimation falls under the `minimum_dropout` threshold,
+    /// When the number of triangles removed per decimation falls under the `minimum_dropout` threshold,
     /// the algorithm stops decimating triangles.
-    pub fn decimate_planar(&mut self, threshold: f32, iterations: i32, minimum_dropout: u32) {
+    pub fn decimate_planar(&mut self, threshold: f32, iterations: u32, minimum_dropout: u32) {
         // Do nothing if invalid.
-        if iterations <= 0 {
+        if iterations == 0 {
             return;
         }
 
@@ -352,9 +375,10 @@ impl TriangleMesh {
 
             // Collapse all edges below the threshold
             let mut count = 0;
-            for (edge, [left_idx, right_idx]) in edges.iter() {
-                if self.face_angle(&self.triangles[*left_idx], &self.triangles[*right_idx])
-                    < threshold
+            for (edge, (left_idx, right_idx)) in edges.iter() {
+                if let Some(right_idx) = right_idx
+                    && self.face_angle(&self.triangles[*left_idx], &self.triangles[right_idx.get()])
+                        < threshold
                 {
                     self.edge_collapse(edge);
                     count += 1;
@@ -380,12 +404,19 @@ impl TriangleMesh {
     /// Call `remove_degenerate` and `remove_unused` to clean up the mesh when you are done editing it.
     /// Or, to do everything at once, call `optimize`.
     pub fn merge_by_distance(&mut self, threshold: f32) {
+        if threshold <= 0.0 {
+            // Don't do anything if disabled
+            return;
+        }
+
         let thresh_squared = threshold * threshold;
 
         // Array of new, merged vertices
         let mut new_verts = self.positions.clone();
         // List of vertex indices: (replace, new)
-        let mut replace: Vec<(usize, usize)> = vec![];
+        // Estimate that we'll roughly need 10% of our vertex list to deal with
+        let mut replace: Vec<(usize, usize)> =
+            Vec::with_capacity((new_verts.len() as f64 * 0.1) as usize);
 
         // Start from the back of the array
         for (i, vert) in self.positions.iter().enumerate().rev() {
@@ -526,7 +557,7 @@ impl TriangleMesh {
         normals
     }
 
-    /// Computes a corresponding normal for each mesh vertex by sampling a list of SDF shapes.
+    // Computes a corresponding normal for each mesh vertex by sampling a list of SDF shapes.
     // pub fn get_normals_sdf(&self) -> Vec<Vec3> {
     //     vec![]
     // }
@@ -545,11 +576,28 @@ impl TriangleMesh {
         sum
     }
 
+    /// Shrinks mesh buffers to only use the necessary amount of memory.
+    pub fn shrink_to_fit(&mut self) {
+        self.triangles.shrink_to_fit();
+        self.positions.shrink_to_fit();
+        self.normals.shrink_to_fit();
+        self.colors.shrink_to_fit();
+        if let Some(mut uv1) = self.uv1.take() {
+            uv1.shrink_to_fit();
+            self.uv1 = Some(uv1);
+        }
+        if let Some(mut uv2) = self.uv2.take() {
+            uv2.shrink_to_fit();
+            self.uv1 = Some(uv2);
+        }
+    }
+
     /// Performs all existing optimization steps on the triangle mesh.
     pub fn optimize(&mut self, merge_distance: f32) {
         self.merge_by_distance(merge_distance);
         self.remove_degenerate();
         self.remove_unused();
+        self.shrink_to_fit();
     }
 }
 
@@ -603,7 +651,7 @@ impl Raycast for TriangleMesh {
 mod tests {
     use std::f32;
 
-    use super::TriangleMesh;
+    use super::{Edge, EdgeTriangles, TriangleMesh};
     use crate::math::raycast::RaycastParameters;
     use crate::{
         math::raycast::Raycast,
@@ -612,6 +660,19 @@ mod tests {
     use glam::{Vec3, vec3};
 
     const MAX_DIFFERENCE: f32 = 1e-7;
+
+    /// Sanity test. Validate that EdgeMapEdge does not take extra memory.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn type_sizes() {
+        assert_eq!(8 * 2, std::mem::size_of::<Edge>(), "edge");
+        assert_eq!(
+            8 * 2,
+            std::mem::size_of::<EdgeTriangles>(),
+            "edge triangles"
+        );
+        assert_eq!(8 * 3, std::mem::size_of::<Triangle>(), "triangle");
+    }
 
     #[test]
     fn test_calculate_normal() {
@@ -748,7 +809,7 @@ mod tests {
         assert_eq!(2.0, triangle_c.area(&positions), "Triangle C");
 
         let triangles: Vec<Triangle> = vec![triangle_a, triangle_b, triangle_c];
-        let mesh = TriangleMesh::new(triangles, positions, None);
+        let mesh = TriangleMesh::new(triangles, positions, None, None);
 
         assert_eq!(3.0, mesh.surface_area(), "Mesh Surface Area");
     }
@@ -767,7 +828,8 @@ mod tests {
         let tris: Vec<Triangle> = vec![[1, 4, 3], [3, 4, 1]];
         let indices: Vec<usize> = vec![1, 4, 3, 3, 4, 1];
 
-        let mut mesh = TriangleMesh::new(tris.clone(), positions.clone(), Some(normals.clone()));
+        let mut mesh =
+            TriangleMesh::new(tris.clone(), positions.clone(), Some(normals.clone()), None);
         let mut index_mesh =
             TriangleMesh::from_indices(indices.clone(), positions.clone(), Some(normals.clone()));
 
@@ -849,7 +911,7 @@ mod tests {
             vec3(0.0, 0.0, -1.0),
         ];
         let triangles: Vec<Triangle> = vec![[0, 1, 2], [0, 3, 1]];
-        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
 
         assert_eq!(
             1.0,
@@ -881,8 +943,8 @@ mod tests {
         let positions2: Vec<Vec3> = vec![Vec3::NEG_X, Vec3::NEG_Y, Vec3::NEG_Z];
 
         let triangles = vec![[0, 1, 2]];
-        let mut mesh1 = TriangleMesh::new(triangles.clone(), positions1.clone(), None);
-        let mesh2 = TriangleMesh::new(triangles.clone(), positions2.clone(), None);
+        let mut mesh1 = TriangleMesh::new(triangles.clone(), positions1.clone(), None, None);
+        let mesh2 = TriangleMesh::new(triangles.clone(), positions2.clone(), None, None);
 
         assert_eq!(
             1,
@@ -934,7 +996,7 @@ mod tests {
             vec3(0.0, 0.0, -1.0),
         ];
         let triangles = vec![[0, 1, 2], [3, 4, 5]];
-        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
 
         mesh.merge_by_distance(1e-5);
 
@@ -949,7 +1011,7 @@ mod tests {
         mesh.remove_unused();
         assert_eq!(4, mesh.positions.len(), "unused vertices should be removed");
 
-        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mut mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
         mesh.optimize(1e-5);
         assert_eq!(
             vec![[0, 1, 2], [0, 1, 3]],
@@ -969,7 +1031,7 @@ mod tests {
             vec3(0.0, 0.0, 1.0),
         ];
         let triangles: Vec<Triangle> = vec![[0, 1, 2]];
-        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
 
         let result = mesh
             .raycast(RaycastParameters::new(
@@ -1035,7 +1097,7 @@ mod tests {
             vec3(0.0, 1.0, 1.0),
         ];
         let triangles: Vec<Triangle> = vec![[0, 1, 2]];
-        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None);
+        let mesh = TriangleMesh::new(triangles.clone(), positions.clone(), None, None);
 
         let result = mesh
             .raycast(RaycastParameters::new(
@@ -1083,8 +1145,12 @@ mod tests {
             vec3(0.0, 1.0, 1.0),
         ];
         let triangles_layered: Vec<Triangle> = vec![[0, 1, 2], [3, 4, 5]];
-        let mesh_layered =
-            TriangleMesh::new(triangles_layered.clone(), positions_layered.clone(), None);
+        let mesh_layered = TriangleMesh::new(
+            triangles_layered.clone(),
+            positions_layered.clone(),
+            None,
+            None,
+        );
 
         let result = mesh_layered
             .raycast(RaycastParameters::new(

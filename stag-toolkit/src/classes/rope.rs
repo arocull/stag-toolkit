@@ -15,7 +15,7 @@ pub const GROUP_NAME_ROPE: &str = "StagToolkit_SimulatedRope";
 pub const GROUP_NAME_ROPEBINDING: &str = "StagToolkit_SimulatedRopeBinding";
 const MESH_NAME: &str = "mesh_rope";
 
-/// Settings for a simulated rope class.
+/// Settings for a [SimulatedRope].
 #[derive(GodotClass)]
 #[class(init,base=Resource,tool)]
 pub struct SimulatedRopeSettings {
@@ -265,10 +265,10 @@ impl SimulatedRope {
         let init_sim_callable = &self.base_mut().callable("initialize_simulation");
 
         // Unbind our simulation reset from the old settings
-        if let Some(mut settings) = self.settings.clone() {
-            if settings.is_connected("simulation_changed", init_sim_callable) {
-                settings.disconnect("simulation_changed", init_sim_callable);
-            }
+        if let Some(mut settings) = self.settings.clone()
+            && settings.is_connected("simulation_changed", init_sim_callable)
+        {
+            settings.disconnect("simulation_changed", init_sim_callable);
         }
 
         // Bind our simulation reset to the new settings
@@ -367,11 +367,11 @@ impl SimulatedRope {
         // If we have an available shader
         if let Some(base_shader) = settings.render_material.clone() {
             // Make a clone of the shader material so we can freely modifiy its parameters
-            if let Some(unique_shader_resource) = base_shader.duplicate() {
-                if let Ok(unique_shader) = unique_shader_resource.try_cast::<ShaderMaterial>() {
-                    self.shader = Some(unique_shader.clone());
-                    mesh.set_surface_override_material(0, &unique_shader);
-                }
+            if let Some(unique_shader_resource) = base_shader.duplicate()
+                && let Ok(unique_shader) = unique_shader_resource.try_cast::<ShaderMaterial>()
+            {
+                self.shader = Some(unique_shader.clone());
+                mesh.set_surface_override_material(0, &unique_shader);
             }
         }
 
@@ -457,10 +457,10 @@ impl SimulatedRope {
     /// Fetches the rope mesh instance, creating one if not provided.
     #[func]
     pub fn fetch_mesh_instance(&mut self) -> Gd<MeshInstance3D> {
-        if let Some(node) = self.base().get_node_or_null(MESH_NAME) {
-            if let Ok(mesh) = node.try_cast::<MeshInstance3D>() {
-                return mesh;
-            }
+        if let Some(node) = self.base().get_node_or_null(MESH_NAME)
+            && let Ok(mesh) = node.try_cast::<MeshInstance3D>()
+        {
+            return mesh;
         }
 
         let mut mesh = MeshInstance3D::new_alloc();
@@ -550,51 +550,51 @@ impl SimulatedRope {
         }
 
         // Fetch physics direct space state
-        if let Some(mut world3d) = self.base().get_world_3d() {
-            if let Some(mut space) = world3d.get_direct_space_state() {
-                self.collision_bindings.clear();
+        if let Some(mut world3d) = self.base().get_world_3d()
+            && let Some(mut space) = world3d.get_direct_space_state()
+        {
+            self.collision_bindings.clear();
 
-                let offset = settings.bind().collision_offset;
-                let transform: Mat4 = self.base().get_global_transform().to_transform3d();
+            let offset = settings.bind().collision_offset;
+            let transform: Mat4 = self.base().get_global_transform().to_transform3d();
 
-                // Iterate over all points in rope
-                // TODO: we probably need less than every point?
-                for (idx, simulated) in self.data.points.iter_mut().enumerate() {
-                    let prev = self.data.points_simulated_previous[idx];
-                    let motion = *simulated - prev;
+            // Iterate over all points in rope
+            // TODO: we probably need less than every point?
+            for (idx, simulated) in self.data.points.iter_mut().enumerate() {
+                let prev = self.data.points_simulated_previous[idx];
+                let motion = *simulated - prev;
 
-                    self.rayquery
-                        .set_from(transform.project_point3(prev).to_vector3());
-                    self.rayquery
-                        .set_to(transform.project_point3(*simulated).to_vector3());
+                self.rayquery
+                    .set_from(transform.project_point3(prev).to_vector3());
+                self.rayquery
+                    .set_to(transform.project_point3(*simulated).to_vector3());
 
-                    // If collided, set current position to collided position, with margin
-                    let results = space.intersect_ray(&self.rayquery);
-                    if let Some(position) = results.get("position") {
-                        let hit_position: Vector3 = position.to();
-                        let hit_position: Vec3 = hit_position.to_vector3();
+                // If collided, set current position to collided position, with margin
+                let results = space.intersect_ray(&self.rayquery);
+                if let Some(position) = results.get("position") {
+                    let hit_position: Vector3 = position.to();
+                    let hit_position: Vec3 = hit_position.to_vector3();
 
-                        let hit_normal: Vector3 = results
-                            .get("normal")
-                            .unwrap_or(Variant::from(Vector3::UP))
-                            .to();
-                        let hit_normal: Vec3 = hit_normal.to_vector3();
+                    let hit_normal: Vector3 = results
+                        .get("normal")
+                        .unwrap_or(Variant::from(Vector3::UP))
+                        .to();
+                    let hit_normal: Vec3 = hit_normal.to_vector3();
 
-                        // Get our actual position, and slide it along the surface plane of our hit normal
-                        let position = hit_position
-                            + (motion - hit_normal * hit_normal.dot(motion))
-                            + hit_normal * offset;
+                    // Get our actual position, and slide it along the surface plane of our hit normal
+                    let position = hit_position
+                        + (motion - hit_normal * hit_normal.dot(motion))
+                        + hit_normal * offset;
 
-                        // Deproject the point back into local space
-                        let combined = transform
-                            .inverse()
-                            .project_point3(position + hit_normal * offset);
+                    // Deproject the point back into local space
+                    let combined = transform
+                        .inverse()
+                        .project_point3(position + hit_normal * offset);
 
-                        // Update simulation position
-                        *simulated = combined;
-                        // Keep point in mind for tension calculations
-                        self.collision_bindings.insert(idx, combined);
-                    }
+                    // Update simulation position
+                    *simulated = combined;
+                    // Keep point in mind for tension calculations
+                    self.collision_bindings.insert(idx, combined);
                 }
             }
         }
@@ -768,24 +768,23 @@ impl INode3D for SimulatedRopeBinding {
     }
 
     fn physics_process(&mut self, _delta: f64) {
-        if !Engine::singleton().is_editor_hint() {
-            if let Some(rope) = self.get_bind_to() {
-                let force: Vector3 = rope.bind().get_tension_force_at(self.bind_at)
-                    * self.spring_constant_multiplier;
+        if !Engine::singleton().is_editor_hint()
+            && let Some(rope) = self.get_bind_to()
+        {
+            let force: Vector3 =
+                rope.bind().get_tension_force_at(self.bind_at) * self.spring_constant_multiplier;
 
-                // Apply tension force to RigidBody
-                if let Some(mut rigid) = self.get_rigid_body() {
-                    let pos =
-                        self.base().get_global_position() - rigid.clone().get_global_position();
+            // Apply tension force to RigidBody
+            if let Some(mut rigid) = self.get_rigid_body() {
+                let pos = self.base().get_global_position() - rigid.clone().get_global_position();
 
-                    rigid.apply_force_ex(force).position(pos).done();
-                }
+                rigid.apply_force_ex(force).position(pos).done();
+            }
 
-                // Snap binding if too much tension is applied
-                if self.snap_enabled && force.length() > self.snap_tension_threshold {
-                    self.set_bind_to(None);
-                    self.signals().rope_snapped().emit(force);
-                }
+            // Snap binding if too much tension is applied
+            if self.snap_enabled && force.length() > self.snap_tension_threshold {
+                self.set_bind_to(None);
+                self.signals().rope_snapped().emit(force);
             }
         }
 

@@ -1,0 +1,12 @@
+[package]
+name = "stag-toolkit-codegen"
+version = "0.4.1"
+edition = "2024"
+
+[lib]
+path = "src/lib.rs"
+proc-macro = true
+
+[dependencies]
+quote = "1.0.40"
+syn = "2.0.104"
