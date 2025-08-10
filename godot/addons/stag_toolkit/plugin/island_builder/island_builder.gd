@@ -316,25 +316,19 @@ func lint_node_recursive(node: Node):
 
 ## REALTIME PREVIEW ##
 
-var realtime_thread: Thread
 var realtime_queued: bool = false
 var realtime_last_update: int = -1
 var realtime_dirty: bool = false
 
 ## Initializes the realtime thread
 func thread_init() -> void:
-	realtime_thread = Thread.new()
 	EditorInterface.get_inspector().property_edited.connect(on_property_change)
 ## Deinitializes the realtime thread
 func thread_deinit() -> void:
-	if realtime_thread.is_started():
-		realtime_thread.wait_to_finish()
-	realtime_thread = null
+	pass
 
 func _realtime_toggled(new_state: bool) -> void:
 	realtime_enabled = new_state
-	if realtime_thread.is_started():
-		realtime_thread.wait_to_finish()
 
 ## Unbind tree and property updates from mesh generation
 func unbind_realtime(node: Node) -> void:
@@ -402,5 +396,5 @@ func _check_transforms_internal(node: Node) -> void:
 ## Called if the IslandBuilder tree changed somehow
 func update_realtime_preview():
 	if not realtime_enabled: return
-	last_builder.serialize()
+	last_builder.update_preview()
 	realtime_last_update = Time.get_ticks_msec()

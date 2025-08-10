@@ -12,8 +12,10 @@ center = Vector3(10.7904, 9.02179, 10.1561)
 radius = 14.8182
 
 [sub_resource type="IslandBuilderSettingsTweaks" id="IslandBuilderSettingsTweaks_0ow68"]
-seed = 37
-w_striation = 7.401
+seed = 41
+w_sampling_density = 1.665
+w_sampling_offset = 4.709
+w_striation = 4.118
 
 [sub_resource type="IslandBuilderSettingsMesh" id="IslandBuilderSettingsMesh_0ow68"]
 
@@ -56,14 +58,14 @@ material_override = ExtResource("4_lkpm7")
 size = Vector3(8.16074, 3.96839, 9.16879)
 
 [node name="UNION_box4" type="CSGBox3D" parent="island_test/IslandBuilder"]
-transform = Transform3D(0.838567, -0.00244532, 0.544792, -0.00113356, 0.99998, 0.00623327, -0.544797, -0.00584457, 0.838547, -4.03829, 1.26538, -1.00882)
+transform = Transform3D(0.954971, -0.155429, 0.252729, 0.0648448, 0.940548, 0.333414, -0.289527, -0.302012, 0.908274, -4.09932, 1.23877, -1.10271)
 material_override = ExtResource("4_lkpm7")
 size = Vector3(8, 10.2495, 6.7832)
 
 [node name="Node3D" type="Node3D" parent="island_test/IslandBuilder"]
 
 [node name="SUBTRACT_box4" type="CSGBox3D" parent="island_test/IslandBuilder/Node3D"]
-transform = Transform3D(-0.720176, 0, 0.693792, 0, 1, 0, -0.693792, 0, -0.720176, 4.41891, -1.07802, -4.70107)
+transform = Transform3D(0.423994, 0, 0.905665, 0, 1, 0, -0.905665, 0, 0.423994, 4.97443, 0.583381, 7.32439)
 material_override = ExtResource("5_0ow68")
 operation = 2
 size = Vector3(9.8324, 8.41626, 5.18124)
@@ -80,11 +82,16 @@ material_override = ExtResource("4_lkpm7")
 radius = 2.49365
 height = 7.42529
 
+[node name="UNION_sphere" type="CSGSphere3D" parent="island_test/IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0625994, 3.4598, 1.02371)
+material_override = ExtResource("4_lkpm7")
+radius = 2.61793
+
 [node name="body" type="RigidBody3D" parent="island_test"]
 axis_lock_linear_y = true
 axis_lock_angular_x = true
 axis_lock_angular_z = true
-mass = 34044.4
+mass = 34104.2
 
 [node name="mesh_island" type="MeshInstance3D" parent="island_test/body"]
 layers = 5

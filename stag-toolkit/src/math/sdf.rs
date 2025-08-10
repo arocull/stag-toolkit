@@ -97,7 +97,7 @@ pub struct Shape {
     /// Describes a sphere or cylinder's radius.
     radius: f32,
     /// Describes the edge rounding on the given shape, if available.
-    pub radius_edge: f32,
+    pub radius_ring: f32,
     /// Describes the dimensions of a box or cylinder.
     dimensions: Vec3,
     /// Transform of the shape. Applied to position before sampling.
@@ -115,7 +115,7 @@ impl Shape {
             transform,
             transform_inv: transform.inverse(),
             radius,
-            radius_edge: 0.0,
+            radius_ring: 0.0,
             dimensions: Vec3::ZERO,
         }
     }
@@ -132,7 +132,7 @@ impl Shape {
             transform,
             transform_inv: transform.inverse(),
             radius: 0.0,
-            radius_edge,
+            radius_ring: radius_edge,
             dimensions,
         }
     }
@@ -150,7 +150,7 @@ impl Shape {
             transform,
             transform_inv: transform.inverse(),
             radius,
-            radius_edge,
+            radius_ring: radius_edge,
             dimensions: vec3(1.0, height, 1.0),
         }
     }
@@ -168,14 +168,14 @@ impl Shape {
             transform,
             transform_inv: transform.inverse(),
             radius,
-            radius_edge: ring_thickness,
+            radius_ring: ring_thickness,
             dimensions: Vec3::ONE,
         }
     }
     /// Samples the SDF shape at the given point.
     /// Returned value is the point's distance to the surface of the shape,
     /// with negative being inside the shape, positive being outside.
-    pub fn sample(&self, at: Vec3) -> f32 {
+    pub fn sample(&self, at: Vec3, edge_radius: f32) -> f32 {
         let position_local = self
             .transform_inv
             .mul_vec4(Vec4::new(at.x, at.y, at.z, 1.0))
@@ -183,15 +183,12 @@ impl Shape {
         match self.shape {
             ShapeType::Sphere => sample_sphere(position_local, self.radius),
             ShapeType::RoundedBox => {
-                sample_box_rounded(position_local, self.dimensions, self.radius_edge)
+                sample_box_rounded(position_local, self.dimensions, edge_radius)
             }
-            ShapeType::RoundedCylinder => sample_cylinder_rounded(
-                position_local,
-                self.radius,
-                self.dimensions.y,
-                self.radius_edge,
-            ),
-            ShapeType::Torus => sample_torus(position_local, self.radius_edge, self.radius),
+            ShapeType::RoundedCylinder => {
+                sample_cylinder_rounded(position_local, self.radius, self.dimensions.y, edge_radius)
+            }
+            ShapeType::Torus => sample_torus(position_local, self.radius_ring, self.radius),
         }
     }
     /// Returns the minimum and maximum boundary points of the shape, NOT transformed
@@ -209,10 +206,10 @@ impl Shape {
                 vec3(self.radius, self.dimensions.y * 0.5, self.radius),
             ),
             ShapeType::Torus => {
-                let width = self.radius + self.radius_edge;
+                let width = self.radius + self.radius_ring;
                 BoundingBox::new(
-                    vec3(-width, -self.radius_edge, -width),
-                    vec3(width, self.radius_edge, width),
+                    vec3(-width, -self.radius_ring, -width),
+                    vec3(width, self.radius_ring, width),
                 )
             }
         }
@@ -232,11 +229,11 @@ impl Shape {
 
 /// Iterates through a shape list, sampling each shape at the given point
 /// and smooth unioning the shapes together, returning a distance.
-pub fn sample_shape_list(list: &[Shape], point: Vec3) -> f32 {
+pub fn sample_shape_list(list: &[Shape], point: Vec3, radius_edge: f32) -> f32 {
     let mut d: f32 = 1.0;
 
     for shape in list.iter() {
-        let j = shape.sample(point);
+        let j = shape.sample(point, radius_edge);
 
         match shape.operation {
             ShapeOperation::Union => {
@@ -351,7 +348,7 @@ mod tests {
         // Test as sampled from a shape
         for case in sample_points.iter() {
             let sphere = Shape::sphere(Mat4::IDENTITY, case.1, ShapeOperation::Union);
-            let dist = sphere.sample(case.0);
+            let dist = sphere.sample(case.0, 0.0);
             assert_eq!(
                 dist, case.2,
                 "SHAPE sample expected {0}, but got {1} | {2} with radius {3}",
@@ -505,7 +502,7 @@ mod tests {
 
         for case in sample_cases.iter() {
             let sphere = Shape::sphere(case.transform, case.radius, ShapeOperation::Union);
-            let dist = sphere.sample(case.sample);
+            let dist = sphere.sample(case.sample, 0.0);
             let (scale, rot, loc) = case.transform.to_scale_rotation_translation();
             assert_eq!(
                 dist,

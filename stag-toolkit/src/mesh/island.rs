@@ -382,9 +382,6 @@ impl Data {
     pub fn set_shapes(&mut self, shapes: Vec<Shape>) -> bool {
         if self.shapes != shapes {
             self.shapes = shapes;
-            for shape in self.shapes.iter_mut() {
-                shape.radius_edge = self.settings_voxels.sdf_edge_radius;
-            }
             self.dirty_voxels();
             return true;
         }
@@ -451,7 +448,11 @@ impl Data {
                         self.tweaks.w_sampling_offset as f32,
                     )));
 
-                    let sample = sample_shape_list(&self.shapes, sample_pos);
+                    let sample = sample_shape_list(
+                        &self.shapes,
+                        sample_pos,
+                        self.settings_voxels.sdf_edge_radius,
+                    );
                     let add_in = noise_density.sample(Vec4::from((
                         sample_pos,
                         self.tweaks.w_sampling_density as f32,
@@ -698,7 +699,7 @@ impl Data {
                     // so collision shapes that are cut off via intersections,
                     // do not include shapes added after said intersection.
 
-                    let d = shape.sample(center);
+                    let d = shape.sample(center, self.settings_voxels.sdf_edge_radius);
                     if d < min_dist {
                         min_dist = d;
                         min_shape_idx = shape_idx;

@@ -66,6 +66,9 @@ pub struct IslandBuilder {
     /// Task ID for WorkerThreadPool.
     #[init(val=None)]
     realtime_preview_task: Option<i64>,
+    /// Swap buffer for real-time preview.
+    #[init(val=None)]
+    realtime_preview_mesh_buffer: Option<Gd<ArrayMesh>>,
 
     #[var(get, set=set_tweaks)]
     #[export]
@@ -292,11 +295,11 @@ impl IslandBuilder {
 
         if changed {
             self.base_mut().update_gizmos(); // Force redraw of IslandBuilder gizmo
-            self.update_preview();
         }
     }
 
-    /// Generates a preview mesh, but only in the editor.
+    /// Performs a real-time preview update of the IslandBuilder.
+    #[func]
     pub fn update_preview(&mut self) {
         // Ensure we're running in the editor.
         if !Engine::singleton().is_editor_hint() || !self.realtime_preview {
@@ -312,14 +315,28 @@ impl IslandBuilder {
 
         self.wait_for_preview_finish(); // collect task resources if necessary
 
-        let mesh_node = self.target_mesh();
-        let mut mesh: Option<Gd<ArrayMesh>> = None;
+        self.serialize();
 
+        // Fetch previously stored buffer and clear it for use, or create a new one
+        let buffer_mesh: Gd<ArrayMesh> = match self.realtime_preview_mesh_buffer.take() {
+            Some(mut mesh) => {
+                mesh.clear_surfaces();
+                mesh
+            }
+            None => ArrayMesh::new_gd(),
+        };
+
+        // Store current IslandBuilder mesh as a new buffer if it exists
+        let mesh_node = self.target_mesh();
         if let Some(base_mesh) = mesh_node.get_mesh() {
-            mesh = match base_mesh.try_cast::<ArrayMesh>() {
-                Ok(mut array_mesh) => {
-                    array_mesh.clear_surfaces();
-                    Some(array_mesh)
+            self.realtime_preview_mesh_buffer = match base_mesh.try_cast::<ArrayMesh>() {
+                Ok(array_mesh) => {
+                    let mut result: Option<Gd<ArrayMesh>> = None;
+                    if array_mesh != buffer_mesh {
+                        // Make sure swap buffer isn't same as original buffer
+                        result = Some(array_mesh);
+                    }
+                    result
                 }
                 Err(_) => None,
             }
@@ -327,24 +344,18 @@ impl IslandBuilder {
 
         // compute this on another thread
         let callable = Callable::from_sync_fn("all_bake_single", |args: &[&Variant]| {
-            // godot_print!("STARTING TASK");
             // TODO: type safety checks, return Error if safety fails
             let mut builder: Gd<Self> = args[0].to();
-            // let recycle_mesh: Option<Gd<ArrayMesh>> = args[1].to();
+            let recycle_mesh: Gd<ArrayMesh> = args[1].to();
             let mut mesh_node: Gd<MeshInstance3D> = args[2].to();
             mesh_node.call_deferred(
                 "set_mesh",
-                &[builder.bind_mut().generate_preview_mesh(None).to_variant()],
+                vslice![builder.bind_mut().generate_preview_mesh(Some(recycle_mesh))],
             );
 
-            // godot_print!("SET MESH PROPERTY");
-            Result::Ok(Variant::from(true))
+            Ok(Variant::from(true))
         })
-        .bind(&[
-            self.to_gd().to_variant(),
-            mesh.to_variant(),
-            mesh_node.to_variant(),
-        ]);
+        .bind(vslice![self.to_gd(), buffer_mesh, mesh_node,]);
 
         self.realtime_preview_task = Some(
             WorkerThreadPool::singleton()

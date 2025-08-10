@@ -147,11 +147,6 @@ impl GodotWhitebox {
         }
     }
 
-    /// Samples the whitebox shape list at the given position, returning the distance to its surface.
-    pub fn sample_at(&self, point: Vec3Godot) -> f32 {
-        sdf::sample_shape_list(&self.shapes, point.to_vector3())
-    }
-
     /// Clears the shape list.
     pub fn clear(&mut self) {
         self.shapes.clear();
