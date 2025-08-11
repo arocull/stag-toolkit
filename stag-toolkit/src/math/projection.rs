@@ -1,4 +1,4 @@
-use glam::{Vec3, Vec4, Vec4Swizzles};
+use glam::{Quat, Vec3, Vec4, Vec4Swizzles};
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct RayIntersectionResult {
@@ -77,6 +77,17 @@ pub fn furthest_point(points: &[Vec3], plane_normal: Vec3, plane_point: Vec3) ->
     }
 
     furthest_index
+}
+
+/// Assumes Z is in range \[-1 to 1\].
+/// Assumes theta is in range \[0, 2 * PI).
+pub fn vector_in_cone(orientation: Quat, z: f32, theta: f32) -> Vec3 {
+    // https://math.stackexchange.com/questions/56784/generate-a-random-direction-within-a-cone
+    let f = (1.0 - z * z).sqrt();
+    let vec = Vec3::new(f * theta.cos(), f * theta.sin(), z);
+
+    // rotate vec to align with the initial direction
+    orientation * vec
 }
 
 #[cfg(test)]

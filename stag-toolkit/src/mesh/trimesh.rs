@@ -4,6 +4,7 @@ use crate::math::{
     types::*,
 };
 use glam::Vec4Swizzles;
+use noise::{NoiseFn, Perlin};
 use std::collections::HashMap;
 use std::num::NonZero;
 // EDGES //
@@ -567,6 +568,62 @@ impl TriangleMesh {
         self.normals = self.get_normals_smooth();
     }
 
+    /// Computes and returns an ambient occlusion for every vertex on the mesh.
+    /// Requires vertex normals to be baked beforehand.
+    /// This occlusion method is based on raycasting.
+    pub fn get_ambient_occlusion(&self, samples: usize, radius: f32, seed: u32) -> Vec<f32> {
+        let mut occlusion: Vec<f32> = Vec::with_capacity(self.positions.len());
+
+        let perlin = Perlin::new(seed);
+
+        #[cfg(debug_assertions)]
+        assert!(
+            self.normals.len() >= self.positions.len(),
+            "each vertex must have a corresponding normal"
+        );
+
+        // TODO: multithread this via rayon
+
+        let radius_squared = radius * radius;
+
+        for (idx, pt) in self.positions.iter().enumerate() {
+            let normal = self.normals.get(idx).unwrap_or(&Vec3::ZERO);
+            // TODO: random direction in cone
+
+            let orientation = Quat::look_to_rh(*normal, Vec3::Y);
+
+            let mut results: Vec<f32> = Vec::with_capacity(samples);
+
+            for iteration in 0..samples {
+                // let z = perlin.get([pt.x as f64, pt.y as f64, pt.z as f64, iteration as f64]).remap(-1.0,1.0,0.0,1.0);
+                // let theta = perlin.get([pt.x as f64, pt.y as f64, pt.z as f64, (iteration * samples) as f64]);
+                // let dir = vector_in_cone(orientation, z as f32, theta.remap(-1.0, 1.0, 0.0, TAU) as f32);
+
+                let origin = pt - normal * 1000.0;
+                let params = RaycastParameters::new(origin, *normal, f32::INFINITY, false);
+
+                // If we hit, store inverse of linear falloff from center to edge
+                if let Some(result) = self.raycast(params) {
+                    let distance_squared = result.point.distance_squared(*pt);
+                    if distance_squared < radius_squared {
+                        results.push(1.0 - (distance_squared.sqrt() / radius));
+                    }
+                }
+            }
+
+            // Average results and then sqrt the proportion so it leans toward lighter
+            let count = results.len();
+            if count > 0 {
+                let proportion = results.iter().sum::<f32>() / count as f32;
+                occlusion.push(proportion.sqrt());
+            } else {
+                occlusion.push(1.0);
+            }
+        }
+
+        occlusion
+    }
+
     /// Returns the calculated surface area of the mesh.
     pub fn surface_area(&self) -> f32 {
         let mut sum: f32 = 0.0;
@@ -602,6 +659,7 @@ impl TriangleMesh {
 }
 
 impl Raycast for TriangleMesh {
+    // TODO: method for raycasting many things at once and returning a list of results
     fn raycast(&self, params: RaycastParameters) -> Option<RaycastResult> {
         let mut shortest_depth: f32 = params.max_depth;
         let mut result = RaycastResult::default();

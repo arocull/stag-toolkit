@@ -18,6 +18,8 @@ w_sampling_offset = 4.709
 w_striation = 4.118
 
 [sub_resource type="IslandBuilderSettingsMesh" id="IslandBuilderSettingsMesh_0ow68"]
+ao_enabled = false
+ao_radius = 10.0
 
 [sub_resource type="IslandBuilderSettingsVoxels" id="IslandBuilderSettingsVoxels_rd51c"]
 striation_amplitude = 0.3
@@ -25,8 +27,8 @@ striation_amplitude = 0.3
 [sub_resource type="IslandBuilderSettings" id="IslandBuilderSettings_23xmi"]
 voxels = SubResource("IslandBuilderSettingsVoxels_rd51c")
 mesh = SubResource("IslandBuilderSettingsMesh_0ow68")
-material_baked = ExtResource("2_0ow68")
-material_preview = ExtResource("3_rd51c")
+material_baked = ExtResource("3_rd51c")
+material_preview = ExtResource("2_0ow68")
 
 [node name="MeshgenTest" type="Node3D"]
 script = ExtResource("1_jyekb")
@@ -36,7 +38,6 @@ navigation_properties = SubResource("NavIslandProperties_rd51c")
 
 [node name="IslandBuilder" type="IslandBuilder" parent="island_test" groups=["StagToolkit_IslandBuilder"]]
 output_to = NodePath("../body")
-realtime_preview = true
 tweaks = SubResource("IslandBuilderSettingsTweaks_0ow68")
 settings = SubResource("IslandBuilderSettings_23xmi")
 visible = false
@@ -86,6 +87,10 @@ height = 7.42529
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0625994, 3.4598, 1.02371)
 material_override = ExtResource("4_lkpm7")
 radius = 2.61793
+
+[node name="CSGBox3D" type="CSGBox3D" parent="island_test/IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.97619, -7.92868, 11.2016)
+size = Vector3(9.93359, 11.2207, 2.34277)
 
 [node name="body" type="RigidBody3D" parent="island_test"]
 axis_lock_linear_y = true

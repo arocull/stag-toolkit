@@ -75,10 +75,10 @@ impl GodotSurfaceArrays {
             surface.set_colors(mesh.colors.to_color());
         }
         if let Some(uv1) = &mesh.uv1 {
-            surface.set_uv2(uv1.to_vector2());
+            surface.set_uv1(uv1.to_vector2());
         }
         if let Some(uv2) = &mesh.uv2 {
-            surface.set_uv1(uv2.to_vector2());
+            surface.set_uv2(uv2.to_vector2());
         }
 
         surface

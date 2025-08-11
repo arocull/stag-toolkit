@@ -99,11 +99,24 @@ pub struct SettingsMesh {
 
     /// Whether to bake Ambient Occlusion to the Red channel.
     /// The Red channel defaults to 1.0 if Ambient Occlusion is not baked.
-    #[setting(default = true)]
+    #[setting(default = false)]
     pub ao_enabled: bool,
+    /// Sampling radius for Ambient Occlusion.
+    #[setting(
+        default = 8.0,
+        min = 0.01,
+        max = 50.0,
+        incr = 0.01,
+        soft_max,
+        unit = "m"
+    )]
+    pub ao_radius: f32,
     /// Weighting value for linearly blending a base value of 1.0 with the baked Ambient Occlusion.
     #[setting(default = 1.0, min = 0.0, max = 1.0, incr = 0.001)]
     pub ao_strength: f32,
+    /// Number of ambient occlusion samples to perform.
+    #[setting(default = 1, min = 1.0, max = 256.0, incr = 1.0)]
+    pub ao_samples: u32,
 
     /// Minimum dot value for adding dirt gradation into the Green channel.
     /// The dot value is computed from a dot product of the triangle's normal to the local-space up vector.
@@ -114,19 +127,19 @@ pub struct SettingsMesh {
     #[setting(default=0.8,min=-1.0,max=1.0,incr=0.001)]
     pub mask_dirt_maximum: f32,
     /// Arbitrary exponent to apply to the dirt gradient.
-    #[setting(default = 1.0, min = 5.0, max = 5.0, incr = 0.001, soft_max)]
+    #[setting(default = 1.0, min = -5.0, max = 5.0, incr = 0.001, soft_max)]
     pub mask_dirt_exponent: f32,
 
     /// Minimum dot value for adding sand gradation into the Blue channel.
     /// The dot value is computed from a dot product of the triangle's normal to the local-space up vector.
-    #[setting(default=0.7,min=-1.0,max=1.0,incr=0.001)]
+    #[setting(default=0.65,min=-1.0,max=1.0,incr=0.001)]
     pub mask_sand_minimum: f32,
     /// Maximum dot value for baking sand gradation into the Blue channel.
     /// The dot value is computed from a dot product of the triangle's normal to the local-space up vector.
     #[setting(default=1.0,min=-1.0,max=1.0,incr=0.001)]
     pub mask_sand_maximum: f32,
     /// Arbitrary exponent to apply to the sand gradient.
-    #[setting(default=3.0,min=-5.0,max=5.0,incr=0.001,soft_max)]
+    #[setting(default=2.6,min=-5.0,max=5.0,incr=0.001,soft_max)]
     pub mask_sand_exponent: f32,
 
     /// XYZ frequency scale when sampling perlin noise for baking into the Alpha channel.
@@ -138,12 +151,6 @@ pub struct SettingsMesh {
 #[derive(Copy, Clone, PartialEq, ExposeSettings)]
 #[settings_resource_from(IslandBuilderSettingsCollision, Resource)]
 pub struct SettingsCollision {
-    /// Whether to merge collision vertices on non-manifold edges.
-    #[setting(default = false)]
-    pub merge_nonmanifold_edges: bool,
-    /// Whether to perform collision decimation on non-manifold edges.
-    // #[setting(default = false)]
-    // pub decimate_nonmanifold_edges: bool,
     /// Distance threshold for vertices to be merged for the collision hull.
     #[setting(
         default = 0.15,
@@ -607,21 +614,28 @@ impl Data {
             mesh.optimize(self.settings_mesh.vertex_merge_distance);
             mesh.bake_normals_smooth();
 
+            // bake ambient occlusion
+            let ao = if self.settings_mesh.ao_enabled {
+                mesh.get_ambient_occlusion(
+                    self.settings_mesh.ao_samples as usize,
+                    self.settings_mesh.ao_radius,
+                    self.noise_mask.seed(),
+                )
+            } else {
+                vec![]
+            };
+
             let mut colors: Vec<Vec4> = Vec::with_capacity(mesh.count_vertices());
             let mut uv1: Vec<Vec2> = Vec::with_capacity(mesh.count_vertices());
             let mut uv2: Vec<Vec2> = Vec::with_capacity(mesh.count_vertices());
 
-            for idx in 0..mesh.count_vertices() {
-                let position = mesh.positions[idx];
+            for (idx, position) in mesh.positions.iter().enumerate() {
                 let normal = mesh.normals[idx];
 
                 uv1.push(Vec2::new(position.x + position.z, position.y));
                 uv2.push(Vec2::new(position.x, position.z));
 
-                // TODO: bake ambient occlusion
-                let ao = 1.0;
-
-                let dot = normal.dot(normal);
+                let dot = normal.dot(Vec3::Y);
                 let mask_dirt = dot
                     .remap(
                         self.settings_mesh.mask_dirt_minimum,
@@ -643,12 +657,19 @@ impl Data {
 
                 let noise = self
                     .noise_mask
-                    .sample(Vec4::from((position, self.tweaks.w_striation as f32)));
+                    .sample(Vec4::from((*position, self.tweaks.w_striation as f32)));
 
-                colors.push(Vec4::new(ao, mask_dirt, mask_sand, noise as f32));
+                let mut occlusion: f32 = 1.0;
+                if self.settings_mesh.ao_enabled {
+                    occlusion = glam::FloatExt::lerp(1.0, ao[idx], self.settings_mesh.ao_strength);
+                }
+
+                colors.push(Vec4::new(occlusion, mask_dirt, mask_sand, noise as f32));
             }
 
             mesh.colors = colors;
+            mesh.uv1 = Some(uv1);
+            mesh.uv2 = Some(uv2);
             self.mesh_baked = Some(mesh);
         }
     }
