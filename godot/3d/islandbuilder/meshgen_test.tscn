@@ -18,8 +18,9 @@ w_sampling_offset = 4.709
 w_striation = 4.118
 
 [sub_resource type="IslandBuilderSettingsMesh" id="IslandBuilderSettingsMesh_0ow68"]
-ao_enabled = false
+ao_enabled = true
 ao_radius = 10.0
+ao_samples = 6
 
 [sub_resource type="IslandBuilderSettingsVoxels" id="IslandBuilderSettingsVoxels_rd51c"]
 striation_amplitude = 0.3
@@ -96,7 +97,7 @@ size = Vector3(9.93359, 11.2207, 2.34277)
 axis_lock_linear_y = true
 axis_lock_angular_x = true
 axis_lock_angular_z = true
-mass = 34104.2
+mass = 37344.6
 
 [node name="mesh_island" type="MeshInstance3D" parent="island_test/body"]
 layers = 5

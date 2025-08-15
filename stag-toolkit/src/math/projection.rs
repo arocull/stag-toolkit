@@ -1,4 +1,4 @@
-use glam::{Quat, Vec3, Vec4, Vec4Swizzles};
+use glam::{Mat3, Quat, Vec3, Vec4, Vec4Swizzles};
 
 #[derive(Copy, Clone, Default, Debug)]
 pub struct RayIntersectionResult {
@@ -79,22 +79,51 @@ pub fn furthest_point(points: &[Vec3], plane_normal: Vec3, plane_point: Vec3) ->
     furthest_index
 }
 
+/// Returns a vector within the parametric cone.
+/// At z=0 and theta=0, the returned vector is (0, 0, +1).
+/// Negate Z to get Godot's forward axis.
+///
 /// Assumes Z is in range \[-1 to 1\].
-/// Assumes theta is in range \[0, 2 * PI).
+/// Assumes theta is in range \[-PI, PI).
+///
+/// See a 3D example here: https://www.desmos.com/3d/vtqnlijzr8
 pub fn vector_in_cone(orientation: Quat, z: f32, theta: f32) -> Vec3 {
     // https://math.stackexchange.com/questions/56784/generate-a-random-direction-within-a-cone
+    // https://www.desmos.com/3d/vtqnlijzr8
     let f = (1.0 - z * z).sqrt();
-    let vec = Vec3::new(f * theta.cos(), f * theta.sin(), z);
+    let vec = Vec3::new(f * theta.sin(), z, f * theta.cos());
 
     // rotate vec to align with the initial direction
     orientation * vec
 }
 
+/// Returns a quaternion facing the given direction,
+/// accounting for potential alignment errors with the vertical axis.
+/// Assumes +Y for vertical axis.
+///
+/// Uses a Right-Handed Coordinate system, with +X, +Y, and +Z.
+pub fn direction_to_quaternion(vector: Vec3) -> Quat {
+    #[cfg(debug_assertions)]
+    assert!(vector.is_normalized(), "vector should be normalized");
+
+    const DOT_THRESHOLD: f32 = 0.999;
+    let dot = vector.dot(Vec3::Y);
+
+    if dot > DOT_THRESHOLD {
+        return Quat::from_mat3(&Mat3::from_cols(Vec3::X, Vec3::NEG_Z, Vec3::Y)).normalize();
+    } else if dot < -DOT_THRESHOLD {
+        return Quat::from_mat3(&Mat3::from_cols(Vec3::X, Vec3::Z, Vec3::NEG_Y)).normalize();
+    }
+
+    Quat::look_to_rh(-vector, Vec3::Y).conjugate()
+}
+
 #[cfg(test)]
 mod tests {
-    use glam::Vec3;
-
     use super::*;
+    use crate::math::delta::assert_in_delta_vector;
+    use glam::Vec3;
+    use std::f32::consts::PI;
 
     #[test]
     fn plane_signed_distance() {
@@ -304,5 +333,97 @@ mod tests {
                 idx, case.ro, case.rd,
             )
         }
+    }
+
+    #[test]
+    fn test_vector_in_cone() {
+        // https://www.desmos.com/3d/vtqnlijzr8
+        let forward = vector_in_cone(Quat::IDENTITY, 0.0, 0.0);
+        assert_eq!(Vec3::Z, forward, "forward axis is +Z");
+
+        // rotate counter-clockwise to face +X
+        let right = vector_in_cone(Quat::from_rotation_y(PI * 0.5), 0.0, 0.0);
+        assert_in_delta_vector(
+            Vec3::X,
+            right,
+            1e-6,
+            "can use a rotated quat to get expected direction",
+        );
+
+        // rotate quaternion towards +X
+        let right = vector_in_cone(Quat::look_to_rh(Vec3::X, Vec3::Y), 0.0, 0.0);
+        assert_in_delta_vector(
+            Vec3::X,
+            right,
+            1e-6,
+            "can use Quat::look_to to get vector in proper orientation",
+        );
+
+        let backward = vector_in_cone(Quat::IDENTITY, 0.0, PI);
+        assert_in_delta_vector(Vec3::NEG_Z, backward, 1e-6, "backward axis is -Z using +PI");
+
+        let backward = vector_in_cone(Quat::IDENTITY, 0.0, -PI);
+        assert_in_delta_vector(Vec3::NEG_Z, backward, 1e-6, "backward axis is -Z using -PI");
+
+        let upward = vector_in_cone(Quat::IDENTITY, 1.0, PI);
+        assert_in_delta_vector(
+            Vec3::Y,
+            upward,
+            1e-6,
+            "with Z=1, theta=PI, upward axis is +Y",
+        );
+    }
+
+    #[test]
+    fn test_direction_to_quaternion() {
+        assert_in_delta_vector(
+            Vec3::Z,
+            direction_to_quaternion(Vec3::Z) * Vec3::Z,
+            1e-6,
+            "is forward",
+        );
+
+        assert_in_delta_vector(
+            Vec3::NEG_Z,
+            direction_to_quaternion(Vec3::NEG_Z) * Vec3::Z,
+            1e-6,
+            "is backward",
+        );
+
+        assert_in_delta_vector(
+            Vec3::X,
+            direction_to_quaternion(Vec3::X) * Vec3::Z,
+            1e-6,
+            "is rightward",
+        );
+
+        assert_in_delta_vector(
+            Vec3::NEG_X,
+            direction_to_quaternion(Vec3::NEG_X) * Vec3::Z,
+            1e-6,
+            "is leftward",
+        );
+
+        assert_in_delta_vector(
+            Vec3::Y,
+            direction_to_quaternion(Vec3::Y) * Vec3::Z,
+            1e-6,
+            "is upward",
+        );
+
+        assert_in_delta_vector(
+            Vec3::NEG_Y,
+            direction_to_quaternion(Vec3::NEG_Y) * Vec3::Z,
+            1e-6,
+            "is downward",
+        );
+
+        let arbitrary = Vec3::new(0.7, -0.6, 0.5).normalize();
+        assert_in_delta_vector(
+            arbitrary,
+            direction_to_quaternion(arbitrary) * Vec3::Z,
+            1e-6,
+            "arbitrary",
+        );
     }
 }

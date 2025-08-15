@@ -17,6 +17,7 @@ stag_toolkit/importers/ironpress/enabled=true
 stag_toolkit/simulated_rope/default_settings="uid://dgn4og8edhlfk"
 stag_toolkit/island_builder/save_to_directory="res://assets/islands"
 stag_toolkit/island_builder/collision_color=Color(1, 0, 0.670588, 1)
+stag_toolkit/island_builder/settings=5
 
 [application]
 

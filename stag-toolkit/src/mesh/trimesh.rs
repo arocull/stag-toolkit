@@ -1,3 +1,4 @@
+use crate::math::projection::{direction_to_quaternion, vector_in_cone};
 use crate::math::raycast::{Raycast, RaycastParameters, RaycastResult};
 use crate::math::{
     projection::{Plane, plane},
@@ -6,6 +7,7 @@ use crate::math::{
 use glam::Vec4Swizzles;
 use noise::{NoiseFn, Perlin};
 use std::collections::HashMap;
+use std::f64::consts::PI;
 use std::num::NonZero;
 // EDGES //
 
@@ -584,41 +586,45 @@ impl TriangleMesh {
 
         // TODO: multithread this via rayon
 
-        let radius_squared = radius * radius;
-
         for (idx, pt) in self.positions.iter().enumerate() {
-            let normal = self.normals.get(idx).unwrap_or(&Vec3::ZERO);
-            // TODO: random direction in cone
+            let normal = self.normals.get(idx).unwrap_or(&Vec3::Y);
 
-            let orientation = Quat::look_to_rh(*normal, Vec3::Y);
+            let orientation = direction_to_quaternion(*normal);
 
-            let mut results: Vec<f32> = Vec::with_capacity(samples);
+            // let mut results: Vec<f32> = Vec::with_capacity(samples);
+            let mut hit_count: u32 = 0;
 
             for iteration in 0..samples {
-                // let z = perlin.get([pt.x as f64, pt.y as f64, pt.z as f64, iteration as f64]).remap(-1.0,1.0,0.0,1.0);
-                // let theta = perlin.get([pt.x as f64, pt.y as f64, pt.z as f64, (iteration * samples) as f64]);
-                // let dir = vector_in_cone(orientation, z as f32, theta.remap(-1.0, 1.0, 0.0, TAU) as f32);
+                let z =
+                    perlin.get([pt.x as f64, pt.y as f64, pt.z as f64, iteration as f64]) as f32;
+                let theta = (perlin.get([
+                    pt.x as f64,
+                    pt.y as f64,
+                    pt.z as f64,
+                    (iteration * samples) as f64,
+                ]) * PI
+                    * 0.5) as f32;
+                let dir = vector_in_cone(orientation, z, theta) * Vec3::new(1.0, 1.0, 1.0);
 
-                let origin = pt - normal * 1000.0;
-                let params = RaycastParameters::new(origin, *normal, f32::INFINITY, false);
+                let origin = pt + dir * 0.001;
+                let params = RaycastParameters::new(origin, dir, radius, false);
 
                 // If we hit, store inverse of linear falloff from center to edge
                 if let Some(result) = self.raycast(params) {
-                    let distance_squared = result.point.distance_squared(*pt);
-                    if distance_squared < radius_squared {
-                        results.push(1.0 - (distance_squared.sqrt() / radius));
-                    }
+                    // results.push(1.0);
+                    hit_count += 1;
                 }
             }
 
             // Average results and then sqrt the proportion so it leans toward lighter
-            let count = results.len();
-            if count > 0 {
-                let proportion = results.iter().sum::<f32>() / count as f32;
-                occlusion.push(proportion.sqrt());
-            } else {
-                occlusion.push(1.0);
-            }
+            // https://en.wikipedia.org/wiki/Ambient_occlusion
+            occlusion.push(1.0 - (hit_count as f32 / samples as f32));
+            // if results.len() > 0 {
+            //     let proportion = results.iter().sum::<f32>() / samples as f32;
+            //     occlusion.push(1.0 - proportion);
+            // } else {
+            //     occlusion.push(1.0);
+            // }
         }
 
         occlusion

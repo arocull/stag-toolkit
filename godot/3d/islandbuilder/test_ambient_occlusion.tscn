@@ -1,0 +1,53 @@
+[gd_scene load_steps=8 format=3 uid="uid://d0pihggsocomk"]
+
+[ext_resource type="Shader" uid="uid://bcyaataemp44y" path="res://3d/islandbuilder/materials/shaders/shader_ao_debug.gdshader" id="1_arj2x"]
+
+[sub_resource type="IslandBuilderSettingsTweaks" id="IslandBuilderSettingsTweaks_njwnn"]
+
+[sub_resource type="IslandBuilderSettingsCollision" id="IslandBuilderSettingsCollision_p1ajq"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_7wymy"]
+render_priority = 0
+shader = ExtResource("1_arj2x")
+
+[sub_resource type="IslandBuilderSettingsMesh" id="IslandBuilderSettingsMesh_7wpvs"]
+ao_enabled = true
+ao_radius = 4.0
+ao_samples = 8
+
+[sub_resource type="IslandBuilderSettingsVoxels" id="IslandBuilderSettingsVoxels_njwnn"]
+voxel_size = Vector3(0.1, 0.1, 0.1)
+sampling_density_noise_amplitude = 0.0
+sampling_offset_noise_amplitude = Vector3(0, 0, 0)
+sdf_edge_radius = 0.0
+striation_amplitude = 0.0
+
+[sub_resource type="IslandBuilderSettings" id="IslandBuilderSettings_7wymy"]
+voxels = SubResource("IslandBuilderSettingsVoxels_njwnn")
+mesh = SubResource("IslandBuilderSettingsMesh_7wpvs")
+collision = SubResource("IslandBuilderSettingsCollision_p1ajq")
+material_baked = SubResource("ShaderMaterial_7wymy")
+material_preview = SubResource("ShaderMaterial_7wymy")
+
+[node name="TestAmbientOcclusion" type="Node3D"]
+
+[node name="IslandBuilder" type="IslandBuilder" parent="." groups=["StagToolkit_IslandBuilder"]]
+output_to = NodePath("../result")
+tweaks = SubResource("IslandBuilderSettingsTweaks_njwnn")
+settings = SubResource("IslandBuilderSettings_7wymy")
+visible = false
+
+[node name="CSGBox3D" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, 0)
+size = Vector3(1, 5, 5)
+
+[node name="CSGBox3D2" type="CSGBox3D" parent="IslandBuilder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0)
+size = Vector3(1, 5, 5)
+
+[node name="result" type="Node3D" parent="."]
+
+[node name="mesh_island" type="MeshInstance3D" parent="result"]
+layers = 5
+lod_bias = 52.082
+metadata/_edit_lock_ = true
