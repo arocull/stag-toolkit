@@ -6,6 +6,7 @@ use crate::math::{
 };
 use glam::Vec4Swizzles;
 use noise::{NoiseFn, Perlin};
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::num::NonZero;
@@ -522,9 +523,12 @@ impl TriangleMesh {
 
     /// Calculates smooth vertex normals, using each triangle's surface area as a weight.
     /// Returns as a list of surface normals for each corresponding vertex.
+    ///
+    /// This method works best when the mesh is already optimized (no unused vertices, mesh is continuous).
     pub fn get_normals_smooth(&self) -> Vec<Vec3> {
         // Map of vertices, with a list of corresponding triangle normals and associated area
-        let mut vertices: HashMap<usize, Vec<(Vec3, f32)>> = HashMap::new();
+        let mut vertices: HashMap<usize, Vec<(Vec3, f32)>> =
+            HashMap::with_capacity(self.positions.len());
 
         for tri in self.triangles.iter() {
             let norm = tri.normal(&self.positions);
@@ -540,8 +544,7 @@ impl TriangleMesh {
         }
 
         // Allocate new normal buffer and fill with default values
-        let mut normals: Vec<Vec3> = Vec::with_capacity(vertices.len());
-        normals.resize(vertices.len(), Vec3::ZERO);
+        let mut normals: Vec<Vec3> = vec![Vec3::ZERO; self.positions.len()];
 
         // Fill in normals based on triangle normals weighted by triangle area
         for (idx, vertex_data) in vertices {
@@ -574,58 +577,51 @@ impl TriangleMesh {
     /// Requires vertex normals to be baked beforehand.
     /// This occlusion method is based on raycasting.
     pub fn get_ambient_occlusion(&self, samples: usize, radius: f32, seed: u32) -> Vec<f32> {
-        let mut occlusion: Vec<f32> = Vec::with_capacity(self.positions.len());
-
-        let perlin = Perlin::new(seed);
-
         #[cfg(debug_assertions)]
-        assert!(
-            self.normals.len() >= self.positions.len(),
+        assert_eq!(
+            self.normals.len(),
+            self.positions.len(),
             "each vertex must have a corresponding normal"
         );
 
-        // TODO: multithread this via rayon
+        // pre-allocate occlusion
+        let point_count = self.positions.len();
+        let mut occlusion: Vec<f32> = vec![1.0; point_count];
 
-        for (idx, pt) in self.positions.iter().enumerate() {
-            let normal = self.normals.get(idx).unwrap_or(&Vec3::Y);
+        let perlin = Perlin::new(seed);
 
-            let orientation = direction_to_quaternion(*normal);
+        // https://play.rust-lang.org/?version=stable&mode=debug&edition=2024&gist=4438c508f98c474de742034b7edce478
+        occlusion
+            .par_iter_mut()
+            .zip(&self.positions)
+            .zip(&self.normals)
+            .for_each(|((ao, pt), normal)| {
+                let orientation = direction_to_quaternion(*normal);
+                let mut hit_count: u32 = 0;
 
-            // let mut results: Vec<f32> = Vec::with_capacity(samples);
-            let mut hit_count: u32 = 0;
+                for iteration in 0..samples {
+                    let mut sample_point = [
+                        pt.x as f64,
+                        pt.y as f64,
+                        pt.z as f64,
+                        (iteration * samples) as f64 + iteration as f64 * 0.5,
+                    ];
+                    let z = perlin.get(sample_point) as f32;
+                    sample_point[3] += point_count as f64;
+                    let theta = (perlin.get(sample_point) * PI * 0.5) as f32;
+                    let dir = vector_in_cone(orientation, z, theta);
 
-            for iteration in 0..samples {
-                let z =
-                    perlin.get([pt.x as f64, pt.y as f64, pt.z as f64, iteration as f64]) as f32;
-                let theta = (perlin.get([
-                    pt.x as f64,
-                    pt.y as f64,
-                    pt.z as f64,
-                    (iteration * samples) as f64,
-                ]) * PI
-                    * 0.5) as f32;
-                let dir = vector_in_cone(orientation, z, theta) * Vec3::new(1.0, 1.0, 1.0);
+                    let origin = pt + dir * 0.001;
+                    let params = RaycastParameters::new(origin, dir, radius, false);
 
-                let origin = pt + dir * 0.001;
-                let params = RaycastParameters::new(origin, dir, radius, false);
-
-                // If we hit, store inverse of linear falloff from center to edge
-                if let Some(result) = self.raycast(params) {
-                    // results.push(1.0);
-                    hit_count += 1;
+                    if self.raycast(params).is_some() {
+                        hit_count += 1;
+                    }
                 }
-            }
 
-            // Average results and then sqrt the proportion so it leans toward lighter
-            // https://en.wikipedia.org/wiki/Ambient_occlusion
-            occlusion.push(1.0 - (hit_count as f32 / samples as f32));
-            // if results.len() > 0 {
-            //     let proportion = results.iter().sum::<f32>() / samples as f32;
-            //     occlusion.push(1.0 - proportion);
-            // } else {
-            //     occlusion.push(1.0);
-            // }
-        }
+                // https://en.wikipedia.org/wiki/Ambient_occlusion
+                *ao = 1.0 - (hit_count as f32 / samples as f32);
+            });
 
         occlusion
     }

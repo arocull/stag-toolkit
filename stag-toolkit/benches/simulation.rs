@@ -6,7 +6,7 @@ use stag_toolkit::simulation::rope::{RopeData, jakobsen_constraint, jakobsen_con
 
 fn rope_constraints(c: &mut Criterion) {
     // Test constraint functions by themselves
-    c.bench_function("jakobsen_contraint", |b| {
+    c.bench_function("rope/jakobsen_contraint", |b| {
         b.iter(|| {
             jakobsen_constraint(
                 black_box(Vec3::splat(2.0)),
@@ -16,7 +16,7 @@ fn rope_constraints(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("jakobsen_contraint_single", |b| {
+    c.bench_function("rope/jakobsen_contraint_single", |b| {
         b.iter(|| {
             jakobsen_constraint_single(
                 black_box(Vec3::splat(2.0)),
@@ -44,7 +44,7 @@ fn rope_simulation(c: &mut Criterion) {
 
     // Benchmark factor<->idx functions
     let rope_bind_index = rope.clone();
-    c.bench_function("rope.bind_index", |b| {
+    c.bench_function("rope/bind_index", |b| {
         b.iter(|| {
             rope_bind_index.bind_index(black_box(0.37));
         });
@@ -52,7 +52,7 @@ fn rope_simulation(c: &mut Criterion) {
     drop(rope_bind_index);
 
     let rope_bind_factor = rope.clone();
-    c.bench_function("rope.bind_factor", |b| {
+    c.bench_function("rope/bind_factor", |b| {
         b.iter(|| {
             rope_bind_factor.bind_factor(black_box(37));
         });
@@ -61,7 +61,7 @@ fn rope_simulation(c: &mut Criterion) {
 
     // Benchmark creating a unique bind-map
     let rope_unique_bind_map = rope.clone();
-    c.bench_function("rope.unique_bind_map", |b| {
+    c.bench_function("rope/unique_bind_map", |b| {
         b.iter(|| {
             rope_unique_bind_map.unique_bind_map(black_box(&instance_bindings));
         });
@@ -70,7 +70,7 @@ fn rope_simulation(c: &mut Criterion) {
 
     // Benchmark tension calculations
     let mut rope_tension = rope.clone();
-    c.bench_function("rope.tension", |b| {
+    c.bench_function("rope/tension", |b| {
         b.iter(|| {
             rope_tension.tension(black_box(&bindings));
         });
@@ -79,7 +79,7 @@ fn rope_simulation(c: &mut Criterion) {
 
     // Benchmark simulation functions
     let mut rope_tick = rope.clone();
-    c.bench_function("rope.step", |b| {
+    c.bench_function("rope/step", |b| {
         b.iter(|| {
             rope_tick.step(black_box(DELTA));
         });
@@ -87,7 +87,7 @@ fn rope_simulation(c: &mut Criterion) {
     drop(rope_tick);
 
     let mut rope_constraint = rope.clone();
-    c.bench_function("rope.constrain", |b| {
+    c.bench_function("rope/constrain", |b| {
         b.iter(|| {
             rope_constraint.constrain(black_box(&bindings));
         });
@@ -96,7 +96,7 @@ fn rope_simulation(c: &mut Criterion) {
 
     // Benchmark lots of step + constrain iterations
     let mut rope_sim = rope.clone();
-    c.bench_function("rope.step + rope.constrain", |b| {
+    c.bench_function("rope/step + constrain", |b| {
         b.iter(|| {
             rope_sim.step(black_box(DELTA));
             rope_sim.constrain(black_box(&bindings));
@@ -106,7 +106,7 @@ fn rope_simulation(c: &mut Criterion) {
 
     // Now, benchmark everything together for a good metric on processing time within Godot
     let mut rope_godot_sim = rope.clone();
-    c.bench_function("Godot simulation tick", |b| {
+    c.bench_function("rope/full simulation tick)", |b| {
         b.iter(|| {
             let bind_map = rope_godot_sim.unique_bind_map(black_box(&instance_bindings));
             rope_godot_sim.tension(&bind_map);

@@ -285,6 +285,8 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                     #class_fields
                     base: Base<#base_class>,
                 }
+                #[automatically_derived]
+                #[cfg(feature = "godot")]
                 #[godot_api]
                 impl #class_name {
                     /// Emitted when any setting changes.

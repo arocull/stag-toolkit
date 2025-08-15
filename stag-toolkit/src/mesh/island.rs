@@ -112,10 +112,10 @@ pub struct SettingsMesh {
     )]
     pub ao_radius: f32,
     /// Weighting value for linearly blending a base value of 1.0 with the baked Ambient Occlusion.
-    #[setting(default = 1.0, min = 0.0, max = 1.0, incr = 0.001)]
+    #[setting(default = 0.5, min = 0.0, max = 1.0, incr = 0.001)]
     pub ao_strength: f32,
     /// Number of ambient occlusion samples to perform.
-    #[setting(default = 1, min = 1.0, max = 256.0, incr = 1.0)]
+    #[setting(default = 16, min = 1.0, max = 256.0, incr = 1.0)]
     pub ao_samples: u32,
 
     /// Minimum dot value for adding dirt gradation into the Green channel.
@@ -393,6 +393,26 @@ impl Data {
             return true;
         }
         false
+    }
+
+    /// Unsets the voxel bake without dirtying.
+    pub fn clear_voxels(&mut self) {
+        self.voxels = None;
+    }
+
+    /// Unsets the mesh preview without dirtying.
+    pub fn clear_mesh_preview(&mut self) {
+        self.mesh_preview = None;
+    }
+
+    /// Unsets the baked mesh without dirtying.
+    pub fn clear_mesh_baked(&mut self) {
+        self.mesh_baked = None;
+    }
+
+    /// Unsets the collision without dirtying.
+    pub fn clear_collision(&mut self) {
+        self.hulls.clear();
     }
 
     /// Automatically computes the axis-aligned bounding box for the Island.
