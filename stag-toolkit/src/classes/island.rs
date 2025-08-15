@@ -390,7 +390,7 @@ impl IslandBuilder {
             );
             mesh.surface_set_name(0, "island");
             // Add a material, if valid
-            if let Some(material) = &self.settings_internal.bind().get_material_baked() {
+            if let Some(material) = &self.settings_internal.bind().get_material_preview() {
                 mesh.surface_set_material(0, material);
             }
         }
@@ -744,6 +744,8 @@ impl IslandBuilder {
 
         // Ensure all Island Builders are serialized before threading
         for builder in builders.iter_shared() {
+            // let mut b = builder.clone().bind_mut();
+            // b.serialize();
             builder.clone().bind_mut().serialize();
         }
 

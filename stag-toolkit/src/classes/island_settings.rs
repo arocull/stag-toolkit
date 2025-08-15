@@ -77,6 +77,26 @@ pub struct IslandBuilderSettings {
     #[init(val=None)]
     handle_collision: Option<ConnectHandle>,
 
+    /// Directory to save the [IslandBuilder] bake in. You can save bakes via the editor interface.
+    ///
+    /// The string is formatted by a dictionary with the following values:
+    /// - `scene`: the basepath of the currently edited scene, such as "res://levels/campaign/rdm_outpost"
+    /// - `parent`: the name of the immediate parent of the [IslandBuilder] node, such as "island_battleship"
+    /// - `node`: the name of the [IslandBuilder] node, such as "IslandBuilder"
+    /// - `target`: the name of the node the [IslandBuilder] is set to `output_to`, such as "IslandBuilder" or "RigidBody3D"
+    ///
+    /// The file extension should end with the desired save format.
+    /// Binary formats are recommended due to the large amount of data produced.
+    /// If you would like to save the baked scene (target, generated MeshInstance3D, and generated CollisionShape3Ds),
+    /// use a scene extension like `.scn` (for binary) or `.tscn` (for text).
+    ///
+    /// If you would just like to save the generated [ArrayMesh], use `.res` (for binary) or `.tres` (for text).
+    ///
+    /// For reference, smaller Abyss islands are usually about 500KB with binary compression, whereas larger islands approach up to 3 MB.
+    #[export(file = "*.scn,*.tscn,*.res,*.tres")]
+    #[init(val="{scene}/{parent}.scn".into())]
+    save_path: GString,
+
     base: Base<Resource>,
 }
 

@@ -15,6 +15,8 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
+tooltip_text = "SDF Primitive Count"
+mouse_filter = 1
 text = "### Shapes"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -24,6 +26,8 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
+tooltip_text = "Island Volume"
+mouse_filter = 1
 text = "###.## m^3"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -33,6 +37,8 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
+tooltip_text = "Island Mass"
+mouse_filter = 1
 text = "###.## kg"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -42,6 +48,8 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
+tooltip_text = "Island Hit Points"
+mouse_filter = 1
 text = "###.## HP"
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -50,54 +58,121 @@ vertical_alignment = 1
 layout_mode = 2
 alignment = 1
 
-[node name="btn_serialize" type="Button" parent="precomp"]
+[node name="serialize" type="Button" parent="precomp"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
+tooltip_text = "Recursively serializes all IslandBuilder child nodes that are CSG primitives. Only some primitives are supported."
 text = "Serialize"
 
-[node name="btn_precompute" type="Button" parent="precomp"]
+[node name="mesh_preview" type="Button" parent="precomp"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Precompute"
+tooltip_text = "Performs SDF sampling and mesh generation, creating an unoptimized preview mesh."
+text = "Mesh Preview"
 
-[node name="btn_finalize" type="Button" parent="precomp"]
+[node name="finalize" type="Button" parent="precomp"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
+tooltip_text = "Bake everything."
 text = "Finalize"
 
-[node name="workflow" type="HBoxContainer" parent="."]
+[node name="baking" type="HBoxContainer" parent="."]
 layout_mode = 2
 alignment = 1
 
-[node name="btn_destroy" type="Button" parent="workflow"]
+[node name="mesh_bake" type="Button" parent="baking"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Destroy Bakes"
+tooltip_text = "Optimize the preview mesh, baking normals and vertex colors into it."
+text = "Bake Mesh"
 
-[node name="btn_metadata" type="Button" parent="workflow"]
+[node name="collision" type="Button" parent="baking"]
 unique_name_in_owner = true
-visible = false
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Clear Metadata"
+tooltip_text = "Split the preview mesh into separate hulls, decimate them, and turn them into collision shapes."
+text = "Bake Collision"
 
-[node name="btn_mesh_preview" type="Button" parent="workflow"]
+[node name="navigation" type="Button" parent="baking"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Mesh Preview"
+tooltip_text = "Bakes the NavIslandProperties for the given IslandBuilder."
+text = "Bake Nav Props"
 
 [node name="separator" type="HSeparator" parent="."]
+layout_mode = 2
+
+[node name="save" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="save_single" type="Button" parent="save"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Saves the bake data of the selected IslandBuilder."
+text = "Save Selected Bake"
+
+[node name="save_all" type="Button" parent="save"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Saves the bake data of all IslandBuilder nodes in the current scene."
+text = "Save ALL Bakes"
+
+[node name="bake_all" type="Button" parent="save"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Bakes everything for all IslandBuilder nodes in the scene. Utilizes multi-threading."
+text = "Finalize ALL Islands"
+
+[node name="destroy" type="HBoxContainer" parent="."]
+layout_mode = 2
+alignment = 1
+
+[node name="destroy_single" type="Button" parent="destroy"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Destroy all bake data on the selected IslandBuilder."
+text = "Destroy Bake"
+
+[node name="destroy_all" type="Button" parent="destroy"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Destroy all bake data for all IslandBuilder nodes in the scene."
+theme_override_colors/font_disabled_color = Color(0.53, 0.3074, 0.3074, 1)
+theme_override_colors/font_color = Color(1, 0.578987, 0.578987, 1)
+disabled = true
+text = "Destroy ALL Bakes"
+
+[node name="remove_all" type="Button" parent="destroy"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Removes all IslandBuilder nodes from the scene. PLEASE keep a backup."
+theme_override_colors/font_disabled_color = Color(0.54, 0, 0, 1)
+theme_override_colors/font_color = Color(1, 0, 0, 1)
+disabled = true
+text = "Remove ALL Islands"
+
+[node name="separator2" type="HSeparator" parent="."]
 layout_mode = 2
 
 [node name="realtime" type="HBoxContainer" parent="."]
@@ -108,6 +183,7 @@ alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+tooltip_text = "Toggles real-time preview on the IslandBuilder node. This will cause the island to regenerate when settings or the node tree are updated."
 text = "Realtime Preview"
 
 [node name="VSeparator" type="VSeparator" parent="realtime"]
@@ -117,87 +193,15 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+tooltip_text = "Automatically rename and apply materials to CSG nodes so it is easier to understand how they contribute to the IslandBuilder."
 text = "CSG Linter"
 
-[node name="separator2" type="HSeparator" parent="."]
+[node name="VSeparator2" type="VSeparator" parent="realtime"]
 layout_mode = 2
 
-[node name="baking" type="HBoxContainer" parent="."]
-layout_mode = 2
-alignment = 1
-
-[node name="btn_mesh_bake" type="Button" parent="baking"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Bake Mesh"
-
-[node name="btn_collision" type="Button" parent="baking"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Build Collision"
-
-[node name="btn_navigation" type="Button" parent="baking"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Calc Nav Properties"
-
-[node name="separator3" type="HSeparator" parent="."]
-layout_mode = 2
-
-[node name="map_wide" type="HBoxContainer" parent="."]
-layout_mode = 2
-alignment = 1
-
-[node name="btn_all_destroy" type="Button" parent="map_wide"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Destroy ALL Bakes"
-
-[node name="btn_all_build" type="Button" parent="map_wide"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-size_flags_horizontal = 3
-text = "Build ALL Islands"
-
-[node name="separator4" type="HSeparator" parent="."]
-layout_mode = 2
-
-[node name="save_filename" type="LineEdit" parent="."]
+[node name="toggle_allow_destructive" type="CheckBox" parent="realtime"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-tooltip_text = "Filename for the island, excluding the file extension (island will be saved as a binary scene).
-Subdirectories will be created recursively.
-This filepath is appended to the project setting: \"addons/stag_toolkit/island_builder/save_to_directory\"
-\"{0}\" and \"{1}\" is automatically replaced with the node and scene name, respectively."
-text = "{1}/{0}"
-placeholder_text = "subdir/prefix_{0}_suffix"
-
-[node name="saving" type="HBoxContainer" parent="."]
-layout_mode = 2
-
-[node name="save_all" type="Button" parent="saving"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-tooltip_text = "Saves the bake of all islands in the current scene."
-text = "Save ALL Bakes"
-
-[node name="save_single" type="Button" parent="saving"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-tooltip_text = "Saves the bake of only the selected island."
-text = "Save Selected Bake"
-
-[node name="separator5" type="HSeparator" parent="."]
-layout_mode = 2
+size_flags_vertical = 3
+tooltip_text = "Enable destructive actions so they can be executed once, like destroying all bakes in the scene, or all IslandBuilder nodes entirely."
+text = "Allow Destructive"
