@@ -99,6 +99,8 @@ impl INode3D for IslandBuilder {
             .persistent(true)
             .done();
 
+        // Ensure settings and fallback are up to date
+        self.set_settings(self.settings.clone());
         self.apply_settings();
         self.apply_tweaks();
     }
@@ -233,15 +235,17 @@ impl IslandBuilder {
     #[func]
     fn apply_settings(&mut self) {
         let settings = self.settings_internal.bind();
-        let changed = self
+        let mut changed = self
             .data
-            .set_voxel_settings(settings.get_internal_voxel_settings())
-            || self
-                .data
-                .set_mesh_settings(settings.get_internal_mesh_settings())
-            || self
-                .data
-                .set_collision_settings(settings.get_internal_collision_settings());
+            .set_voxel_settings(settings.get_internal_voxel_settings());
+        changed = self
+            .data
+            .set_mesh_settings(settings.get_internal_mesh_settings())
+            || changed;
+        changed = self
+            .data
+            .set_collision_settings(settings.get_internal_collision_settings())
+            || changed;
         drop(settings);
 
         if changed {

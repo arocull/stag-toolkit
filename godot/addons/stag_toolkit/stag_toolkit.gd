@@ -25,24 +25,17 @@ var settings: Array[Dictionary] = [
 	},
 	{
 		"name": "addons/stag_toolkit/island_builder/enabled",
-		"type": TYPE_STRING,
+		"type": TYPE_BOOL,
 		"hint": PROPERTY_HINT_FILE,
 		"description": "Whether the IslandBuilder tool is enabled or not. Requires plugin reload.",
 		"default": "",
 	},
 	{
 		"name": "addons/stag_toolkit/island_builder/settings",
-		"type": TYPE_INT,
-		"hint": PROPERTY_HINT_LAYERS_3D_RENDER,
-		"description": "Default IslandBuilderSettings resource when one is not defined by the project developer.",
-		"default": 5,
-	},
-	{
-		"name": "addons/stag_toolkit/island_builder/save_to_directory",
 		"type": TYPE_STRING,
-		"hint": PROPERTY_HINT_DIR,
-		"description": "Top-level directory to save built Islands in.",
-		"default": "art/islands/generated",
+		"hint": PROPERTY_HINT_FILE,
+		"description": "Default IslandBuilderSettings resource when one is not defined by the project developer.",
+		"default": "",
 	},
 	{
 		"name": "addons/stag_toolkit/simulated_rope/default_settings",
