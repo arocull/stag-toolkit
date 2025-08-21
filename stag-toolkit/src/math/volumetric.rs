@@ -1,6 +1,7 @@
 use crate::math::noise::Perlin1D;
 use glam::{FloatExt, Mat4, Vec3, Vec4};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+use std::mem::swap;
 
 /// A container for storing volume data
 pub struct VolumeData<T> {
@@ -94,10 +95,15 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
         self.dim
     }
 
+    /// Returns the number of workers needed for processing.
+    fn worker_count(&self, group_size: usize) -> usize {
+        (self.size as f64 / group_size as f64).ceil() as usize
+    }
+
     /// Splits the Volume into a set of worker data for parallel operations.
     /// If `preserve_data` is true, the data of the volume is copied into the vector.
     pub fn to_workers(&self, group_size: usize, preserve_data: bool) -> Vec<VolumeWorker<T>> {
-        let worker_count = (self.size as f64 / group_size as f64).ceil() as usize;
+        let worker_count = self.worker_count(group_size);
 
         let mut workers: Vec<VolumeWorker<T>> = Vec::with_capacity(worker_count);
 
@@ -138,8 +144,26 @@ impl<T: Clone + Copy + Default> VolumeWorker<T> {
 }
 
 impl VolumeData<f32> {
-    /// Outputs box-blurred data into the given volume grid with the given blur radius.
-    pub fn blur(&self, radius: usize, weight: f32, group_size: usize, out: &mut Self) {
+    /// Performs an in-place box-blur, applying additional padding each iteration.
+    ///
+    /// The buffer is expected to be the same dimensions as this volume.
+    /// The [VolumeWorker] data will be overwritten each iteration.
+    pub fn blur(
+        &mut self,
+        iterations: u32,
+        radius: usize,
+        weight: f32,
+        cell_padding: usize,
+        padding_value: f32,
+        mut buffer: Self,
+        mut workers: Vec<VolumeWorker<f32>>,
+    ) {
+        #[cfg(debug_assertions)]
+        assert_eq!(
+            buffer.dim, self.dim,
+            "buffer dimensions should match original volume"
+        );
+
         let coverage = radius * 2 + 1;
         let inv_cvg_cubed = 1.0 / (coverage * coverage * coverage) as f32;
 
@@ -147,30 +171,41 @@ impl VolumeData<f32> {
         let max_y = self.dim[1] - 1;
         let max_z = self.dim[2] - 1;
 
-        let mut workers = self.to_workers(group_size, false);
+        for _ in 0..iterations {
+            // Copy over current voxel data to workers before performing blur
+            for worker in workers.iter_mut() {
+                worker.copy_from(self);
+            }
 
-        out.data = workers
-            .par_iter_mut()
-            .flat_map(|worker| -> Vec<f32> {
-                for i in 0..worker.range_width {
-                    let idx = i + worker.range_min;
-                    let [x, y, z] = self.delinearize(idx);
+            buffer.data = workers
+                .par_iter_mut()
+                .flat_map(|worker| -> Vec<f32> {
+                    for i in 0..worker.range_width {
+                        let idx = i + worker.range_min;
+                        let [x, y, z] = self.delinearize(idx);
 
-                    let mut avg: f32 = 0.0;
-                    for tx in x.saturating_sub(radius)..=(x + radius).min(max_x) {
-                        for ty in y.saturating_sub(radius)..=(y + radius).min(max_y) {
-                            for tz in z.saturating_sub(radius)..=(z + radius).min(max_z) {
-                                avg += self.data[self.linearize_fast(tx, ty, tz)];
+                        let mut avg: f32 = 0.0;
+                        for tx in x.saturating_sub(radius)..=(x + radius).min(max_x) {
+                            for ty in y.saturating_sub(radius)..=(y + radius).min(max_y) {
+                                for tz in z.saturating_sub(radius)..=(z + radius).min(max_z) {
+                                    avg += self.data[self.linearize_fast(tx, ty, tz)];
+                                }
                             }
                         }
+
+                        worker.data[i] = self.data[idx].lerp(avg * inv_cvg_cubed, weight);
                     }
 
-                    worker.data[i] = self.data[idx].lerp(avg * inv_cvg_cubed, weight);
-                }
+                    worker.data.clone()
+                })
+                .collect();
 
-                worker.data.clone()
-            })
-            .collect();
+            // Avoid bleeding over edges
+            buffer.set_padding(cell_padding, padding_value);
+
+            // Swap buffers so we can continue operating in-place
+            swap(&mut buffer.data, &mut self.data);
+        }
     }
 
     /// In-place adds noise to the volumetric.

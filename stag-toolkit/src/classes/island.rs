@@ -313,7 +313,7 @@ impl IslandBuilder {
     #[func]
     pub fn update_preview(&mut self) {
         // Ensure we're running in the editor.
-        if !Engine::singleton().is_editor_hint() || !self.realtime_preview {
+        if !self.realtime_preview || !Engine::singleton().is_editor_hint() {
             return;
         }
 
@@ -353,7 +353,7 @@ impl IslandBuilder {
             }
         }
 
-        // compute this on another thread
+        // Compute this on another thread
         let callable = Callable::from_sync_fn("all_bake_single", |args: &[&Variant]| {
             // TODO: type safety checks, return Error if safety fails
             let mut builder: Gd<Self> = args[0].to();

@@ -9,7 +9,6 @@ use glam::{FloatExt, Mat4, Quat, Vec2, Vec3, Vec4};
 use ndshape::ConstShape3u32;
 use rayon::prelude::*;
 use stag_toolkit_codegen::{ExposeSettings, settings_resource_from};
-use std::mem::swap;
 #[cfg(feature = "godot")]
 use {crate::math::types::ToVector3, godot::prelude::*};
 
@@ -504,22 +503,17 @@ impl Data {
         if self.settings_voxels.sdf_smooth_iterations > 0 {
             // Perform smoothing blurs, swapping between current and a buffer.
             // DON'T recreate the buffer each time, because it guzzles performance.
-            let mut blur_buffer = VolumeData::new(1.0, self.get_dimensions());
+            let blur_buffer = VolumeData::new(1.0, self.get_dimensions());
 
-            for _i in 0u32..self.settings_voxels.sdf_smooth_iterations {
-                voxels.blur(
-                    self.settings_voxels.sdf_smooth_radius_voxels as usize,
-                    self.settings_voxels.sdf_smooth_weight,
-                    self.settings_voxels.worker_group_size as usize,
-                    &mut blur_buffer,
-                );
-
-                // Swap buffers
-                swap(&mut voxels, &mut blur_buffer);
-
-                // Avoid bleeding over edges
-                voxels.set_padding(1, 1.0);
-            }
+            voxels.blur(
+                self.settings_voxels.sdf_smooth_iterations,
+                self.settings_voxels.sdf_edge_radius as usize,
+                self.settings_voxels.sdf_smooth_weight,
+                1,
+                1.0,
+                blur_buffer,
+                voxel_workers,
+            );
         }
 
         voxels.noise_add(
