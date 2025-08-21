@@ -13,9 +13,9 @@ use std::mem::swap;
 #[cfg(feature = "godot")]
 use {crate::math::types::ToVector3, godot::prelude::*};
 
-const VOLUME_MAX_CELLS: u32 = 48;
-const VOLUME_MAX_CELLS_TRIM: u32 = 44;
-type IslandChunkSize = ConstShape3u32<VOLUME_MAX_CELLS, VOLUME_MAX_CELLS, VOLUME_MAX_CELLS>;
+const VOLUME_MAX_CELLS: usize = 48;
+const VOLUME_MAX_CELLS_TRIM: usize = 44;
+type IslandChunkSize = ConstShape3u32<48, 48, 48>; // Same size as VolumeMaxCells
 
 /// Settings for voxel generation.
 #[derive(Copy, Clone, PartialEq, ExposeSettings)]
@@ -78,7 +78,7 @@ pub struct SettingsVoxels {
 
     /// Number of voxels per worker group.
     /// This is a performance setting and will not affect the output result.
-    #[setting(default=VOLUME_MAX_CELLS*VOLUME_MAX_CELLS*VOLUME_MAX_CELLS,min=1.0)]
+    #[setting(default=IslandChunkSize::USIZE as u32,min=1.0)]
     pub worker_group_size: u32,
 }
 
@@ -200,7 +200,7 @@ pub struct SettingsTweaks {
     pub w_mask: f64,
 }
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Data {
     settings_voxels: SettingsVoxels,
     settings_mesh: SettingsMesh,
@@ -434,6 +434,28 @@ impl Data {
         self.bounds = bounds;
     }
 
+    fn get_dimensions(&self) -> [usize; 3] {
+        let approx_cells = self.bounds.size() / self.settings_voxels.voxel_size;
+        [
+            approx_cells.x.ceil() as usize,
+            approx_cells.y.ceil() as usize,
+            approx_cells.z.ceil() as usize,
+        ]
+    }
+
+    /// Returns a voxel grid and an empty grid and a transform matrix.
+    #[doc(hidden)]
+    pub fn bake_voxels_init(&self) -> (VolumeData<f32>, Mat4) {
+        (
+            VolumeData::new(1.0f32, self.get_dimensions()),
+            Mat4::from_scale_rotation_translation(
+                self.settings_voxels.voxel_size,
+                Quat::IDENTITY,
+                self.bounds.minimum,
+            ),
+        )
+    }
+
     /// Bakes the voxel data if able.
     pub fn bake_voxels(&mut self) {
         // Voxels already baked or no shapes to work from
@@ -441,23 +463,10 @@ impl Data {
             return;
         }
 
-        let bounds = self.bounds;
+        let (mut voxels, transform) = self.bake_voxels_init();
 
-        let approx_cells = bounds.size() / self.settings_voxels.voxel_size;
-        let dim = [
-            approx_cells.x.ceil() as u32,
-            approx_cells.y.ceil() as u32,
-            approx_cells.z.ceil() as u32,
-        ];
-
-        let mut voxels = VolumeData::new(1.0f32, dim);
-        let mut voxel_workers = voxels.to_workers(self.settings_voxels.worker_group_size, false);
-
-        let transform = Mat4::from_scale_rotation_translation(
-            self.settings_voxels.voxel_size,
-            Quat::IDENTITY,
-            bounds.minimum,
-        );
+        let mut voxel_workers =
+            voxels.to_workers(self.settings_voxels.worker_group_size as usize, false);
 
         // Sample island SDF in chunks
         let noise_density = &self.noise_sdf_density;
@@ -465,7 +474,7 @@ impl Data {
         voxels.data = voxel_workers
             .par_iter_mut()
             .flat_map(|worker| -> Vec<f32> {
-                for i in 0u32..worker.range_width {
+                for i in 0..worker.range_width {
                     let [x, y, z] = voxels.delinearize(i + worker.range_min);
 
                     let mut sample_pos =
@@ -485,7 +494,7 @@ impl Data {
                         self.tweaks.w_sampling_density as f32,
                     )));
 
-                    worker.data[i as usize] = sample + add_in as f32;
+                    worker.data[i] = sample + add_in as f32;
                 }
 
                 worker.data.clone()
@@ -495,13 +504,13 @@ impl Data {
         if self.settings_voxels.sdf_smooth_iterations > 0 {
             // Perform smoothing blurs, swapping between current and a buffer.
             // DON'T recreate the buffer each time, because it guzzles performance.
-            let mut blur_buffer = VolumeData::new(1.0, dim);
+            let mut blur_buffer = VolumeData::new(1.0, self.get_dimensions());
 
             for _i in 0u32..self.settings_voxels.sdf_smooth_iterations {
                 voxels.blur(
-                    self.settings_voxels.sdf_smooth_radius_voxels,
+                    self.settings_voxels.sdf_smooth_radius_voxels as usize,
                     self.settings_voxels.sdf_smooth_weight,
-                    self.settings_voxels.worker_group_size,
+                    self.settings_voxels.worker_group_size as usize,
                     &mut blur_buffer,
                 );
 
@@ -519,9 +528,8 @@ impl Data {
             self.tweaks.w_striation as f32,
         );
 
-        voxels.set_padding(self.settings_voxels.voxel_padding, 10.0);
+        voxels.set_padding(self.settings_voxels.voxel_padding as usize, 10.0);
 
-        self.bounds = bounds;
         self.voxels = Some(voxels);
     }
 
@@ -546,13 +554,9 @@ impl Data {
             }
 
             // Then, allocate our grids
-            let mut grids: Vec<[f32; IslandChunkSize::USIZE]> = vec![];
-            let mut grid_offset: Vec<Vec3> = vec![];
-            grids.reserve_exact(grid_count);
-            for _ in 0..grid_count {
-                grids.push([1.0f32; IslandChunkSize::USIZE]);
-                grid_offset.push(Vec3::ZERO);
-            }
+            let mut grids: Vec<[f32; IslandChunkSize::USIZE]> =
+                vec![[1.0f32; IslandChunkSize::USIZE]; grid_count];
+            let mut grid_offset: Vec<Vec3> = vec![Vec3::ZERO; grid_count];
 
             let volume_per_voxel = self.settings_voxels.voxel_size.x
                 * self.settings_voxels.voxel_size.y
@@ -565,9 +569,9 @@ impl Data {
                     for z in 0..grids_z {
                         let grid_idx = linearize_nets(grid_strides, x, y, z);
                         let offset = Vec3::new(
-                            ((x as u32) * (VOLUME_MAX_CELLS - 2)) as f32,
-                            ((y as u32) * (VOLUME_MAX_CELLS - 2)) as f32,
-                            ((z as u32) * (VOLUME_MAX_CELLS - 2)) as f32,
+                            (x * (VOLUME_MAX_CELLS - 2)) as f32,
+                            (y * (VOLUME_MAX_CELLS - 2)) as f32,
+                            (z * (VOLUME_MAX_CELLS - 2)) as f32,
                         ) * self.settings_voxels.voxel_size
                             + self.bounds.minimum;
                         grid_offset[grid_idx] = offset;
@@ -577,12 +581,12 @@ impl Data {
                             let coord = IslandChunkSize::delinearize(i as u32);
                             // Global index of Voxel Grid
                             let voxels_idx = voxels.linearize(
-                                (x as u32) * (VOLUME_MAX_CELLS - 2) + coord[0],
-                                (y as u32) * (VOLUME_MAX_CELLS - 2) + coord[1],
-                                (z as u32) * (VOLUME_MAX_CELLS - 2) + coord[2],
+                                x * (VOLUME_MAX_CELLS - 2) + coord[0] as usize,
+                                y * (VOLUME_MAX_CELLS - 2) + coord[1] as usize,
+                                z * (VOLUME_MAX_CELLS - 2) + coord[2] as usize,
                             );
 
-                            let sample = voxels.get_linear(voxels_idx as usize);
+                            let sample = voxels.get_linear(voxels_idx);
                             grids[grid_idx][i] = -sample;
 
                             if sample < 0.0 {
@@ -604,7 +608,7 @@ impl Data {
                         grid,
                         &IslandChunkSize {},
                         [0; 3],
-                        [VOLUME_MAX_CELLS - 1; 3],
+                        [(VOLUME_MAX_CELLS - 1) as u32; 3],
                         &mut buffer,
                     );
 

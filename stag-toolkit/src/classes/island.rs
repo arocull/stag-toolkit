@@ -287,6 +287,13 @@ impl IslandBuilder {
 
     // Build Steps //
 
+    /// Clears the build cache. Frees up system memory,
+    /// but the island must be re-computed from scratch for further bakes.
+    #[func]
+    pub fn clear_cache(&mut self) {
+        self.data.dirty_voxels();
+    }
+
     /// Reads and stores children CSG shapes as whitebox geometry for processing.
     /// Supports Union, Intersection and Subtraction.
     ///
@@ -682,6 +689,8 @@ impl IslandBuilder {
                     navprops.to_variant(),
                 ],
             );
+
+            self.clear_cache(); // Clear build cache
         } else {
             self.apply_build_data(mesh, hulls, volume, navprops);
         }
