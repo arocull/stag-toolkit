@@ -112,11 +112,11 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
             let range_max: usize = ((i + 1) * group_size).min(self.size);
             let range_width: usize = range_max - range_min;
 
-            let worker_data: Vec<T>;
+            let mut worker_data: Vec<T> = vec![T::default(); range_width];
             if preserve_data {
-                worker_data = Vec::from_iter(self.data[range_min..range_max].iter().copied());
-            } else {
-                worker_data = vec![T::default(); range_width];
+                for idx in range_min..range_max {
+                    worker_data[idx] = self.data[idx];
+                }
             }
 
             workers.push(VolumeWorker {

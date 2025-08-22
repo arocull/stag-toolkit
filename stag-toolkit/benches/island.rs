@@ -3,6 +3,7 @@ use glam::{Mat4, Vec3};
 use stag_toolkit::math::raycast::{Raycast, RaycastParameters};
 use stag_toolkit::math::sdf;
 use stag_toolkit::mesh::island;
+use stag_toolkit::mesh::island::SettingsMesh;
 use std::time::Duration;
 
 fn island_builder(c: &mut Criterion) {

@@ -47,6 +47,8 @@ pub trait TriangleOperations {
     fn normal(&self, positions: &[Vec3]) -> Vec3;
     /// Returns the face plane.
     fn plane(&self, positions: &[Vec3]) -> Vec4;
+    /// Returns the face plane using a pre-computed face normal.
+    fn plane_with_normal(&self, positions: &[Vec3], normal: Vec3) -> Vec4;
     /// Projects the given point onto the triangle.
     fn project(&self, positions: &[Vec3], point: Vec3) -> Vec3;
     /// Calculates the projected barycentric coordinates of a point `p` relative to this triangle.
@@ -93,6 +95,10 @@ impl TriangleOperations for Triangle {
 
     fn plane(&self, positions: &[Vec3]) -> Vec4 {
         plane(positions[self[0]], self.normal(positions))
+    }
+
+    fn plane_with_normal(&self, positions: &[Vec3], normal: Vec3) -> Vec4 {
+        plane(positions[self[0]], normal)
     }
 
     fn project(&self, positions: &[Vec3], point: Vec3) -> Vec3 {
@@ -205,6 +211,16 @@ pub struct TriangleMesh {
 
     pub uv1: Option<Vec<Vec2>>,
     pub uv2: Option<Vec<Vec2>>,
+}
+
+/// Worker data for an ambient occlusion baker.
+struct AmbientOcclusionWorker<'a> {
+    from: usize,
+    to: usize,
+
+    positions: &'a [Vec3],
+    normals: &'a [Vec3],
+    // results: &'a [f32],
 }
 
 impl TriangleMesh {
@@ -586,44 +602,66 @@ impl TriangleMesh {
 
         // pre-allocate occlusion
         let point_count = self.positions.len();
-        let mut occlusion: Vec<f32> = vec![1.0; point_count];
+        // let mut occlusion: Vec<f32> = vec![1.0; point_count];
 
         let perlin = Perlin::new(seed);
 
-        // https://play.rust-lang.org/?version=stable&mode=debug&edition=2024&gist=4438c508f98c474de742034b7edce478
-        occlusion
+        let worker_group_size = (point_count as f64 / 16.0).ceil() as usize;
+        let worker_count = (point_count as f64 / worker_group_size as f64).ceil() as usize;
+
+        let mut workers: Vec<AmbientOcclusionWorker> = Vec::with_capacity(worker_count);
+
+        for i in 0..worker_count {
+            let from = i * worker_group_size;
+            let to = ((i + 1) * worker_group_size).min(self.positions.len());
+            workers.push(AmbientOcclusionWorker {
+                from: i * worker_group_size,
+                to,
+                positions: &self.positions[from..to],
+                normals: &self.normals[from..to],
+            });
+        }
+
+        workers
             .par_iter_mut()
-            .zip(&self.positions)
-            .zip(&self.normals)
-            .for_each(|((ao, pt), normal)| {
-                let orientation = direction_to_quaternion(*normal);
-                let mut hit_count: u32 = 0;
+            .flat_map(|worker| -> Vec<f32> {
+                let width = worker.to - worker.from;
+                let mut ao = vec![1.0; width];
 
-                for iteration in 0..samples {
-                    let mut sample_point = [
-                        pt.x as f64,
-                        pt.y as f64,
-                        pt.z as f64,
-                        (iteration * samples) as f64 + iteration as f64 * 0.5,
-                    ];
-                    let z = perlin.get(sample_point) as f32;
-                    sample_point[3] += point_count as f64;
-                    let theta = (perlin.get(sample_point) * PI * 0.5) as f32;
-                    let dir = vector_in_cone(orientation, z, theta);
+                for local_index in 0..width {
+                    let normal = worker.normals[local_index];
+                    let pt = worker.positions[local_index];
 
-                    let origin = pt + dir * 0.001;
-                    let params = RaycastParameters::new(origin, dir, radius, false);
+                    let orientation = direction_to_quaternion(normal);
+                    let mut hit_count: u32 = 0;
 
-                    if self.raycast(params).is_some() {
-                        hit_count += 1;
+                    for iteration in 0..samples {
+                        let mut sample_point = [
+                            pt.x as f64,
+                            pt.y as f64,
+                            pt.z as f64,
+                            ((worker.from + local_index) * samples + iteration) as f64 * 0.5,
+                        ];
+
+                        let z = perlin.get(sample_point) as f32;
+                        sample_point[3] += point_count as f64;
+                        let theta = (perlin.get(sample_point) * PI * 0.5) as f32;
+                        let dir = vector_in_cone(orientation, z, theta);
+
+                        let origin = pt + dir * 0.001;
+                        let params = RaycastParameters::new(origin, dir, radius, false);
+
+                        if self.raycast(params).is_some() {
+                            hit_count += 1;
+                        }
                     }
+
+                    ao[local_index] = 1.0 - (hit_count as f32 / samples as f32);
                 }
 
-                // https://en.wikipedia.org/wiki/Ambient_occlusion
-                *ao = 1.0 - (hit_count as f32 / samples as f32);
-            });
-
-        occlusion
+                ao
+            })
+            .collect()
     }
 
     /// Returns the calculated surface area of the mesh.
@@ -663,7 +701,6 @@ impl TriangleMesh {
 impl Raycast for TriangleMesh {
     // TODO: method for raycasting many things at once and returning a list of results
     fn raycast(&self, params: RaycastParameters) -> Option<RaycastResult> {
-        let mut shortest_depth: f32 = params.max_depth;
         let mut result = RaycastResult::default();
 
         // For all triangles
@@ -674,7 +711,7 @@ impl Raycast for TriangleMesh {
             // First, make sure this is shorter than our current collision depth
             // Also make sure it's not back-facing, if possible
             let depth = plane.signed_distance(params.origin);
-            if (depth >= 0.0 || params.hit_backfaces) && depth < shortest_depth {
+            if (depth >= 0.0 || params.hit_backfaces) && depth < result.depth {
                 // Project point onto the plane
                 let projection = plane.ray_intersection(params.origin, params.direction);
 
@@ -686,23 +723,32 @@ impl Raycast for TriangleMesh {
                     let contained = tri.contains_barycentric(coord);
 
                     if contained {
-                        shortest_depth = depth;
-                        result.point = projection.intersection;
-                        result.normal = plane.xyz();
-                        result.face_index = Some(idx);
-                        result.barycentric = Some(coord);
+                        result = RaycastResult {
+                            depth,
+                            point: projection.intersection,
+                            normal: plane.xyz(),
+                            face_index: Some(idx),
+                            barycentric: Some(coord),
+                        }
                     }
                 }
             }
         }
 
         // No collision, return nothing
-        if shortest_depth == params.max_depth {
+        if result.depth == params.max_depth {
             return None;
         }
 
-        result.depth = shortest_depth;
         Some(result)
+    }
+
+    fn raycast_many(&self, parameters: Vec<RaycastParameters>) -> Vec<Option<RaycastResult>> {
+        let results: Vec<Option<RaycastResult>> = vec![None; parameters.len()];
+
+        todo!();
+
+        results
     }
 }
 

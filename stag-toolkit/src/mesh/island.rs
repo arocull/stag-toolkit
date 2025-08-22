@@ -114,7 +114,7 @@ pub struct SettingsMesh {
     #[setting(default = 0.5, min = 0.0, max = 1.0, incr = 0.001)]
     pub ao_strength: f32,
     /// Number of ambient occlusion samples to perform.
-    #[setting(default = 16, min = 1.0, max = 256.0, incr = 1.0)]
+    #[setting(default = 32, min = 1.0, max = 256.0, incr = 1.0)]
     pub ao_samples: u32,
 
     /// Minimum dot value for adding dirt gradation into the Green channel.

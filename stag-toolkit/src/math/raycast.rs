@@ -8,19 +8,23 @@ use std::{
 /// Features for raycasting objects.
 pub trait Raycast {
     /// Perform a singular raycast on the object from the given point to the end point.
-    /// `max_depth` is the maximum depth a collision can occur at.
-    /// If `backfaces` is true, the direction of the face is ignored.
-    ///
     /// The raycast result for the shallowest collision point is returned.
     /// Returns [None] if the ray did not hit.
     fn raycast(&self, parameters: RaycastParameters) -> Option<RaycastResult>;
+
+    /// Perform a batch raycast on the object from the given point to the end point.
+    fn raycast_many(&self, parameters: Vec<RaycastParameters>) -> Vec<Option<RaycastResult>>;
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct RaycastParameters {
+    /// Where the ray starts, in the coordinate space relative to the struct being raytraced.
     pub origin: Vec3,
+    /// The direction the ray points, in the coordinate space relative to the struct being raytraced.
     pub direction: Vec3,
+    /// The maximum depth a collision can occur at.
     pub max_depth: f32,
+    /// If true, the direction of the face is ignored.
     pub hit_backfaces: bool,
 }
 
@@ -70,7 +74,7 @@ impl Display for RaycastParameters {
     }
 }
 
-#[derive(Copy, Clone, Default, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub struct RaycastResult {
     /// Point where ray intersected with the collision.
     pub point: Vec3,
@@ -83,6 +87,18 @@ pub struct RaycastResult {
     pub face_index: Option<usize>,
     /// Optional barycentric coordinate of a face.
     pub barycentric: Option<Vec3>,
+}
+
+impl Default for RaycastResult {
+    fn default() -> Self {
+        Self {
+            point: Vec3::ZERO,
+            normal: Vec3::ZERO,
+            depth: f32::INFINITY,
+            face_index: None,
+            barycentric: None,
+        }
+    }
 }
 
 impl RaycastResult {
@@ -118,7 +134,11 @@ impl Display for RaycastResult {
 }
 
 pub trait RaycastResultReducer {
+    /// Collapses all results into the nearest hit, if there is one.
     fn nearest(&self) -> Option<RaycastResult>;
+
+    /// Returns the total count of successful raycast hits.
+    fn total_hits(&self) -> usize;
 }
 
 impl RaycastResultReducer for Vec<Option<RaycastResult>> {
@@ -141,6 +161,16 @@ impl RaycastResultReducer for Vec<Option<RaycastResult>> {
         }
         None
     }
+
+    fn total_hits(&self) -> usize {
+        let mut hit_count = 0;
+        for result in self.iter() {
+            if result.is_some() {
+                hit_count += 1;
+            }
+        }
+        hit_count
+    }
 }
 
 impl RaycastResultReducer for Vec<RaycastResult> {
@@ -156,5 +186,9 @@ impl RaycastResultReducer for Vec<RaycastResult> {
             return Some(*result);
         }
         None
+    }
+
+    fn total_hits(&self) -> usize {
+        self.len()
     }
 }

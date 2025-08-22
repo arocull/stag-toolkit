@@ -12,8 +12,7 @@ shader = ExtResource("1_arj2x")
 
 [sub_resource type="IslandBuilderSettingsMesh" id="IslandBuilderSettingsMesh_7wpvs"]
 ao_enabled = true
-ao_radius = 4.0
-ao_samples = 64
+ao_strength = 1.0
 
 [sub_resource type="IslandBuilderSettingsVoxels" id="IslandBuilderSettingsVoxels_njwnn"]
 voxel_size = Vector3(0.1, 0.1, 0.1)
