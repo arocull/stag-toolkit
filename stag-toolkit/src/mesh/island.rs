@@ -4,6 +4,7 @@ use crate::math::sdf::{Shape, ShapeOperation, sample_shape_list, shape_list_boun
 use crate::math::volumetric::VolumeData;
 use crate::mesh::nets::mesh_from_nets;
 use crate::mesh::trimesh::{TriangleMesh, TriangleOperations};
+use crate::utils;
 use fast_surface_nets::{SurfaceNetsBuffer, ndshape::ConstShape, surface_nets};
 use glam::{FloatExt, Mat4, Quat, Vec2, Vec3, Vec4};
 use ndshape::ConstShape3u32;
@@ -632,12 +633,15 @@ impl Data {
             mesh.optimize(self.settings_mesh.vertex_merge_distance);
             mesh.bake_normals_smooth();
 
+            let thread_count = utils::thread_count();
+
             // bake ambient occlusion
             let ao = if self.settings_mesh.ao_enabled {
                 mesh.get_ambient_occlusion(
                     self.settings_mesh.ao_samples as usize,
                     self.settings_mesh.ao_radius,
                     self.noise_mask.seed(),
+                    thread_count,
                 )
             } else {
                 vec![]

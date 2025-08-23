@@ -13,9 +13,10 @@ pub trait Raycast {
     fn raycast(&self, parameters: RaycastParameters) -> Option<RaycastResult>;
 
     /// Perform a batch raycast on the object from the given point to the end point.
-    fn raycast_many(&self, parameters: Vec<RaycastParameters>) -> Vec<Option<RaycastResult>>;
+    fn raycast_many(&self, parameters: &Vec<RaycastParameters>) -> Vec<Option<RaycastResult>>;
 }
 
+/// Settings for preparing a raycast.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct RaycastParameters {
     /// Where the ray starts, in the coordinate space relative to the struct being raytraced.
@@ -74,6 +75,7 @@ impl Display for RaycastParameters {
     }
 }
 
+/// Result data from a raycast.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct RaycastResult {
     /// Point where ray intersected with the collision.

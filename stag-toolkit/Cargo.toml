@@ -29,14 +29,19 @@ stag-toolkit-codegen = { path = "../stag-toolkit-codegen" }
 criterion = { version = "0.7.0", features = ["html_reports"] }
 
 [[bench]]
-name = "simulation"
+name = "mesh"
 harness = false
-path = "benches/simulation.rs"
+path = "benches/mesh.rs"
 
 [[bench]]
 name = "island"
 harness = false
 path = "benches/island.rs"
+
+[[bench]]
+name = "simulation"
+harness = false
+path = "benches/simulation.rs"
 
 [lints.rust]
 missing_docs = "allow"

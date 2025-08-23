@@ -1,5 +1,5 @@
 use crate::math::projection::{direction_to_quaternion, vector_in_cone};
-use crate::math::raycast::{Raycast, RaycastParameters, RaycastResult};
+use crate::math::raycast::{Raycast, RaycastParameters, RaycastResult, RaycastResultReducer};
 use crate::math::{
     projection::{Plane, plane},
     types::*,
@@ -592,7 +592,13 @@ impl TriangleMesh {
     /// Computes and returns an ambient occlusion for every vertex on the mesh.
     /// Requires vertex normals to be baked beforehand.
     /// This occlusion method is based on raycasting.
-    pub fn get_ambient_occlusion(&self, samples: usize, radius: f32, seed: u32) -> Vec<f32> {
+    pub fn get_ambient_occlusion(
+        &self,
+        samples: usize,
+        radius: f32,
+        seed: u32,
+        threads: NonZero<usize>,
+    ) -> Vec<f32> {
         #[cfg(debug_assertions)]
         assert_eq!(
             self.normals.len(),
@@ -606,7 +612,7 @@ impl TriangleMesh {
 
         let perlin = Perlin::new(seed);
 
-        let worker_group_size = (point_count as f64 / 16.0).ceil() as usize;
+        let worker_group_size = (point_count as f64 / threads.get() as f64).ceil() as usize;
         let worker_count = (point_count as f64 / worker_group_size as f64).ceil() as usize;
 
         let mut workers: Vec<AmbientOcclusionWorker> = Vec::with_capacity(worker_count);
@@ -628,13 +634,13 @@ impl TriangleMesh {
                 let width = worker.to - worker.from;
                 let mut ao = vec![1.0; width];
 
+                let mut raycasts = vec![RaycastParameters::default(); samples];
+
                 for local_index in 0..width {
                     let normal = worker.normals[local_index];
                     let pt = worker.positions[local_index];
 
                     let orientation = direction_to_quaternion(normal);
-                    let mut hit_count: u32 = 0;
-
                     for iteration in 0..samples {
                         let mut sample_point = [
                             pt.x as f64,
@@ -649,13 +655,11 @@ impl TriangleMesh {
                         let dir = vector_in_cone(orientation, z, theta);
 
                         let origin = pt + dir * 0.001;
-                        let params = RaycastParameters::new(origin, dir, radius, false);
 
-                        if self.raycast(params).is_some() {
-                            hit_count += 1;
-                        }
+                        raycasts[iteration] = RaycastParameters::new(origin, dir, radius, false);
                     }
 
+                    let hit_count = self.raycast_many(&raycasts).total_hits();
                     ao[local_index] = 1.0 - (hit_count as f32 / samples as f32);
                 }
 
@@ -711,7 +715,10 @@ impl Raycast for TriangleMesh {
             // First, make sure this is shorter than our current collision depth
             // Also make sure it's not back-facing, if possible
             let depth = plane.signed_distance(params.origin);
-            if (depth >= 0.0 || params.hit_backfaces) && depth < result.depth {
+            if (params.hit_backfaces || depth >= 0.0)
+                && depth < params.max_depth
+                && depth < result.depth
+            {
                 // Project point onto the plane
                 let projection = plane.ray_intersection(params.origin, params.direction);
 
@@ -743,12 +750,56 @@ impl Raycast for TriangleMesh {
         Some(result)
     }
 
-    fn raycast_many(&self, parameters: Vec<RaycastParameters>) -> Vec<Option<RaycastResult>> {
-        let results: Vec<Option<RaycastResult>> = vec![None; parameters.len()];
+    fn raycast_many(&self, parameters: &Vec<RaycastParameters>) -> Vec<Option<RaycastResult>> {
+        let mut results: Vec<RaycastResult> = vec![RaycastResult::default(); parameters.len()];
 
-        todo!();
+        // For all triangles
+        for (triangle_index, tri) in self.triangles.iter().enumerate() {
+            let plane = tri.plane(&self.positions);
+
+            for (params, result) in parameters.iter().zip(results.iter_mut()) {
+                // First, make sure this is shorter than our current collision depth
+                // Also make sure it's not back-facing, if possible
+                let depth = plane.signed_distance(params.origin);
+
+                if (params.hit_backfaces || depth >= 0.0)
+                    && depth < params.max_depth
+                    && depth < result.depth
+                {
+                    // Project point onto the plane
+                    let projection = plane.ray_intersection(params.origin, params.direction);
+
+                    // TODO: better method for checking if ray direction is not hitting plane
+                    if projection.collided && (params.hit_backfaces || !projection.reversed) {
+                        // Get barycentric coordinate of triangle
+                        let coord = tri.barycentric(&self.positions, projection.intersection);
+                        // Finally, check if the point is contained by the triangle
+                        let contained = tri.contains_barycentric(coord);
+
+                        if contained {
+                            *result = RaycastResult {
+                                depth,
+                                point: projection.intersection,
+                                normal: plane.xyz(),
+                                face_index: Some(triangle_index),
+                                barycentric: Some(coord),
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         results
+            .iter()
+            .enumerate()
+            .map(|(idx, r)| -> Option<RaycastResult> {
+                if r.depth < parameters[idx].max_depth {
+                    return Some(*r);
+                }
+                None
+            })
+            .collect()
     }
 }
 
