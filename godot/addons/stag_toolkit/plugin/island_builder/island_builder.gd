@@ -194,6 +194,7 @@ func save_all():
 		EditorInterface.get_resource_filesystem().scan()
 func destroy_single(node: IslandBuilder):
 	node.destroy_bakes()
+	node.realtime_preview = false
 	update_shapecount(node)
 func destroy_all():
 	if allow_destructive and is_instance_valid(last_builder):

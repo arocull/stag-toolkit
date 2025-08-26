@@ -508,7 +508,7 @@ impl Data {
 
             voxels.blur(
                 self.settings_voxels.sdf_smooth_iterations,
-                self.settings_voxels.sdf_edge_radius as usize,
+                self.settings_voxels.sdf_smooth_radius_voxels as usize,
                 self.settings_voxels.sdf_smooth_weight,
                 1,
                 1.0,

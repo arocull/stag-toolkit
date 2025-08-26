@@ -1,4 +1,4 @@
-# ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit.svg) Stag Toolkit
+# ![](godot/icon.svg) Stag Toolkit
 
 [Godot](https://godotengine.org/) addon for real-time 3D games, art, and simulations.
 Also usable as a [Rust library](#as-a-rust-library) for non-Godot development.
@@ -16,22 +16,22 @@ Currently equipped for Godot **4.4**+ on Windows and Linux.
 ## Feature List
 
 - ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg) **[StagTest](docs/stagtest.md)** framework for simulating gameplay and performing benchmarks
-- ![](godot/addons/stag_toolkit/icons/icon_islandbuilder.svg) **[IslandBuilder](https://alanocull.com/island_builder.html)** tool and corresponding Rust backend (Rust required)
-- ![](godot/addons/stag_toolkit/icons/icon_simulatedropebinding.svg) [**SimulatedRope** and **SimulatedRopeBinding**](docs/simulatedrope.md) nodes for performing and interacting with rope simulations (Rust required)
-- ![](godot/addons/stag_toolkit/icons/icon_queuefloat.svg) **QueueFloat** class for handling and analyzing float arrays with minimal allocations (Rust required)
-- [**Texture/Material** importer](docs/ironpress.md) for `.ironpress` files (external tooling required)
-- "Simple LOD" importer for meshes/scenes with custom LODs
-- Shader includes and debug shaders
+- ![](godot/addons/stag_toolkit/icons/icon_islandbuilder.svg) **[IslandBuilder](https://alanocull.com/island_builder.html)**\* tool and corresponding Rust backend
+- ![](godot/addons/stag_toolkit/icons/icon_simulatedropebinding.svg) [**SimulatedRope** and **SimulatedRopeBinding**](docs/simulatedrope.md)\* nodes for performing and interacting with rope simulations
+- ![](godot/addons/stag_toolkit/icons/icon_queuefloat.svg) **QueueFloat**\* class for handling and analyzing float arrays with minimal allocations
+- [**Texture/Material** importer](docs/ironpress.md) for `.ironpress` files
+- **Simple LOD** importer for hands-free importing of scenes with custom LODs and collision
+- **[Shader includes](godot/addons/stag_toolkit/utils/shader_includes)** and debug shaders
+
+\* *Requires the built-in gdextension. Unmarked features only need GDScript.*
 
 Some features can be toggled on/off via the Project Settings under `addons/stag_toolkit`. May require an plugin reload or editor restart.
 
-### In Repository, but Not Maintained
-- Island shader variants and textures used in Abyss
-- Prototype animation classes
+## Projects
 
-### Used In
+These projects use StagToolkit! Feel free to contribute your own.
 
-- [Abyss](https://stagmath.itch.io/abyss-demo), an action platformer game (in development)
+- [Abyss](https://stagmath.itch.io/abyss-demo), a platformer tower-defense game (in development)
 
 ## Installation
 
