@@ -18,9 +18,7 @@ w_sampling_offset = 4.709
 w_striation = 4.118
 
 [sub_resource type="IslandBuilderSettingsMesh" id="IslandBuilderSettingsMesh_0ow68"]
-ao_enabled = true
 ao_strength = 0.75
-ao_samples = 64
 
 [sub_resource type="IslandBuilderSettingsVoxels" id="IslandBuilderSettingsVoxels_rd51c"]
 sdf_smooth_iterations = 3
@@ -132,7 +130,7 @@ size = Vector3(3.57031, 10.0484, 4.48096)
 axis_lock_linear_y = true
 axis_lock_angular_x = true
 axis_lock_angular_z = true
-mass = 39174.6
+mass = 38417.7
 
 [node name="mesh_island" type="MeshInstance3D" parent="island_test/body"]
 layers = 5

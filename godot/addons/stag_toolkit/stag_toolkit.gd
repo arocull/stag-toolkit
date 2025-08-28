@@ -31,7 +31,7 @@ var settings: Array[Dictionary] = [
 		"default": "",
 	},
 	{
-		"name": "addons/stag_toolkit/island_builder/settings",
+		"name": "addons/stag_toolkit/island_builder/default_settings",
 		"type": TYPE_STRING,
 		"hint": PROPERTY_HINT_FILE,
 		"description": "Default IslandBuilderSettings resource when one is not defined by the project developer.",

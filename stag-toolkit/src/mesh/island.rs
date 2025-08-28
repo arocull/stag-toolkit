@@ -112,7 +112,7 @@ pub struct SettingsMesh {
     )]
     pub ao_radius: f32,
     /// Weighting value for linearly blending a base value of 1.0 with the baked Ambient Occlusion.
-    #[setting(default = 0.5, min = 0.0, max = 1.0, incr = 0.001)]
+    #[setting(default = 0.8, min = 0.0, max = 1.0, incr = 0.001)]
     pub ao_strength: f32,
     /// Number of ambient occlusion samples to perform.
     #[setting(default = 32, min = 1.0, max = 256.0, incr = 1.0)]

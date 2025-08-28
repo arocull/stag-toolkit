@@ -183,6 +183,7 @@ impl IslandBuilder {
                             IslandBuilderSettings::new_gd()
                         })
                     } else {
+                        godot_warn!("No default IslandBuilder settings found for this project!");
                         new_settings = IslandBuilderSettings::new_gd();
                     }
 
@@ -260,10 +261,6 @@ impl IslandBuilder {
     }
 
     // Signals //
-
-    /// Emitted when build data is applied. Useful for awaiting in multi-threaded contexts.
-    #[signal]
-    pub fn applied_build_data();
 
     // Getters //
 
@@ -583,7 +580,7 @@ impl IslandBuilder {
         }
     }
 
-    /// Fetches the output node for this IslandBuilder.
+    /// Fetches the output [Node] for this IslandBuilder.
     /// If no output is specified, uses this node instead.
     #[func]
     fn target(&mut self) -> Gd<Node> {
@@ -594,7 +591,7 @@ impl IslandBuilder {
         }
     }
 
-    /// Fetches the output mesh for this IslandBuilder.
+    /// Fetches the output [MeshInstance3D] for this IslandBuilder.
     /// Creates one if none was found.
     #[func]
     fn target_mesh(&mut self) -> Gd<MeshInstance3D> {
@@ -661,64 +658,39 @@ impl IslandBuilder {
         }
     }
 
-    /// Performs all `IslandBuilder` baking steps in order, and applies the results.
-    /// If running on a thread, pass `true` for `thread` safe-calls only.
+    /// Performs all IslandBuilder baking steps in order, and applies the results.
+    /// Forcibly ends any real-time previews.
+    ///
+    /// This modifies the scene tree where necessary (IslandBuilder's children and the target node),
+    /// and must be run on the main thread (or on a thread that owns the given node tree).
+    /// The IslandBuilder automatically parallelizes what baking steps it can.
     #[func]
-    fn build(&mut self, threaded: bool) {
+    fn build(&mut self) {
         // Perform initial data setup
+        self.set_realtime_preview(false);
         self.apply_settings();
-        if !threaded {
-            self.serialize();
-        }
+        self.serialize();
 
         // Generate result data
         let mesh = self.generate_baked_mesh();
-        let hulls = self.generate_collision_hulls();
-        let navprops = self.generate_navigation_properties();
+        self.apply_mesh(mesh);
+
         let volume = self.get_volume();
 
-        // Apply results
-        if threaded {
-            // Make a deferred call if necessary.
-            self.base_mut().call_deferred(
-                "apply_build_data",
-                &[
-                    mesh.to_variant(),
-                    hulls.to_variant(),
-                    Variant::from(volume),
-                    navprops.to_variant(),
-                ],
-            );
-
-            self.clear_cache(); // Clear build cache
-        } else {
-            self.apply_build_data(mesh, hulls, volume, navprops);
-        }
-    }
-
-    /// Applies the provided build data to the island output.
-    /// Called by `build(...)` automatically, this function is separated for multi-threading purposes only.
-    #[func]
-    fn apply_build_data(
-        &mut self,
-        mesh: Gd<ArrayMesh>,
-        hulls: Array<Gd<ConvexPolygonShape3D>>,
-        volume: f32,
-        navprops: Gd<NavIslandProperties>,
-    ) {
-        self.apply_mesh(mesh);
+        let hulls = self.generate_collision_hulls();
         self.apply_collision_hulls(hulls, volume);
-        self.apply_navigation_properties(navprops);
 
+        let navigation_properties = self.generate_navigation_properties();
+        self.apply_navigation_properties(navigation_properties);
+
+        // If our target node exists, then hide the builder
         let target = self.base().get_node_or_null(&self.output_to);
         if target.is_some() {
             self.base_mut().set_visible(false);
         }
-
-        self.signals().applied_build_data().emit();
     }
 
-    /// Returns a list of ALL IslandBuilder nodes within the `"StagToolkit_IslandBuilder"` group in the given SceneTree.
+    /// Returns a list of all IslandBuilder nodes within the `"StagToolkit_IslandBuilder"` group in the given SceneTree.
     #[func]
     fn all_builders(mut tree: Gd<SceneTree>) -> Array<Gd<Self>> {
         let nodes = tree.get_nodes_in_group(GROUP_NAME);
@@ -734,68 +706,32 @@ impl IslandBuilder {
         builders
     }
 
-    /// Destroys bakes on **ALL** IslandBuilder nodes within the `"StagToolkit_IslandBuilder"` group in the given SceneTree.
+    /// Destroys bakes and cache data on all provided IslandBuilder nodes.
+    /// Must be run on main thread.
     #[func]
-    fn all_destroy_bakes(tree: Gd<SceneTree>) {
-        for mut builder in Self::all_builders(tree).iter_shared() {
+    fn all_destroy_bakes(builders: Array<Gd<Self>>) {
+        for mut builder in builders.iter_shared() {
             builder.bind_mut().destroy_bakes();
         }
     }
 
-    /// Serializes, precomputes and bakes on **ALL** IslandBuilder nodes within the
-    /// `"StagToolkit_IslandBuilder"` group in the given SceneTree.
+    /// Serializes, precomputes and bakes on all provided IslandBuilder nodes.
     /// The IslandBuilder will destroy bakes beforehand.
+    /// Cache data is removed after each bake in order to free up memory.
     ///
-    /// NOTE: Currently, due to multi-threading, the results may be deferred to the end of frame.
-    /// Optionally await `applied_build_data` on an island of your choice to get its ASAP.
+    /// Must be run on main thread.
+    /// As the IslandBuilder baking processes are already parallelized where able,
+    /// this function is single-threaded from the Godot-side, and blocks until completion.
     ///
-    /// @experimental: This function may change in the future. This function utilizes multi-threading, which may be unstable.
+    /// @experimental: This function may change in the future.
     #[func]
-    fn all_bake(tree: Gd<SceneTree>) {
-        // Fetch all builder shapes in the scene tree and serialize them
-        let builders = Self::all_builders(tree);
-
-        // Ensure all Island Builders are serialized before threading
+    fn all_bake(builders: Array<Gd<Self>>) {
+        // Build everything, clearing the cache afterward
         for builder in builders.iter_shared() {
-            // let mut b = builder.clone().bind_mut();
-            // b.serialize();
-            builder.clone().bind_mut().serialize();
+            let mut builder = builder.clone();
+            builder.bind_mut().destroy_bakes();
+            builder.bind_mut().build();
+            builder.bind_mut().clear_cache();
         }
-
-        // Get callable to our class' static single-island bake method,
-        // and bind our list of working islands to it.
-        let bake_method = Callable::from_sync_fn("all_bake_single", |args: &[&Variant]| {
-            let idx: i32 = args[0].to();
-            let isles: Array<Gd<Self>> = args[1].to();
-            // Ensure we don't go out of bounds
-            if idx as usize > isles.len() {
-                return Ok(Variant::from(false));
-            }
-
-            let mut isle = isles.at(idx as usize).clone();
-            isle.bind_mut().build(true);
-            Ok(Variant::from(true))
-        })
-        .bind(&[builders.to_variant()]);
-
-        // Fetch worker pool
-        let mut workerpool = WorkerThreadPool::singleton();
-
-        // Allocate and run worker threads
-        let group_id = workerpool
-            .add_group_task_ex(&bake_method, builders.len() as i32)
-            .high_priority(true)
-            .description("StagToolkit > IslandBuilder > bake all islands in scene")
-            .done();
-
-        // Wait for groups to finish
-        workerpool.wait_for_group_task_completion(group_id);
     }
-}
-
-#[cfg(test)]
-mod tests {
-    // fn test_binds() {
-
-    // }
 }

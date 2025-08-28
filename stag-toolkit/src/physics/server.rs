@@ -49,11 +49,7 @@ impl PhysicsFrame {
 
             if in_mask && !body_state.collision.is_empty() {
                 let mut body_tests: Vec<Option<RaycastResult>> =
-                    Vec::with_capacity(body_state.collision.len());
-
-                for _ in 0..body_state.collision.len() {
-                    body_tests.push(None);
-                }
+                    vec![None; body_state.collision.len()];
 
                 let params =
                     body_state.state.transform.inverse() * raycast_parameters.raycast_parameters;

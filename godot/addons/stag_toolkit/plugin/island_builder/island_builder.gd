@@ -177,7 +177,7 @@ func do_finalize(builder: IslandBuilder):
 	panel.get_node("%toggle_realtime").button_pressed = false
 
 	var t1 = Time.get_ticks_usec()
-	builder.build(false)
+	builder.build()
 	var t2 = Time.get_ticks_usec()
 	print("IslandBuilder: FINALIZE took ", float(t2 - t1) * 0.001, " ms")
 
@@ -198,17 +198,17 @@ func destroy_single(node: IslandBuilder):
 	update_shapecount(node)
 func destroy_all():
 	if allow_destructive and is_instance_valid(last_builder):
-		IslandBuilder.all_destroy_bakes(last_builder.get_tree())
+		IslandBuilder.all_destroy_bakes(IslandBuilder.all_builders(last_builder.get_tree()))
 		update_shapecount(last_builder)
 	toggle_allow_destructive(false)
 func bake_all():
 	if is_instance_valid(last_builder):
 		print("IslandBuilder: Building all islands...")
-		IslandBuilder.all_bake(last_builder.get_tree())
-		print("\t...all done!")
+		var t := Time.get_ticks_usec()
+		IslandBuilder.all_bake(IslandBuilder.all_builders(last_builder.get_tree()))
+		t = Time.get_ticks_usec() - t
+		print("\t...all done! Took ", float(t) / 1000, " ms")
 
-		# Wait for build data to be applied before updating statistics
-		await last_builder.applied_build_data
 		update_shapecount(last_builder)
 		update_volume(last_builder)
 		update_mass(last_builder)
