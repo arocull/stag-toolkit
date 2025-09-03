@@ -39,42 +39,48 @@ impl PhysicsFrame {
         raycast_parameters: PhysicsRaycastParameters,
     ) -> Option<PhysicsRaycastResult> {
         // TODO: potential deadlock, can we limit all these to one mutex?
-        let bodies = self.bodies.read().unwrap();
+        match self.bodies.read() {
+            Ok(bodies) => {
+                let mut results: Vec<RaycastResult> = vec![];
+                for (_, body_state) in bodies.iter() {
+                    let in_mask = (body_state.layers_colliding & body_state.layers_existing) > 0;
 
-        let mut results: Vec<RaycastResult> = vec![];
-        for (_, body_state) in bodies.iter() {
-            let in_mask = (body_state.layers_colliding & body_state.layers_existing) > 0;
+                    // TODO: optimize with an AABB check
 
-            // TODO: optimize with an AABB check
+                    if in_mask && !body_state.collision.is_empty() {
+                        let mut body_tests: Vec<Option<RaycastResult>> =
+                            vec![None; body_state.collision.len()];
 
-            if in_mask && !body_state.collision.is_empty() {
-                let mut body_tests: Vec<Option<RaycastResult>> =
-                    vec![None; body_state.collision.len()];
+                        let params = body_state.state.transform.inverse()
+                            * raycast_parameters.raycast_parameters;
 
-                let params =
-                    body_state.state.transform.inverse() * raycast_parameters.raycast_parameters;
+                        body_tests
+                            .par_iter_mut()
+                            .enumerate()
+                            .for_each(|(idx, result)| {
+                                *result = body_state.collision[idx].raycast(params);
+                            });
 
-                body_tests
-                    .par_iter_mut()
-                    .enumerate()
-                    .for_each(|(idx, result)| {
-                        *result = body_state.collision[idx].raycast(params);
-                    });
-
-                if let Some(result) = body_tests.nearest() {
-                    results.push(body_state.state.transform * result);
+                        if let Some(result) = body_tests.nearest() {
+                            results.push(body_state.state.transform * result);
+                        }
+                    }
                 }
+
+                if let Some(result) = results.nearest() {
+                    return Some(PhysicsRaycastResult {
+                        raycast_result: result,
+                        body_identifier: 0,
+                    });
+                }
+
+                None
+            }
+            Err(_) => {
+                println!("PhysicsFrame: Failed to read mutex.");
+                None
             }
         }
-
-        if let Some(result) = results.nearest() {
-            return Some(PhysicsRaycastResult {
-                raycast_result: result,
-                body_identifier: 0,
-            });
-        }
-
-        None
     }
 }
 

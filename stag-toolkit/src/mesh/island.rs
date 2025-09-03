@@ -465,8 +465,10 @@ impl Data {
 
         let (mut voxels, transform) = self.bake_voxels_init();
 
-        let mut voxel_workers =
-            voxels.to_workers(self.settings_voxels.worker_group_size as usize, false);
+        let mut voxel_workers = voxels.to_workers(
+            utils::worker_count(voxels.get_buffer_size(), 16usize).get(),
+            false,
+        );
 
         // Sample island SDF in chunks
         let noise_density = &self.noise_sdf_density;
@@ -633,7 +635,7 @@ impl Data {
             mesh.optimize(self.settings_mesh.vertex_merge_distance);
             mesh.bake_normals_smooth();
 
-            let thread_count = utils::thread_count();
+            let thread_count = utils::thread_count(16);
 
             // bake ambient occlusion
             let ao = if self.settings_mesh.ao_enabled {

@@ -95,6 +95,10 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
         self.dim
     }
 
+    pub fn get_buffer_size(&self) -> usize {
+        self.size
+    }
+
     /// Returns the number of workers needed for processing.
     fn worker_count(&self, group_size: usize) -> usize {
         (self.size as f64 / group_size as f64).ceil() as usize
