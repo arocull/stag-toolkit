@@ -1,6 +1,12 @@
 @icon("res://addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg")
 extends EditorScenePostImportPlugin
 
+func get_config(option: String, default: Variant) -> Variant:
+	var val = get_option_value("stag_toolkit/simple_lod/"+option)
+	if val == null:
+		return default
+	return val
+
 func _get_import_options(_path: String):
 	# If true, will generate LODs based on the suffix of the mesh name.
 	# Example: `cactus_LOD0`, `cactus_LOD1` and `cactus_LOD2` will define:
@@ -23,8 +29,8 @@ func _get_import_options(_path: String):
 		false, PROPERTY_HINT_NONE)
 
 func _post_process(scene: Node):
-	var generate_lods: bool = get_option_value("stag_toolkit/simple_lod/custom_lods")
-	var generate_hulls: bool = get_option_value("stag_toolkit/simple_lod/collision_hulls")
+	var generate_lods: bool = get_config("custom_lods", false)
+	var generate_hulls: bool = get_config("collision_hulls", false)
 
 	# List of LODs
 	var lods: Dictionary = {}
@@ -41,7 +47,7 @@ func _post_process(scene: Node):
 		fetch_lods(scene, store_lod)
 
 		# Setup LODs
-		var thresh: float = float(get_option_value("stag_toolkit/simple_lod/lod_distance") / float(max(lods.size() - 1, 1)))
+		var thresh: float = float(get_config("lod_distance", 50.0) / float(max(lods.size() - 1, 1)))
 		for lod in lods.keys():
 			var items: Array = lods[lod]
 

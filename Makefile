@@ -12,9 +12,8 @@ clean: clean-bin doc-clean
 clean-bin:
 	@rm -rf godot/addons/stag_toolkit/bin/
 
-derust:
+derust: clean-bin
 	@rm godot/addons/stag_toolkit/*.gdext*
-	@rm godot/addons/stag_toolkit/plugin/island_builder.*
 	@rm -rf godot/addons/stag_toolkit/plugin/island_builder/
 
 
