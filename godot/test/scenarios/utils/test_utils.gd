@@ -42,3 +42,19 @@ func _ready():
 		"numbers within reason are converted")
 	StagTest.assert_equal(1, StagUtils.default(d, "float", TYPE_INT, 1, false),
 		"numbers within reason are not converted without salvage")
+
+	var files := StagUtils.walk_directory("res://test/scenarios/", [".tscn"])
+	var files_actual: PackedStringArray = [
+		"res://test/scenarios/example/test_hello_world.tscn",
+		"res://test/scenarios/example/test_signals.tscn",
+		"res://test/scenarios/example/test_tick_timers.tscn",
+		"res://test/scenarios/example/test_workflow.tscn",
+		"res://test/scenarios/island_builder/test_island_builder.tscn",
+		"res://test/scenarios/island_builder/test_settings.tscn",
+		"res://test/scenarios/physics_server/test_raycast.tscn",
+		"res://test/scenarios/queues/test_queuefloat.tscn",
+		"res://test/scenarios/rope/test_interface.tscn",
+		"res://test/scenarios/rope/test_tension.tscn",
+		"res://test/scenarios/utils/test_utils.tscn"
+	]
+	StagTest	.assert_equal(files_actual, files)

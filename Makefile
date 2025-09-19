@@ -1,4 +1,4 @@
-.PHONY: all bindir clean clean-bin derust import debug build build-windows build-mac test test-rust test-godot test-sanity bench bench-rust bench-godot bundle doc doc-clean doc-gdscript doc-gdextension doc-rust sphinx
+.PHONY: all bindir clean clean-bin derust fetch import debug build build-windows build-mac test test-rust test-godot test-sanity bench bench-rust bench-godot bundle doc doc-clean doc-gdscript doc-gdextension doc-rust sphinx
 
 all: build
 
@@ -16,6 +16,8 @@ derust: clean-bin
 	@rm godot/addons/stag_toolkit/*.gdext*
 	@rm -rf godot/addons/stag_toolkit/plugin/island_builder/
 
+fetch:
+	@cargo fetch
 
 ## BUILD ##
 
@@ -29,8 +31,8 @@ import:
 	@cd godot && godot --headless --import
 
 build: bindir
-	@cargo build --release --features godot,physics_server
-	@cp target/release/libstag_toolkit.so godot/addons/stag_toolkit/bin/release/libstag_toolkit.so
+	@cargo build --target x86_64-unknown-linux-gnu --release --features godot,physics_server
+	@cp target/x86_64-unknown-linux-gnu/release/libstag_toolkit.so godot/addons/stag_toolkit/bin/release/libstag_toolkit.so
 
 build-windows: bindir
 	@cargo build --target x86_64-pc-windows-gnu --release --features godot,physics_server

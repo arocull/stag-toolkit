@@ -280,7 +280,7 @@ func __display_post_test_message() -> void:
 
 ## Walks a directory, walking its subdirectories first, then testing every file in the given one.
 func __walk_directory(dirpath: String):
-	var dir = DirAccess.open(dirpath)
+	var dir := DirAccess.open(dirpath)
 	if !dir:
 		print_rich("[color=red]Failed - could not open directory \"{0}\"[/color]".format([dirpath]))
 		statistics["badpaths"] += 1
@@ -289,7 +289,7 @@ func __walk_directory(dirpath: String):
 	for subdirpath in dir.get_directories():
 		__walk_directory(__join_path(dir.get_current_dir(false), subdirpath))
 	for filepath in dir.get_files():
-		if filepath.get_extension() == "tscn":
+		if filepath.get_extension() == "tscn" or filepath.get_extension() == "scn":
 			tests.append(__join_path(dir.get_current_dir(false), filepath).simplify_path())
 
 ## Runs a single test at the given filepath.
@@ -580,7 +580,15 @@ func fail(reason: String) -> void:
 		statistics["failures"] += 1
 		test_failures.append("[color=red]{0}[/color] : {1}".format([path(), reason]))
 		print_rich("\t[color=red]<---- TEST FAILED HERE[/color]")
-		test_data["post_test_message"] = "[color=red]FAILED {0} for reason:\n\t{1}[/color]\n\n".format([path(), reason])
+
+		var backtrace := "[color=orange]"
+		for line in Engine.capture_script_backtraces(true):
+			backtrace += "\n"+line.format(0, 4)
+		backtrace += "[/color]"
+
+		test_data["post_test_message"] = "[color=red]FAILED {0} for reason:[/color]\n\t{1}{2}\n\n".format([
+			path(), reason, backtrace
+		])
 		test_resulted = true
 
 ## Assert that a given boolean is true.

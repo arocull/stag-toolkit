@@ -17,8 +17,8 @@ const INT32_MAX: int = 2147483647 ## Maximum value for a 32-bit integer.
 
 ## Returns a dictionary of command-line arguments used to launch the program.
 ## Note that all values will be strings.[br][br]
-## Example, launching a StagTest scenario:
-## [code]godot --headless --stagtest --test=res://test/scenarios/test_island_builder.tscn --timeout=60[/code]
+## For example launching a StagTest scenario:[br]
+## [code]$ godot --headless --stagtest --test=res://test/scenarios/test_island_builder.tscn --timeout=60[/code]
 ##[codeblock]
 ##print(StagUtils.get_args())
 ### outputs
@@ -95,3 +95,51 @@ static func default(
 			return &""
 		_: # Otherwise, attempt to convert
 			return type_convert(value, valuetype)
+
+## Recursively walks the given directory and its subdirectories,
+## looking for all files with the given extension list.
+##[br][br]
+## Note that extensions are compared against the [b]entire filename[/b], rather than just the file extension.
+## This helps with cases where Godot might append a [code].remap[/code] extension onto files when exporting.
+## For example, [code]res://data/level_info/data.tres[/code]
+## might be exported as [code]res://data/level_info/data.tres.remap[/code],
+## which causes [String].get_extension() to just return [code]remap[/code] instead of the original [code]tres[/code].
+##[br][br]
+## Returns a packed array of all filepaths.
+## File paths that are closer to top-level directories will be ordered first in the list.
+##[codeblock]
+##print(StagUtils.walk_directory("res://test/scenarios/", [".tscn"]))
+##
+### outputs
+##[
+##	"res://test/scenarios/example/test_hello_world.tscn",
+##	"res://test/scenarios/example/test_signals.tscn",
+##	"res://test/scenarios/example/test_tick_timers.tscn",
+##	"res://test/scenarios/example/test_workflow.tscn",
+##	"res://test/scenarios/island_builder/test_island_builder.tscn",
+##	"res://test/scenarios/island_builder/test_settings.tscn",
+##	"res://test/scenarios/physics_server/test_raycast.tscn",
+##	"res://test/scenarios/queues/test_queuefloat.tscn",
+##	"res://test/scenarios/rope/test_interface.tscn",
+##	"res://test/scenarios/rope/test_tension.tscn",
+##	"res://test/scenarios/utils/test_utils.tscn"
+##]
+##[/codeblock]
+static func walk_directory(
+	directory: String,
+	allowed_extensions: PackedStringArray,
+	list: PackedStringArray = []
+) -> PackedStringArray:
+	var dir := DirAccess.open(directory)
+	if !dir:
+		push_error("Failed to open directory {0}: {1}".format([directory, DirAccess.get_open_error()]))
+		return list
+
+	for filepath in dir.get_files():
+		for ext in allowed_extensions:
+			if filepath.ends_with(ext):
+				list.append("{0}/{1}".format([directory, filepath]).simplify_path())
+	for subdirpath in dir.get_directories():
+		walk_directory("{0}/{1}".format([directory, subdirpath]).simplify_path(), allowed_extensions, list)
+
+	return list

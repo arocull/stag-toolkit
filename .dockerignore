@@ -1,0 +1,11 @@
+.git/
+.gitea/
+.github/
+.idea/
+.vscode/
+target/
+reports/
+sphinx/
+build/
+godot/build/
+godot/addons/stag_toolkit/bin/*/

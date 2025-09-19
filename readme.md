@@ -1,9 +1,9 @@
 # ![](godot/icon.svg) Stag Toolkit
 
 [Godot](https://godotengine.org/) addon for real-time 3D games, art, and simulations.
-Also usable as a [Rust library](#as-a-rust-library) for non-Godot development.
+[Rust library](#as-a-rust-library) also available for non-Godot development.
 
-Currently equipped for Godot **4.4**+ on Windows and Linux.
+Currently equipped for Godot **4.5**+ on Windows and Linux.
 
 > [!WARNING]
 > Areas of this addon are highly experimental and frequently subject to change based on personal needs.
@@ -69,7 +69,7 @@ If desired, you can run `$ make derust` on Linux to remove any Rust-dependent st
 
 ### Cross Compiling
 
-Make use Rust's target system!
+Make use of Rust's target system!
 
 - Install for key x86_64 platforms: `$ rustup target add x86_64-unknown-linux-gnu x86_64-pc-windows-gnu`
 - Get a list of [all platforms](https://doc.rust-lang.org/nightly/rustc/platform-support.html): `$ rustup target list`

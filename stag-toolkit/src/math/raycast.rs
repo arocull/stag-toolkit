@@ -103,6 +103,19 @@ impl Default for RaycastResult {
     }
 }
 
+impl Display for RaycastResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut result = write!(f, "{{ d{} P{} N{}", self.depth, self.point, self.normal);
+        if let Some(face_index) = self.face_index {
+            result = result.and(write!(f, " f{}", face_index));
+        }
+        if let Some(barycentric) = self.barycentric {
+            result = result.and(write!(f, " b{}", barycentric));
+        }
+        result.and(write!(f, " }}"))
+    }
+}
+
 impl RaycastResult {
     /// Returns this [RaycastResult], or [None] if the result depth is too large.
     pub fn max_depth(&self, depth: f32) -> Option<Self> {
@@ -122,16 +135,6 @@ impl Mul<RaycastResult> for Mat4 {
         result.point = self.transform_point3(result.point);
         result.normal = self.transform_vector3(result.normal);
         result
-    }
-}
-
-impl Display for RaycastResult {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{{ point: {0}, normal: {1}, depth: {2} }}",
-            self.point, self.normal, self.depth
-        )
     }
 }
 

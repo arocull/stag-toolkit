@@ -743,7 +743,7 @@ impl Raycast for TriangleMesh {
         }
 
         // No collision, return nothing
-        if result.depth == params.max_depth {
+        if result.depth >= params.max_depth {
             return None;
         }
 
