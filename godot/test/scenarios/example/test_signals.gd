@@ -7,7 +7,6 @@ func _ready():
 	# Create a SignalExpector
 	var expector := StagTest.signal_expector(
 		test_signal, # Signal to listen for
-		1, # Number of arguments in signal (required for Godot to discard them)
 		"this is additional context" # Optional additional context on failure
 	)
 

@@ -4,8 +4,8 @@ var loose_unbound: StagTest.SignalExpector
 var taut_snap: StagTest.SignalExpector
 
 func _ready() -> void:
-	loose_unbound = StagTest.signal_expector($loose_left.rope_unbound, 1, "loose rope unbound")
-	taut_snap = StagTest.signal_expector($taut_right.rope_snapped, 1, "taut rope snapped")
+	loose_unbound = StagTest.signal_expector($loose_left.rope_unbound, "loose rope unbound")
+	taut_snap = StagTest.signal_expector($taut_right.rope_snapped, "taut rope snapped")
 
 func _on_settle_timer_timeout() -> void:
 	# Read tension

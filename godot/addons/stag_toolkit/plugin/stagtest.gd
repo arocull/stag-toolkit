@@ -47,7 +47,7 @@ class SignalExpector extends RefCounted:
 	var _mutex: Mutex = Mutex.new()
 
 	## Increments the emitter count by 1.
-	func _increment() -> void:
+	func _increment(...args: Array[Variant]) -> void:
 		_mutex.lock()
 		_count += 1
 		_mutex.unlock()
@@ -701,7 +701,7 @@ func assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: Strin
 ## Creates a [StagTest.SignalExpector] from the given signal, which can be used for further assertions.
 ## The [StagTest.SignalExpector] is thread-safe.
 ## Fails the test if the signal is null, or if the signal could not be connected.
-func signal_expector(emitter: Signal, emitter_parameter_count: int, message: String = "") -> SignalExpector:
+func signal_expector(emitter: Signal, message: String = "") -> SignalExpector:
 	var expector := SignalExpector.new()
 
 	if emitter.is_null():
@@ -715,11 +715,7 @@ func signal_expector(emitter: Signal, emitter_parameter_count: int, message: Str
 	expector._context = message
 
 	var err: int
-
-	if emitter_parameter_count > 0: # Discard excess parameters
-		err = emitter.connect(expector._increment.unbind(emitter_parameter_count))
-	else:
-		err = emitter.connect(expector._increment)
+	err = emitter.connect(expector._increment)
 
 	if err != OK:
 		StagTest.fail("while creating Signal Expector, failed to connect to emitter with error:{0}\n{1}".format([
