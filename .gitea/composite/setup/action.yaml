@@ -5,7 +5,7 @@ inputs:
   godot-version:
     description: 'What version of the Godot editor to install. Set to null for no installation.'
     required: false
-    default: '4.4.1-stable'
+    default: '4.5-stable'
   rust-version:
     description: 'What version of the Rust toolchain to install'
     required: false
