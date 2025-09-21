@@ -37,6 +37,8 @@ impl INode for StagPhysicsServer {
 
 #[godot_api]
 impl StagPhysicsServer {
+    /// Registers a physics body with the physics server, and returns the registerd body ID.
+    /// @experimental: Currently, collision cannot be changed after registering.
     #[func]
     fn register_body(
         &mut self,
@@ -77,11 +79,13 @@ impl StagPhysicsServer {
         0
     }
 
+    /// Steps the physics simulation forward by `delta` seconds.
     #[func]
     fn tick(&self, delta: f32) {
         self.server.tick(delta);
     }
 
+    /// Sets the physics state of the given physics body.
     #[func]
     fn set_body_state(
         &mut self,
@@ -105,11 +109,13 @@ impl StagPhysicsServer {
     }
 
     /// Performs a raycast on all bodies registered in the physics server.
-    /// Returns a result dictionary, which is empty if the raycast hit nothing, or contains the following data:
+    /// Returns a dictionary which contains the following data:
     /// - `point` [Vector3] collision point in global space
     /// - `normal` [Vector3] collision normal in global space
     /// - `depth` float raycast distance
     /// - `body` integer identifier for the colliding physics body
+    ///
+    /// If the raycast did not hit, the dictionary is empty.
     #[func]
     fn raycast(
         &self,
