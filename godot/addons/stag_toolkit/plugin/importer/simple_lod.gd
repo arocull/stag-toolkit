@@ -72,7 +72,9 @@ func _post_process(scene: Node):
 		if collision_meshes.size() > 0:
 			for mesh in collision_meshes:
 				StagImportUtils.generate_convex_hull(mesh, scene)
-				mesh.queue_free()
+				# Remove from tree so it's not inadvertently saved
+				mesh.get_parent().remove_child(mesh)
+				mesh.free()
 		else:
 			for mesh in meshes:
 				# If the mesh has an LOD, only generate convex hulls for lowest LODs
