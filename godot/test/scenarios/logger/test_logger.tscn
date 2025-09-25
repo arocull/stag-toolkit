@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://co483dkopuqc8"]
+
+[ext_resource type="Script" uid="uid://j1uida50j0vy" path="res://test/scenarios/logger/test_logger.gd" id="1_w6toa"]
+
+[node name="LoggerTest" type="Node"]
+script = ExtResource("1_w6toa")

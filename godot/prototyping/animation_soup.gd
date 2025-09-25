@@ -1,6 +1,6 @@
 @tool
 extends Node
-class_name AnimationSoup
+class_name PrototypeAnimationSoup
 
 class Pose extends RefCounted:
 	var blends: Dictionary

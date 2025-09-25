@@ -51,6 +51,7 @@ func _ready():
 		"res://test/scenarios/example/test_workflow.tscn",
 		"res://test/scenarios/island_builder/test_island_builder.tscn",
 		"res://test/scenarios/island_builder/test_settings.tscn",
+		"res://test/scenarios/logger/test_logger.tscn",
 		"res://test/scenarios/physics_server/test_raycast.tscn",
 		"res://test/scenarios/queues/test_queuefloat.tscn",
 		"res://test/scenarios/rope/test_interface.tscn",

@@ -18,9 +18,10 @@ Currently equipped for Godot **4.5**+ on Windows and Linux.
 - ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg) **[StagTest](docs/stagtest.md)** framework for simulating gameplay and performing benchmarks
 - ![](godot/addons/stag_toolkit/icons/icon_islandbuilder.svg) **[IslandBuilder](https://alanocull.com/island_builder.html)**\* tool and corresponding Rust backend
 - ![](godot/addons/stag_toolkit/icons/icon_simulatedropebinding.svg) [**SimulatedRope** and **SimulatedRopeBinding**](docs/simulatedrope.md)\* nodes for performing and interacting with rope simulations
-- ![](godot/addons/stag_toolkit/icons/icon_queuefloat.svg) **QueueFloat**\* class for handling and analyzing float arrays with minimal allocations
-- [**Texture/Material** importer](docs/ironpress.md) for `.ironpress` files
+- ![](godot/addons/stag_toolkit/icons/icon_queuefloat.svg) **QueueFloat**\* class for handling and analyzing float buffers with minimal allocations
+- ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg) **StagLogger** which wraps [Logger](https://docs.godotengine.org/en/stable/classes/class_logger.html) for granular debugging and error listening
 - **Simple LOD** importer for hands-free importing of scenes with custom LODs and collision
+- [**Texture/Material** importer](docs/ironpress.md) for `.ironpress` files
 - **[Shader includes](godot/addons/stag_toolkit/utils/shader_includes)** and debug shaders
 
 \* *Requires the built-in gdextension. Unmarked features only need GDScript.*
