@@ -13,7 +13,7 @@ pub trait Raycast {
     fn raycast(&self, parameters: RaycastParameters) -> Option<RaycastResult>;
 
     /// Perform a batch raycast on the object from the given point to the end point.
-    fn raycast_many(&self, parameters: &Vec<RaycastParameters>) -> Vec<Option<RaycastResult>>;
+    fn raycast_many(&self, parameters: &[RaycastParameters]) -> Vec<Option<RaycastResult>>;
 }
 
 /// Settings for preparing a raycast.

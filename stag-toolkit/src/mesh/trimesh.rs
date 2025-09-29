@@ -636,12 +636,12 @@ impl TriangleMesh {
 
                 let mut raycasts = vec![RaycastParameters::default(); samples];
 
-                for local_index in 0..width {
+                for (local_index, ao) in ao.iter_mut().enumerate().take(width) {
                     let normal = worker.normals[local_index];
                     let pt = worker.positions[local_index];
 
                     let orientation = direction_to_quaternion(normal);
-                    for iteration in 0..samples {
+                    for (iteration, raycast) in raycasts.iter_mut().enumerate().take(samples) {
                         let mut sample_point = [
                             pt.x as f64,
                             pt.y as f64,
@@ -656,11 +656,11 @@ impl TriangleMesh {
 
                         let origin = pt + dir * 0.001;
 
-                        raycasts[iteration] = RaycastParameters::new(origin, dir, radius, false);
+                        *raycast = RaycastParameters::new(origin, dir, radius, false);
                     }
 
                     let hit_count = self.raycast_many(&raycasts).total_hits();
-                    ao[local_index] = 1.0 - (hit_count as f32 / samples as f32);
+                    *ao = 1.0 - (hit_count as f32 / samples as f32);
                 }
 
                 ao
@@ -750,7 +750,7 @@ impl Raycast for TriangleMesh {
         Some(result)
     }
 
-    fn raycast_many(&self, parameters: &Vec<RaycastParameters>) -> Vec<Option<RaycastResult>> {
+    fn raycast_many(&self, parameters: &[RaycastParameters]) -> Vec<Option<RaycastResult>> {
         let mut results: Vec<RaycastResult> = vec![RaycastResult::default(); parameters.len()];
 
         // For all triangles
@@ -806,8 +806,6 @@ impl Raycast for TriangleMesh {
 // UNIT TESTS //
 #[cfg(test)]
 mod tests {
-    use std::f32;
-
     use super::{Edge, EdgeTriangles, TriangleMesh};
     use crate::math::raycast::RaycastParameters;
     use crate::{
@@ -822,13 +820,9 @@ mod tests {
     #[cfg(target_pointer_width = "64")]
     #[test]
     fn type_sizes() {
-        assert_eq!(8 * 2, std::mem::size_of::<Edge>(), "edge");
-        assert_eq!(
-            8 * 2,
-            std::mem::size_of::<EdgeTriangles>(),
-            "edge triangles"
-        );
-        assert_eq!(8 * 3, std::mem::size_of::<Triangle>(), "triangle");
+        assert_eq!(8 * 2, size_of::<Edge>(), "edge");
+        assert_eq!(8 * 2, size_of::<EdgeTriangles>(), "edge triangles");
+        assert_eq!(8 * 3, size_of::<Triangle>(), "triangle");
     }
 
     #[test]

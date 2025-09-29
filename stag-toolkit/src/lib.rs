@@ -117,10 +117,6 @@ pub mod classes {
     /// Utility functions for managing Godot classes.
     pub mod utils;
 
-    /// Sanity tests.
-    #[cfg(debug_assertions)]
-    pub mod sanity;
-
     struct StagToolkit;
 
     #[gdextension]

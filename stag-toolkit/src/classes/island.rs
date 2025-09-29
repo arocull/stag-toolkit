@@ -360,8 +360,6 @@ impl IslandBuilder {
                 "set_mesh",
                 vslice![builder.bind_mut().generate_preview_mesh(Some(recycle_mesh))],
             );
-
-            Ok(Variant::from(true))
         })
         .bind(vslice![self.to_gd(), buffer_mesh, mesh_node,]);
 

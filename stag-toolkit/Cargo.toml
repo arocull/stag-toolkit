@@ -19,7 +19,7 @@ physics_server = [] # Experimental physics server
 [dependencies]
 fast-surface-nets = "0.2.1"
 glam = { version = "0.30.5", features = ["approx"] }
-godot = { version = "0.3.4", features = ["api-4-4", "experimental-threads", "register-docs"], optional = true }
+godot = { version = "0.4.0", features = ["api-4-5", "experimental-threads", "register-docs"], optional = true }
 ndshape = "0.3.0"
 noise = "0.9.0"
 rayon = "1.10.0"

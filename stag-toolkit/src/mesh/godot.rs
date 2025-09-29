@@ -166,11 +166,11 @@ impl GodotWhitebox {
     }
 
     /// Serializes CSG geometry into a whitebox.
-    pub fn serialize_from(&mut self, node: Gd<Node3D>) {
+    pub fn serialize_from(&mut self, node: &Gd<Node3D>) {
         self.serialize_walk(
-            node.clone(),
-            node.clone(),
-            node.clone().upcast::<Node>(),
+            node,
+            node,
+            &node.clone().upcast::<Node>(),
             Transform3D::IDENTITY,
         );
     }
@@ -178,9 +178,9 @@ impl GodotWhitebox {
     /// Walks a single step in the node tree, serializing the current shape
     fn serialize_walk(
         &mut self,
-        top_level_parent: Gd<Node3D>,
-        parent: Gd<Node3D>,
-        node: Gd<Node>,
+        _top_level_parent: &Gd<Node3D>,
+        _parent: &Gd<Node3D>,
+        node: &Gd<Node>,
         mut transform: Transform3D,
     ) {
         for child in node.get_children().iter_shared() {
@@ -191,10 +191,10 @@ impl GodotWhitebox {
 
                     // Only continue walk if node is visible
                     if child3d.is_visible() {
-                        self.serialize_walk(top_level_parent.clone(), parent.clone(), child, stack);
+                        self.serialize_walk(_top_level_parent, _parent, &child, stack);
                     }
                 },
-                _ => self.serialize_walk(top_level_parent.clone(), parent.clone(), child, transform),
+                _ => self.serialize_walk(_top_level_parent, _parent, &child, transform),
             }
         }
 

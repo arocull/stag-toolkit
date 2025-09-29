@@ -116,7 +116,7 @@ impl PhysicsServer {
         }
 
         // Insert body
-        let mut frame_bodies = self.current.bodies.write().unwrap();
+        let mut frame_bodies = self.current.bodies.write().expect("TODO: study mutexes");
         if frame_bodies.contains_key(&id) {
             // error: body already included!
             return None;
@@ -140,7 +140,13 @@ impl PhysicsServer {
 
     /// Returns true on failure.
     pub fn set_body_state(&mut self, identity: Identity, state: BodyState) -> bool {
-        if let Some(body) = self.current.bodies.write().unwrap().get_mut(&identity) {
+        if let Some(body) = self
+            .current
+            .bodies
+            .write()
+            .expect("TODO: study mutexes")
+            .get_mut(&identity)
+        {
             body.state = state;
             return false;
         }

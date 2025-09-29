@@ -1,7 +1,7 @@
 use crate::math::bounding_box::BoundingBox;
 use crate::math::noise::{Perlin1D, Perlin3D};
 use crate::math::sdf::{Shape, ShapeOperation, sample_shape_list, shape_list_bounds};
-use crate::math::volumetric::VolumeData;
+use crate::math::volumetric::{BlurSettings, VolumeData};
 use crate::mesh::nets::mesh_from_nets;
 use crate::mesh::trimesh::{TriangleMesh, TriangleOperations};
 use crate::utils;
@@ -509,11 +509,13 @@ impl Data {
             let blur_buffer = VolumeData::new(1.0, self.get_dimensions());
 
             voxels.blur(
-                self.settings_voxels.sdf_smooth_iterations,
-                self.settings_voxels.sdf_smooth_radius_voxels as usize,
-                self.settings_voxels.sdf_smooth_weight,
-                1,
-                1.0,
+                BlurSettings {
+                    iterations: self.settings_voxels.sdf_smooth_iterations,
+                    radius: self.settings_voxels.sdf_smooth_radius_voxels as usize,
+                    weight: self.settings_voxels.sdf_smooth_weight,
+                    cell_padding: 1,
+                    padding_value: 1.0,
+                },
                 blur_buffer,
                 voxel_workers,
             );
