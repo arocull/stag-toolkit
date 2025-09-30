@@ -444,6 +444,7 @@ impl TriangleMesh {
             // ...read forward until we hit our current index
             for j in 0..i {
                 if vert.distance_squared(new_verts[j]) <= thresh_squared {
+                    // TODO: look over how the new_verts buffer is handled
                     // Remove vertices at the back of the new list
                     new_verts.remove(i);
                     // ...and modify the vertices at the front to be the midpoint
@@ -491,8 +492,7 @@ impl TriangleMesh {
     /// Removes all unused vertex positions in the mesh.
     pub fn remove_unused(&mut self) {
         // Keep track of all used points
-        let mut used: Vec<bool> = vec![];
-        used.resize(self.positions.len(), false);
+        let mut used: Vec<bool> = vec![false; self.positions.len()];
 
         // Figure out what points are used
         for tri in self.triangles.iter() {
