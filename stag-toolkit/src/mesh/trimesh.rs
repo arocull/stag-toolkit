@@ -1,3 +1,4 @@
+use crate::math::bounding_box::BoundingBox;
 use crate::math::projection::{direction_to_quaternion, vector_in_cone};
 use crate::math::raycast::{Raycast, RaycastParameters, RaycastResult, RaycastResultReducer};
 use crate::math::{
@@ -699,6 +700,11 @@ impl TriangleMesh {
         self.remove_degenerate();
         self.remove_unused();
         self.shrink_to_fit();
+    }
+
+    /// Returns a [BoundingBox] for the mesh.
+    pub fn bounding_box(&self) -> BoundingBox {
+        BoundingBox::from(&self.positions)
     }
 }
 

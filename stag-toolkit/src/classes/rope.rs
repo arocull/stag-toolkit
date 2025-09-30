@@ -12,13 +12,14 @@ use godot::{
 use std::collections::HashMap;
 
 pub const GROUP_NAME_ROPE: &str = "StagToolkit_SimulatedRope";
-pub const GROUP_NAME_ROPEBINDING: &str = "StagToolkit_SimulatedRopeBinding";
+pub const GROUP_NAME_ROPE_BINDING: &str = "StagToolkit_SimulatedRopeBinding";
 const MESH_NAME: &str = "mesh_rope";
 
 /// Settings for a [SimulatedRope].
 #[derive(GodotClass)]
 #[class(init,base=Resource,tool)]
 pub struct SimulatedRopeSettings {
+    #[export_subgroup(name = "Simulation", prefix = "simulation_")]
     /// Ideal number of meters between each point on the rope.
     /// The amount of points on the rope is rounded based on the rope's ideal length divided by this amount.
     #[var(get, set = set_simulation_point_distance)]
@@ -29,7 +30,7 @@ pub struct SimulatedRopeSettings {
     /// Spring constant of the rope.
     /// For every unit of length overstretched: that distance squared, times this constant, is applied in force.
     ///
-    /// This constant should adjusted according to the average Rigid Body mass and feel of your game.
+    /// This constant should be adjusted according to the average Rigid Body mass and feel of your game.
     #[var(get, set = set_simulation_spring_constant)]
     #[export]
     #[init(val = 5000.0)]
@@ -42,7 +43,7 @@ pub struct SimulatedRopeSettings {
     #[init(val = 150)]
     simulation_constraint_iterations: u32,
 
-    /// Whether or not to automatically call `tick_simulation` on the physics process tick.
+    /// Whether to automatically call `tick_simulation` on the physics process tick.
     /// If this is `false`, **the simulation is not ticked at all**, and is expected to be ticked manually by the user.
     ///
     /// Manually ticking all rope simulations in parallel using [WorkerThreadPool] is advised if you have a lot of [SimulatedRope] nodes in the same tree.
@@ -51,10 +52,11 @@ pub struct SimulatedRopeSettings {
     #[init(val = true)]
     simulation_tick_on_physics: bool,
 
+    #[export_subgroup(name = "Render", prefix = "render_")]
     /// Whether to generate a corresponding [MeshInstance3D] for visualizing the rope.
     #[export]
     #[init(val = true)]
-    render: bool,
+    render_enabled: bool,
 
     /// What render layers the mesh should be on.
     #[export(flags_3d_render)]
@@ -96,11 +98,12 @@ pub struct SimulatedRopeSettings {
     render_aabb_update_rate: f64,
 
     /// All [SimulatedRope] nodes using these settings will automatically set their `process_priority` to this value.
-    /// It is reccomended this is greater than the `collision_process_priority` in cases where collision is utilized.
+    /// It is recommended this is greater than the `collision_process_priority` in cases where collision is utilized.
     #[export]
     #[init(val = 2)]
     render_process_priority: i32,
 
+    #[export_subgroup(name = "Collision", prefix = "collision_")]
     /// Whether to perform raycasts to attempt collision with the 3D environment during the simulation tick.
     /// @experimental : Collisions are still a work in progress.
     #[export]
@@ -123,6 +126,7 @@ pub struct SimulatedRopeSettings {
     #[init(val = 1)]
     collision_process_priority: i32,
 
+    #[export_subgroup(name = "Autodelete", prefix = "autodelete_")]
     /// Whether to automatically delete the [SimulatedRope] if it falls out of bounds in-game, as defined by `autodelete_aabb`.
     #[export]
     #[init(val = true)]
@@ -199,7 +203,7 @@ pub struct SimulatedRope {
     #[init(val=None)]
     settings_fallback: Option<Gd<SimulatedRopeSettings>>,
 
-    /// Whether or not to automatically perform simulation ticks.
+    /// Whether to automatically perform simulation ticks.
     #[init(val = true)]
     do_simulation_tick: bool,
 
@@ -351,7 +355,7 @@ impl SimulatedRope {
         self.shader = None; // Clear out shader reference so it's culled by Godot
 
         // If rendering is disabled, remove any potential meshes, and exit early
-        if !settings.render {
+        if !settings.render_enabled {
             if let Some(mut node) = self.base().get_node_or_null(MESH_NAME) {
                 node.queue_free();
             }
@@ -366,7 +370,7 @@ impl SimulatedRope {
 
         // If we have an available shader
         if let Some(base_shader) = settings.render_material.clone() {
-            // Make a clone of the shader material so we can freely modifiy its parameters
+            // Make a clone of the shader material so we can freely modify its parameters
             if let Some(unique_shader_resource) = base_shader.duplicate()
                 && let Ok(unique_shader) = unique_shader_resource.try_cast::<ShaderMaterial>()
             {
@@ -418,7 +422,7 @@ impl SimulatedRope {
         }
 
         // If no fallback exists, attempt to fetch one from project settings
-        // Only call this on main-thread for garuanteed thread safety while handling resources
+        // Only call this on main-thread for guaranteed thread safety while handling resources
         if is_main_thread() {
             let project_settings = ProjectSettings::singleton();
             let defaults_path = project_settings
@@ -745,7 +749,7 @@ impl INode3D for SimulatedRopeBinding {
 
         // Add to node group for rope bindings
         self.base_mut()
-            .add_to_group_ex(GROUP_NAME_ROPEBINDING)
+            .add_to_group_ex(GROUP_NAME_ROPE_BINDING)
             .persistent(true)
             .done();
 
@@ -881,11 +885,11 @@ impl SimulatedRopeBinding {
 
     fn get_rigid_body_recursive(node: Option<Gd<Node3D>>) -> Option<Gd<RigidBody3D>> {
         if let Some(parent) = node {
-            if let Ok(rigid_body) = parent.clone().try_cast::<RigidBody3D>() {
-                return Some(rigid_body);
+            return if let Ok(rigid_body) = parent.clone().try_cast::<RigidBody3D>() {
+                Some(rigid_body)
             } else {
-                return Self::get_rigid_body_recursive(parent.get_parent_node_3d());
-            }
+                Self::get_rigid_body_recursive(parent.get_parent_node_3d())
+            };
         }
         None
     }

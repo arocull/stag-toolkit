@@ -18,6 +18,19 @@ impl BoundingBox {
         Self { minimum, maximum }
     }
 
+    /// Creates a bounding box that encloses the given list of points.
+    pub fn from(points: &[Vec3]) -> Self {
+        if points.is_empty() {
+            return Self::default();
+        }
+
+        let mut b = Self::new(points[0], points[0]);
+        for pt in points.iter() {
+            b = b.enclose(*pt);
+        }
+        b
+    }
+
     /// Returns the central position of the Bounding Box.
     pub fn center(&self) -> Vec3 {
         self.minimum.midpoint(self.maximum)
@@ -71,6 +84,14 @@ impl BoundingBox {
         Self {
             minimum: self.minimum.min(other.minimum),
             maximum: self.maximum.max(other.maximum),
+        }
+    }
+
+    /// Returns a new bounding box which encloses the given point.
+    pub fn enclose(&self, point: Vec3) -> Self {
+        Self {
+            minimum: self.minimum.min(point),
+            maximum: self.maximum.max(point),
         }
     }
 }

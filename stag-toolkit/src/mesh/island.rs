@@ -255,6 +255,7 @@ impl Data {
         self.volume
     }
 
+    /// Returns the pre-computed BoundingBox of the data, including any margins or padding.
     pub fn get_bounds(&self) -> BoundingBox {
         self.bounds
     }

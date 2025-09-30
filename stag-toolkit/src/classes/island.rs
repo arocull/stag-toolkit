@@ -1,8 +1,9 @@
 use crate::classes::island_settings::IslandBuilderSettings;
+use crate::math::bounding_box::BoundingBox;
 use crate::mesh::island::{Data, IslandBuilderSettingsTweaks, SettingsTweaks};
 use crate::{
     classes::utils::editor_lock,
-    math::types::{ToVector3, gdmath::Vec3Godot},
+    math::types::ToVector3,
     mesh::godot::{GodotSurfaceArrays, GodotWhitebox},
 };
 use core::f32;
@@ -474,19 +475,18 @@ impl IslandBuilder {
     /// Properties will be zero'd if not pre-computed.
     #[func]
     fn generate_navigation_properties(&self) -> Gd<NavIslandProperties> {
+        let aabb = match self.data.get_mesh_baked() {
+            Some(mesh) => mesh.bounding_box(),
+            None => BoundingBox::default(),
+        };
+
         let mut props = NavIslandProperties::new_gd();
-        let aabb = self.get_aabb();
 
-        let size: Vec3 = aabb.size.to_vector3();
-        let rad: f32 = (size * Vec3::new(1.0, 0.0, 1.0)).length() / 2.0;
-
-        {
-            let mut props_mut = props.bind_mut();
-            props_mut.aabb = aabb;
-            props_mut.radius = rad;
-            props_mut.center =
-                (aabb.center() * Vec3Godot::new(1.0, 0.0, 1.0)) + (aabb.support(Vec3Godot::UP));
-        }
+        let mut props_mut = props.bind_mut();
+        props_mut.aabb = aabb.to_aabb();
+        props_mut.radius = (aabb.size() * Vec3::new(1.0, 0.0, 1.0)).length() * 0.5;
+        props_mut.center = aabb.center().to_vector3();
+        drop(props_mut);
 
         props
     }
