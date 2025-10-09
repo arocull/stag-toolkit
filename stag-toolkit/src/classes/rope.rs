@@ -2,6 +2,8 @@ use crate::math::types::gdmath::ToTransform3D;
 use crate::{math::types::ToVector3, simulation::rope::RopeData};
 use glam::{Mat4, Vec3, Vec4, vec4};
 use godot::classes::PhysicsRayQueryParameters3D;
+use godot::classes::object::ConnectFlags;
+use godot::register::ConnectHandle;
 use godot::{
     classes::{
         Engine, Mesh, MeshInstance3D, ProjectSettings, ResourceLoader, RigidBody3D, ShaderMaterial,
@@ -701,7 +703,11 @@ impl SimulatedRope {
 #[derive(GodotClass)]
 #[class(init,base=Node3D,tool)]
 pub struct SimulatedRopeBinding {
-    /// A simulated rope to attach this binding to.
+    /// A [SimulatedRope] to attach this binding to.
+    ///
+    /// If the bound rope is removed from the tree, the reference is dropped.
+    ///
+    /// The bound rope must be removed from the tree before queueing for the bound rope deletion.
     #[var(get, set = set_bind_to)]
     #[export]
     #[init(val=None)]
@@ -734,6 +740,9 @@ pub struct SimulatedRopeBinding {
     #[export(range = (0.0, 15000.0, 0.001, or_greater, suffix="N"))]
     #[init(val = 5000.0)]
     snap_tension_threshold: f32,
+
+    #[init(val = None)]
+    event_rope_tree_exiting: Option<ConnectHandle>,
 
     base: Base<Node3D>,
 }
@@ -824,6 +833,13 @@ impl SimulatedRopeBinding {
             self.signals().rope_unbound().emit(&rope);
         }
 
+        // Disconnect any exit-tree handlers we had
+        if let Some(handler) = self.event_rope_tree_exiting.take()
+            && handler.is_connected()
+        {
+            handler.disconnect();
+        }
+
         self.bind_to = new_bind_to.clone();
 
         if self.base().is_inside_tree() {
@@ -833,7 +849,21 @@ impl SimulatedRopeBinding {
         // Notify that a new rope was bound
         if let Some(rope) = new_bind_to {
             self.signals().rope_bound().emit(&rope);
+
+            // Automatically remove rope if it is removed from tree
+            self.event_rope_tree_exiting = Some(
+                rope.signals()
+                    .tree_exiting()
+                    .builder()
+                    .flags(ConnectFlags::ONE_SHOT)
+                    .connect_other_mut(&self.to_gd(), Self::clear_bind),
+            );
         }
+    }
+
+    /// Forcefully removes the bound rope.
+    fn clear_bind(&mut self) {
+        self.set_bind_to(None);
     }
 
     #[func]
