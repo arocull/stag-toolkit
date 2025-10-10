@@ -22,9 +22,17 @@ pub trait Plane {
     fn flip(self) -> Self;
     /// Returns the signed distance from the given point to this plane.
     fn signed_distance(self, point: Vec3) -> f32;
-    /// Intersects the given plane with the given ray, and returns a position and true it sucessfully collided.
+    /// Intersects the given plane with the given ray, and returns a [RayIntersectionResult].
+    ///
+    /// `signed_distance` can be found via the method of the same name.
+    ///
     /// If the ray is parallel with the plane, returns the ray origin instead.
-    fn ray_intersection(self, ray_origin: Vec3, ray_direction: Vec3) -> RayIntersectionResult;
+    fn ray_intersection(
+        self,
+        ray_origin: Vec3,
+        ray_direction: Vec3,
+        signed_distance: f32,
+    ) -> RayIntersectionResult;
 }
 
 impl Plane for Vec4 {
@@ -36,7 +44,12 @@ impl Plane for Vec4 {
         self.dot(Self::new(point.x, point.y, point.z, 1.0))
     }
 
-    fn ray_intersection(self, ray_origin: Vec3, ray_direction: Vec3) -> RayIntersectionResult {
+    fn ray_intersection(
+        self,
+        ray_origin: Vec3,
+        ray_direction: Vec3,
+        signed_distance: f32,
+    ) -> RayIntersectionResult {
         let dt = self.xyz().dot(ray_direction);
 
         // Test if ray direction is perpendicular to plane normal (parallel)
@@ -48,11 +61,8 @@ impl Plane for Vec4 {
             };
         }
 
-        let projected = ray_origin // Return projected point
-                - Vec3::splat(
-                    self.dot(Self::new(ray_origin.x, ray_origin.y, ray_origin.z, 1.0))
-                        / dt,
-                ) * ray_direction;
+        // Return projected point
+        let projected = ray_origin - Vec3::splat(signed_distance / dt) * ray_direction;
 
         RayIntersectionResult {
             intersection: projected,
@@ -314,7 +324,7 @@ mod tests {
 
         for (idx, case) in test_cases.iter().enumerate() {
             let pl = plane(case.o, case.n);
-            let result = pl.ray_intersection(case.ro, case.rd);
+            let result = pl.ray_intersection(case.ro, case.rd, pl.signed_distance(case.ro));
 
             assert_eq!(
                 result.collided, case.collided,

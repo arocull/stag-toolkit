@@ -11,9 +11,6 @@ pub trait Raycast {
     /// The raycast result for the shallowest collision point is returned.
     /// Returns [None] if the ray did not hit.
     fn raycast(&self, parameters: RaycastParameters) -> Option<RaycastResult>;
-
-    /// Perform a batch raycast on the object from the given point to the end point.
-    fn raycast_many(&self, parameters: &[RaycastParameters]) -> Vec<Option<RaycastResult>>;
 }
 
 /// Settings for preparing a raycast.

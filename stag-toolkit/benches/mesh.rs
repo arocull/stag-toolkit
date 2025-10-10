@@ -1,6 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use glam::{Mat4, Vec3};
-use stag_toolkit::math::raycast::{Raycast, RaycastParameters};
+use stag_toolkit::math::raycast::{Raycast, RaycastParameters, RaycastResult};
 use stag_toolkit::math::sdf;
 use stag_toolkit::mesh::island;
 use std::num::NonZero;
@@ -21,7 +21,11 @@ fn mesh_baking(c: &mut Criterion) {
     data.bake_bounding_box();
     data.bake_voxels();
     data.bake_preview();
-    let mut preview = data.get_mesh_preview().unwrap().clone();
+    let mut preview = data
+        .get_mesh_preview()
+        .expect("There should be a mesh!")
+        .clone();
+    preview.bake_raycast_planes();
 
     let mut raycast_params =
         RaycastParameters::new(Vec3::new(0.0, 10.0, 5.0), Vec3::NEG_Y, f32::INFINITY, false);
@@ -31,7 +35,12 @@ fn mesh_baking(c: &mut Criterion) {
     group.bench_function("raycast", |b| b.iter(|| preview.raycast(raycast_params)));
 
     group.bench_function("raycast_many", |b| {
-        b.iter(|| preview.raycast_many(&raycast_many))
+        b.iter(|| -> Vec<Option<RaycastResult>> {
+            raycast_many
+                .iter()
+                .map(|param| preview.raycast(*param))
+                .collect()
+        })
     });
 
     raycast_params.hit_backfaces = true;

@@ -109,7 +109,8 @@ impl TriangleOperations for Triangle {
         let pl = plane(positions[self[0]], norm);
         // Project point onto plane, using opposite of plane's normal.
         // Projection should never fail as ray is always antiparallel to the normal.
-        pl.ray_intersection(point, -norm).intersection
+        pl.ray_intersection(point, -norm, pl.signed_distance(point))
+            .intersection
     }
 
     fn barycentric(&self, positions: &[Vec3], project: Vec3) -> Vec3 {
@@ -210,6 +211,9 @@ pub struct TriangleMesh {
     /// Optional color data, assigned to vertices of the corresponding index.
     pub colors: Vec<Vec4>,
 
+    /// Optional plane-per-triangle, used for raycast optimization.
+    pub planes: Vec<Vec4>,
+
     pub uv1: Option<Vec<Vec2>>,
     pub uv2: Option<Vec<Vec2>>,
 }
@@ -238,6 +242,7 @@ impl TriangleMesh {
             // Default normals to an empty vector if not included
             normals: normals.unwrap_or_default(),
             colors: colors.unwrap_or_default(),
+            planes: vec![],
             uv1: None,
             uv2: None,
         }
@@ -266,6 +271,7 @@ impl TriangleMesh {
             // Default normals to an empty vector if not included
             normals: normals.unwrap_or_default(),
             colors: vec![],
+            planes: vec![],
             uv1: None,
             uv2: None,
         }
@@ -444,6 +450,7 @@ impl TriangleMesh {
             // ...read forward until we hit our current index
             for j in 0..i {
                 if vert.distance_squared(new_verts[j]) <= thresh_squared {
+                    // TODO: look over how the new_verts buffer is handled
                     // Remove vertices at the back of the new list
                     new_verts.remove(i);
                     // ...and modify the vertices at the front to be the midpoint
@@ -491,8 +498,7 @@ impl TriangleMesh {
     /// Removes all unused vertex positions in the mesh.
     pub fn remove_unused(&mut self) {
         // Keep track of all used points
-        let mut used: Vec<bool> = vec![];
-        used.resize(self.positions.len(), false);
+        let mut used: Vec<bool> = vec![false; self.positions.len()];
 
         // Figure out what points are used
         for tri in self.triangles.iter() {
@@ -660,7 +666,10 @@ impl TriangleMesh {
                         *raycast = RaycastParameters::new(origin, dir, radius, false);
                     }
 
-                    let hit_count = self.raycast_many(&raycasts).total_hits();
+                    let results: Vec<Option<RaycastResult>> =
+                        raycasts.iter().map(|param| self.raycast(*param)).collect();
+
+                    let hit_count = results.total_hits();
                     *ao = 1.0 - (hit_count as f32 / samples as f32);
                 }
 
@@ -706,17 +715,29 @@ impl TriangleMesh {
     pub fn bounding_box(&self) -> BoundingBox {
         BoundingBox::from(&self.positions)
     }
+
+    /// Bakes plane data into the mesh for optimized raycasting.
+    ///
+    /// Planes are *not* automatically updated when modifying the mesh.
+    pub fn bake_raycast_planes(&mut self) {
+        self.planes = vec![Vec4::ZERO; self.triangles.len()];
+        for (i, triangle) in self.triangles.iter().enumerate() {
+            self.planes[i] = triangle.plane(&self.positions);
+        }
+    }
 }
 
 impl Raycast for TriangleMesh {
-    // TODO: method for raycasting many things at once and returning a list of results
     fn raycast(&self, params: RaycastParameters) -> Option<RaycastResult> {
         let mut result = RaycastResult::default();
 
         // For all triangles
         for (idx, tri) in self.triangles.iter().enumerate() {
             // Perform a ray intersection
-            let plane = tri.plane(&self.positions);
+            let plane = match self.planes.get(idx) {
+                Some(plane) => plane,
+                _ => &tri.plane(&self.positions),
+            };
 
             // First, make sure this is shorter than our current collision depth
             // Also make sure it's not back-facing, if possible
@@ -726,7 +747,7 @@ impl Raycast for TriangleMesh {
                 && depth < result.depth
             {
                 // Project point onto the plane
-                let projection = plane.ray_intersection(params.origin, params.direction);
+                let projection = plane.ray_intersection(params.origin, params.direction, depth);
 
                 // TODO: better method for checking if ray direction is not hitting plane
                 if projection.collided && (!projection.reversed || params.hit_backfaces) {
@@ -754,58 +775,6 @@ impl Raycast for TriangleMesh {
         }
 
         Some(result)
-    }
-
-    fn raycast_many(&self, parameters: &[RaycastParameters]) -> Vec<Option<RaycastResult>> {
-        let mut results: Vec<RaycastResult> = vec![RaycastResult::default(); parameters.len()];
-
-        // For all triangles
-        for (triangle_index, tri) in self.triangles.iter().enumerate() {
-            let plane = tri.plane(&self.positions);
-
-            for (params, result) in parameters.iter().zip(results.iter_mut()) {
-                // First, make sure this is shorter than our current collision depth
-                // Also make sure it's not back-facing, if possible
-                let depth = plane.signed_distance(params.origin);
-
-                if (params.hit_backfaces || depth >= 0.0)
-                    && depth < params.max_depth
-                    && depth < result.depth
-                {
-                    // Project point onto the plane
-                    let projection = plane.ray_intersection(params.origin, params.direction);
-
-                    // TODO: better method for checking if ray direction is not hitting plane
-                    if projection.collided && (params.hit_backfaces || !projection.reversed) {
-                        // Get barycentric coordinate of triangle
-                        let coord = tri.barycentric(&self.positions, projection.intersection);
-                        // Finally, check if the point is contained by the triangle
-                        let contained = tri.contains_barycentric(coord);
-
-                        if contained {
-                            *result = RaycastResult {
-                                depth,
-                                point: projection.intersection,
-                                normal: plane.xyz(),
-                                face_index: Some(triangle_index),
-                                barycentric: Some(coord),
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        results
-            .iter()
-            .enumerate()
-            .map(|(idx, r)| -> Option<RaycastResult> {
-                if r.depth < parameters[idx].max_depth {
-                    return Some(*r);
-                }
-                None
-            })
-            .collect()
     }
 }
 

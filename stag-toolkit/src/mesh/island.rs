@@ -635,8 +635,9 @@ impl Data {
 
         self.bake_preview();
         if let Some(mut mesh) = self.mesh_preview.clone() {
-            mesh.optimize(self.settings_mesh.vertex_merge_distance);
-            mesh.bake_normals_smooth();
+            mesh.optimize(self.settings_mesh.vertex_merge_distance); // Combine and smooth out mesh
+            mesh.bake_normals_smooth(); // Bake weighted normals
+            mesh.bake_raycast_planes(); // Bake planes for faster raycasting
 
             let thread_count = utils::thread_count(16);
 
