@@ -7,16 +7,19 @@ use crate::{
     mesh::godot::{GodotSurfaceArrays, GodotWhitebox},
 };
 use core::f32;
+use std::thread;
+use std::thread::JoinHandle;
 use glam::Vec3;
 use godot::classes::{Engine, ImporterMesh, ResourceLoader};
 use godot::register::ConnectHandle;
 use godot::{
     classes::{
         ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, MeshInstance3D, ProjectSettings,
-        RigidBody3D, WorkerThreadPool, mesh::PrimitiveType, physics_server_3d::BodyAxis,
+        RigidBody3D, mesh::PrimitiveType, physics_server_3d::BodyAxis,
     },
     prelude::*,
 };
+use crate::mesh::trimesh::TriangleMesh;
 
 /// The node group IslandBuilder nodes should be stored in.
 pub const GROUP_NAME: &str = "StagToolkit_IslandBuilder";
@@ -64,9 +67,9 @@ pub struct IslandBuilder {
     #[export]
     #[init(val = false)]
     realtime_preview: bool,
-    /// Task ID for WorkerThreadPool.
+    /// Thread handle for real-time preview.
     #[init(val=None)]
-    realtime_preview_task: Option<i64>,
+    realtime_preview_thread: Option<JoinHandle<Option<TriangleMesh>>>,
     /// Swap buffer for real-time preview.
     #[init(val=None)]
     realtime_preview_mesh_buffer: Option<Gd<ArrayMesh>>,
@@ -104,10 +107,19 @@ impl INode3D for IslandBuilder {
         self.set_settings(self.settings.clone());
         self.apply_settings();
         self.apply_tweaks();
+        self.set_realtime_preview(self.realtime_preview);
     }
 
     fn exit_tree(&mut self) {
-        self.wait_for_preview_finish();
+        self.wait_for_preview_finish(); // wait for preview to finish
+    }
+
+    fn process(&mut self, _delta: f64) {
+        if let Some(preview_thread) = &self.realtime_preview_thread {
+            if preview_thread.is_finished() {
+                self.wait_for_preview_finish(); // join preview if it's done
+            }
+        }
     }
 }
 
@@ -207,6 +219,7 @@ impl IslandBuilder {
     #[func]
     fn set_realtime_preview(&mut self, realtime_preview: bool) {
         self.realtime_preview = realtime_preview;
+        self.base_mut().set_process(realtime_preview && Engine::singleton().is_editor_hint());
 
         // Wait for any existing preview to finish before moving on
         self.wait_for_preview_finish();
@@ -217,9 +230,52 @@ impl IslandBuilder {
     }
 
     fn wait_for_preview_finish(&mut self) {
-        if let Some(task_id) = self.realtime_preview_task.take() {
-            WorkerThreadPool::singleton().wait_for_task_completion(task_id);
+        if let Some(handle) = self.realtime_preview_thread.take() {
+            let data = handle.join().unwrap();
+            if let Some(trimesh) = data {
+                // Fetch previously stored buffer and clear it for use, or create a new one
+                let buffer_mesh: Gd<ArrayMesh> = match self.realtime_preview_mesh_buffer.take() {
+                    Some(mut mesh) => {
+                        mesh.clear_surfaces();
+                        mesh
+                    }
+                    None => ArrayMesh::new_gd(),
+                };
+
+                // Store current IslandBuilder mesh as a new buffer if it exists
+                let mesh_node = self.target_mesh();
+                if let Some(base_mesh) = mesh_node.get_mesh() {
+                    self.realtime_preview_mesh_buffer = match base_mesh.try_cast::<ArrayMesh>() {
+                        Ok(array_mesh) => {
+                            let mut result: Option<Gd<ArrayMesh>> = None;
+                            if array_mesh != buffer_mesh {
+                                // Make sure swap buffer isn't same as original buffer
+                                result = Some(array_mesh);
+                            }
+                            result
+                        }
+                        Err(_) => None,
+                    }
+                }
+
+                self.apply_preview_mesh(mesh_node, buffer_mesh, &trimesh);
+            }
         }
+    }
+
+    fn apply_preview_mesh(&mut self, mut mesh_node: Gd<MeshInstance3D>, mut array_mesh: Gd<ArrayMesh>, trimesh: &TriangleMesh) {
+        let surface_arrays = GodotSurfaceArrays::from_trimesh(trimesh);
+        array_mesh.add_surface_from_arrays(
+            PrimitiveType::TRIANGLES,
+            surface_arrays.get_surface_arrays(),
+        );
+        array_mesh.surface_set_name(0, "island");
+        // Add a material, if valid
+        if let Some(material) = &self.settings_internal.bind().get_material_preview() {
+            array_mesh.surface_set_material(0, material);
+        }
+
+        mesh_node.set_mesh(&array_mesh)
     }
 
     /// Copies the tweak settings into the builder data.
@@ -315,62 +371,26 @@ impl IslandBuilder {
             return;
         }
 
-        // TODO: debounce this so last change is applied later?
-        if let Some(task_id) = self.realtime_preview_task
-            && !WorkerThreadPool::singleton().is_task_completed(task_id)
-        {
-            return; // Don't spawn multiple tasks on top of each other
+        if let Some(preview_thread) = &self.realtime_preview_thread {
+            if preview_thread.is_finished() {
+                self.wait_for_preview_finish(); // collect task resources if necessary
+            } else {
+                // TODO: dirty preview so we update it again if not changing
+                return; // don't spawn another thread
+            }
         }
-
-        self.wait_for_preview_finish(); // collect task resources if necessary
 
         self.serialize();
 
-        // Fetch previously stored buffer and clear it for use, or create a new one
-        let buffer_mesh: Gd<ArrayMesh> = match self.realtime_preview_mesh_buffer.take() {
-            Some(mut mesh) => {
-                mesh.clear_surfaces();
-                mesh
-            }
-            None => ArrayMesh::new_gd(),
-        };
+        let mut preview_data = self.data.clone_for_preview();
+        let handle = thread::spawn(move || {
+            preview_data.bake_bounding_box();
+            preview_data.bake_voxels();
+            preview_data.bake_preview();
+            preview_data.take_mesh_preview()
+        });
 
-        // Store current IslandBuilder mesh as a new buffer if it exists
-        let mesh_node = self.target_mesh();
-        if let Some(base_mesh) = mesh_node.get_mesh() {
-            self.realtime_preview_mesh_buffer = match base_mesh.try_cast::<ArrayMesh>() {
-                Ok(array_mesh) => {
-                    let mut result: Option<Gd<ArrayMesh>> = None;
-                    if array_mesh != buffer_mesh {
-                        // Make sure swap buffer isn't same as original buffer
-                        result = Some(array_mesh);
-                    }
-                    result
-                }
-                Err(_) => None,
-            }
-        }
-
-        // Compute this on another thread
-        let callable = Callable::from_sync_fn("all_bake_single", |args: &[&Variant]| {
-            // TODO: type safety checks, return Error if safety fails
-            let mut builder: Gd<Self> = args[0].to();
-            let recycle_mesh: Gd<ArrayMesh> = args[1].to();
-            let mut mesh_node: Gd<MeshInstance3D> = args[2].to();
-            mesh_node.call_deferred(
-                "set_mesh",
-                vslice![builder.bind_mut().generate_preview_mesh(Some(recycle_mesh))],
-            );
-        })
-        .bind(vslice![self.to_gd(), buffer_mesh, mesh_node,]);
-
-        self.realtime_preview_task = Some(
-            WorkerThreadPool::singleton()
-                .add_task_ex(&callable)
-                .high_priority(false)
-                .description("IslandBuilder preview")
-                .done(),
-        );
+        self.realtime_preview_thread = Some(handle);
     }
 
     /// Returns an unoptimized triangle mesh for previewing with no extra information baked-in.
