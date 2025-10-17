@@ -1,14 +1,13 @@
 use crate::classes::island_settings::IslandBuilderSettings;
 use crate::math::bounding_box::BoundingBox;
 use crate::mesh::island::{Data, IslandBuilderSettingsTweaks, SettingsTweaks};
+use crate::mesh::trimesh::TriangleMesh;
 use crate::{
     classes::utils::editor_lock,
     math::types::ToVector3,
     mesh::godot::{GodotSurfaceArrays, GodotWhitebox},
 };
 use core::f32;
-use std::thread;
-use std::thread::JoinHandle;
 use glam::Vec3;
 use godot::classes::{Engine, ImporterMesh, ResourceLoader};
 use godot::register::ConnectHandle;
@@ -19,7 +18,8 @@ use godot::{
     },
     prelude::*,
 };
-use crate::mesh::trimesh::TriangleMesh;
+use std::thread;
+use std::thread::JoinHandle;
 
 /// The node group IslandBuilder nodes should be stored in.
 pub const GROUP_NAME: &str = "StagToolkit_IslandBuilder";
@@ -115,10 +115,10 @@ impl INode3D for IslandBuilder {
     }
 
     fn process(&mut self, _delta: f64) {
-        if let Some(preview_thread) = &self.realtime_preview_thread {
-            if preview_thread.is_finished() {
-                self.wait_for_preview_finish(); // join preview if it's done
-            }
+        if let Some(preview_thread) = &self.realtime_preview_thread
+            && preview_thread.is_finished()
+        {
+            self.wait_for_preview_finish(); // join preview if it's done
         }
     }
 }
@@ -219,7 +219,8 @@ impl IslandBuilder {
     #[func]
     fn set_realtime_preview(&mut self, realtime_preview: bool) {
         self.realtime_preview = realtime_preview;
-        self.base_mut().set_process(realtime_preview && Engine::singleton().is_editor_hint());
+        self.base_mut()
+            .set_process(realtime_preview && Engine::singleton().is_editor_hint());
 
         // Wait for any existing preview to finish before moving on
         self.wait_for_preview_finish();
@@ -231,7 +232,7 @@ impl IslandBuilder {
 
     fn wait_for_preview_finish(&mut self) {
         if let Some(handle) = self.realtime_preview_thread.take() {
-            let data = handle.join().unwrap();
+            let data = handle.join().expect("realtime preview thread panicked");
             if let Some(trimesh) = data {
                 // Fetch previously stored buffer and clear it for use, or create a new one
                 let buffer_mesh: Gd<ArrayMesh> = match self.realtime_preview_mesh_buffer.take() {
@@ -263,7 +264,12 @@ impl IslandBuilder {
         }
     }
 
-    fn apply_preview_mesh(&mut self, mut mesh_node: Gd<MeshInstance3D>, mut array_mesh: Gd<ArrayMesh>, trimesh: &TriangleMesh) {
+    fn apply_preview_mesh(
+        &mut self,
+        mut mesh_node: Gd<MeshInstance3D>,
+        mut array_mesh: Gd<ArrayMesh>,
+        trimesh: &TriangleMesh,
+    ) {
         let surface_arrays = GodotSurfaceArrays::from_trimesh(trimesh);
         array_mesh.add_surface_from_arrays(
             PrimitiveType::TRIANGLES,

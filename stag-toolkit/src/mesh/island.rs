@@ -494,7 +494,11 @@ impl Data {
         let (mut voxels, transform) = self.bake_voxels_init();
 
         #[cfg(debug_assertions)]
-        assert_ne!(0, voxels.get_buffer_size(), "voxel buffer size is zero, did you bake a bounding box?");
+        assert_ne!(
+            0,
+            voxels.get_buffer_size(),
+            "voxel buffer size is zero, did you bake a bounding box?"
+        );
 
         let mut voxel_workers = voxels.to_workers(
             utils::worker_count(voxels.get_buffer_size(), 16usize).get(),

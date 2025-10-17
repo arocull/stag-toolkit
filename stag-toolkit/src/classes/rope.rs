@@ -850,14 +850,17 @@ impl SimulatedRopeBinding {
         if let Some(rope) = new_bind_to {
             self.signals().rope_bound().emit(&rope);
 
-            // Automatically remove rope if it is removed from tree
-            self.event_rope_tree_exiting = Some(
-                rope.signals()
-                    .tree_exiting()
-                    .builder()
-                    .flags(ConnectFlags::ONE_SHOT)
-                    .connect_other_mut(&self.to_gd(), Self::clear_bind),
-            );
+            // Automatically remove rope if it is removed from tree.
+            // Note: DO NOT disconnect the binding automatically if the rope is exiting the tree inside the editor!
+            if !Engine::singleton().is_editor_hint() {
+                self.event_rope_tree_exiting = Some(
+                    rope.signals()
+                        .tree_exiting()
+                        .builder()
+                        .flags(ConnectFlags::ONE_SHOT)
+                        .connect_other_mut(&self.to_gd(), Self::clear_bind),
+                );
+            }
         }
     }
 
@@ -900,7 +903,9 @@ impl SimulatedRopeBinding {
     /// Updates the bind settings on this [SimulatedRopeBinding]'s corresponding rope.
     #[func]
     fn update_bind(&mut self) {
-        if let Some(mut rope) = self.bind_to.clone() {
+        if let Some(mut rope) = self.bind_to.clone()
+            && rope.is_inside_tree()
+        {
             let pos = rope.to_local(self.base().get_global_position());
             rope.bind_mut()
                 .bind_set(self.get_bind_id(), pos, self.bind_at);

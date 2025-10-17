@@ -8,8 +8,9 @@ pub fn thread_count(default_thread_count: usize) -> NonZero<usize> {
         default_thread_count, 0,
         "default thread count cannot be zero"
     );
-    available_parallelism()
-        .unwrap_or_else(|_| NonZero::new(default_thread_count).expect("zero-value default thread count provided"))
+    available_parallelism().unwrap_or_else(|_| {
+        NonZero::new(default_thread_count).expect("zero-value default thread count provided")
+    })
 }
 
 /// Returns the number of workers desired for the given workload size.
