@@ -6,6 +6,7 @@ extends Node
 const DEFAULT_TEST_PATH: String = "res://test/scenarios/"
 const DEFAULT_BENCHMARK_PATH: String = "res://test/benchmarks/"
 const DEFAULT_REPORTS_PATH: String = "res://test/reports/"
+const DEFAULT_SUFFIXES: String = ".tscn,.scn"
 const DEFAULT_TIMEOUT: float = 30.0
 const DEFAULT_TIME_SCALE: float = 1.0
 
@@ -148,11 +149,11 @@ enum ExitCodes {
 	BadFile = ERR_FILE_UNRECOGNIZED,
 }
 
-var args: Dictionary
+var args: Dictionary[String,String]
 var _quit_function: Callable = _quit_default
 var _logger: StagLogger
 
-@onready var statistics: Dictionary = {
+@onready var statistics: Dictionary[String,Variant] = {
 	"discovered": 0, # Amount of test files discovered
 	"badpaths": 0, # Amount of test files/directories that couldn't be loaded
 	"count": 0, # Amount of tests started
@@ -160,7 +161,7 @@ var _logger: StagLogger
 	"failures": 0, # Amount of run tests that failed
 	"skips": 0, # Amount of run tests that skipped
 }
-@onready var test_data_default: Dictionary = {
+@onready var test_data_default: Dictionary[String,Variant] = {
 	"post_test_message": "",
 	"assertions": 0,
 }
@@ -170,8 +171,9 @@ var _logger: StagLogger
 @onready var _time_scale_base: float = DEFAULT_TIME_SCALE
 @onready var _reports_path: String = DEFAULT_REPORTS_PATH
 
-@onready var tests: Array[String] = []
-@onready var test_failures: Array[String] = []
+@onready var tests: PackedStringArray = []
+@onready var test_failures: PackedStringArray = []
+@onready var _test_suffixes: PackedStringArray = []
 @onready var test_idx: int = 0
 @onready var active_path: String = ""
 @onready var force_exiting: bool = false
@@ -200,7 +202,7 @@ func _ready():
 	if args.has("stagtest?"):
 		print("StagTest - StagToolkit test harness implementation.")
 		print("   flags ---")
-		print("\t--stagtest? - displays command output, like this")
+		print("\t--stagtest? - displays command help, like this")
 		print("\t--stagtest  - runs with StagTest mode")
 		print("\t--fast      - escapes on the first test failure, instead of running all tests")
 		print("\t--bench     - enables benchmark reports and switches default test directory to \"{0}\"".format(
@@ -213,6 +215,8 @@ func _ready():
 		print("\t\t- if a directory, subdirectories are also run")
 		print("\t\t- organized alphabetically within each directory, running subdirectories first")
 		print("\t\tFILEPATH=\"{0}\" by default (quotes optional)".format([default_test_path]))
+		print("\t--suffixes=SUFFIXES - list of file suffixes to load for unit tests, separated by comma")
+		print("\t\tSUFFIXES=\"{0}\"".format([DEFAULT_SUFFIXES]))
 		print("\t--reports=DIRECTORY - writes reports to the given directory")
 		print("\t\t- set to empty string \"\" for no reports")
 		print("\t\tDIRECTORY=\"{0}\" by default (quotes optional)".format([DEFAULT_REPORTS_PATH]))
@@ -233,9 +237,6 @@ func _ready():
 	# Halt scene processing until tests are ready
 	pause(true)
 
-	var test_root = args.get("test", default_test_path).replace("\"", "")
-	_reports_path = args.get("reports", DEFAULT_REPORTS_PATH).replace("\"", "")
-
 	_logger = StagLogger.new()
 	OS.add_logger(_logger)
 	_logger.event_error.connect(_catch_error)
@@ -244,7 +245,10 @@ func _ready():
 	# Forcibly exit the given scene
 	get_tree().unload_current_scene.call_deferred()
 
+	var test_root = args.get("test", default_test_path).replace("\"", "")
+	_reports_path = args.get("reports", DEFAULT_REPORTS_PATH).replace("\"", "")
 	_time_scale_base = float(args.get("timescale", "{0}".format([DEFAULT_TIME_SCALE])))
+	_test_suffixes = args.get("suffixes", DEFAULT_SUFFIXES).split(",", false)
 
 	# Begin timeout countdown
 	var timeout: float = float(args.get("timeout", "{0}".format([DEFAULT_TIMEOUT])))
@@ -299,8 +303,9 @@ func _walk_directory(dirpath: String):
 	for subdirpath in dir.get_directories():
 		_walk_directory(_join_path(dir.get_current_dir(false), subdirpath))
 	for filepath in dir.get_files():
-		if filepath.get_extension() == "tscn" or filepath.get_extension() == "scn":
-			tests.append(_join_path(dir.get_current_dir(false), filepath).simplify_path())
+		for suffix in _test_suffixes:
+			if filepath.ends_with(suffix):
+				tests.append(_join_path(dir.get_current_dir(false), filepath).simplify_path())
 
 # Runs a single test at the given filepath.
 func _run_test(filepath: String) -> void:
