@@ -44,5 +44,38 @@ func _redraw(gizmo: EditorNode3DGizmo) -> void:
 		aabb.get_endpoint(2),
 		aabb.get_endpoint(6),
 	]
-
 	gizmo.add_lines(lines, get_material("main", gizmo), false)
+
+	var settings := builder.fetch_settings()
+	if is_instance_valid(settings) && is_instance_valid(settings.voxels):
+		var voxel_size := settings.voxels.voxel_size
+		var start_position := aabb.get_endpoint(2)
+		lines = [
+			start_position + Vector3(1.0, -0.0, 0.0) * voxel_size,
+			start_position + Vector3(1.0, -1.0, 0.0) * voxel_size,
+
+			start_position + Vector3(1.0, -0.0, 0.0) * voxel_size,
+			start_position + Vector3(1.0, -0.0, 1.0) * voxel_size,
+
+			start_position + Vector3(0.0, -0.0, 1.0) * voxel_size,
+			start_position + Vector3(0.0, -1.0, 1.0) * voxel_size,
+
+			start_position + Vector3(1.0, -0.0, 1.0) * voxel_size,
+			start_position + Vector3(1.0, -1.0, 1.0) * voxel_size,
+
+			start_position + Vector3(1.0, -1.0, 0.0) * voxel_size,
+			start_position + Vector3(1.0, -1.0, 1.0) * voxel_size,
+
+			start_position + Vector3(0.0, -1.0, 1.0) * voxel_size,
+			start_position + Vector3(1.0, -1.0, 1.0) * voxel_size,
+
+			start_position + Vector3(0.0, -0.0, 1.0) * voxel_size,
+			start_position + Vector3(1.0, -0.0, 1.0) * voxel_size,
+
+			start_position + Vector3(0.0, -1.0, 0.0) * voxel_size,
+			start_position + Vector3(1.0, -1.0, 0.0) * voxel_size,
+
+			start_position + Vector3(0.0, -1.0, 0.0) * voxel_size,
+			start_position + Vector3(0.0, -1.0, 1.0) * voxel_size,
+		]
+		gizmo.add_lines(lines, get_material("main", gizmo), false)

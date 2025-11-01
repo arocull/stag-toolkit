@@ -9,5 +9,5 @@ fractal_gain = 0.835
 [resource]
 width = 4096
 height = 4096
-seamless = true
 noise = SubResource("FastNoiseLite_kva7p")
+seamless = true

@@ -9,7 +9,7 @@ fractal_octaves = 3
 [resource]
 width = 4096
 height = 4096
+noise = SubResource("FastNoiseLite_jrcne")
 seamless = true
 as_normal_map = true
 bump_strength = 10.0
-noise = SubResource("FastNoiseLite_jrcne")

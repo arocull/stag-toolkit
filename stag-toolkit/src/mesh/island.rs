@@ -251,6 +251,28 @@ impl Data {
         }
     }
 
+    /// Performs a clone which only includes necessary data for baking a preview mesh.
+    pub fn clone_for_preview(&self) -> Self {
+        Self {
+            settings_voxels: self.settings_voxels,
+            settings_mesh: self.settings_mesh,
+            settings_collision: self.settings_collision,
+            tweaks: self.tweaks,
+            noise_sdf_density: self.noise_sdf_density.clone(),
+            noise_sdf_sampling: self.noise_sdf_sampling.clone(),
+            noise_striation: self.noise_striation.clone(),
+            noise_mask: self.noise_mask.clone(),
+            shapes: self.shapes.clone(),
+
+            bounds: BoundingBox::default(),
+            voxels: None,
+            mesh_preview: None,
+            mesh_baked: None,
+            hulls: vec![],
+            volume: 0.0,
+        }
+    }
+
     pub fn get_volume(&self) -> f32 {
         self.volume
     }
@@ -266,6 +288,11 @@ impl Data {
 
     pub fn get_mesh_preview(&self) -> Option<&TriangleMesh> {
         self.mesh_preview.as_ref()
+    }
+
+    /// Returns the original reference to the preview mesh, clearing the cache.
+    pub fn take_mesh_preview(&mut self) -> Option<TriangleMesh> {
+        self.mesh_preview.take()
     }
 
     pub fn get_mesh_baked(&self) -> Option<&TriangleMesh> {
@@ -465,6 +492,13 @@ impl Data {
         }
 
         let (mut voxels, transform) = self.bake_voxels_init();
+
+        #[cfg(debug_assertions)]
+        assert_ne!(
+            0,
+            voxels.get_buffer_size(),
+            "voxel buffer size is zero, did you bake a bounding box?"
+        );
 
         let mut voxel_workers = voxels.to_workers(
             utils::worker_count(voxels.get_buffer_size(), 16usize).get(),

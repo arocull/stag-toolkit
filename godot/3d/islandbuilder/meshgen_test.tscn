@@ -45,13 +45,12 @@ shadow_enabled = true
 output_to = NodePath("../body")
 tweaks = SubResource("IslandBuilderSettingsTweaks_0ow68")
 settings = SubResource("IslandBuilderSettings_23xmi")
-visible = false
 metadata/volume = 4.75614
 
 [node name="UNION_box" type="CSGBox3D" parent="island_test/IslandBuilder"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.632248, 1.90735e-06, 2.00385)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.632248, -0.31414533, 2.00385)
 material_override = ExtResource("4_lkpm7")
-size = Vector3(9.58691, 5.4397, 8.56226)
+size = Vector3(9.58691, 6.0679946, 8.56226)
 
 [node name="UNION_box2" type="CSGBox3D" parent="island_test/IslandBuilder"]
 transform = Transform3D(0.882217, 0, 0.470843, 0, 1, 0, -0.470843, 0, 0.882217, 0.531739, 0.601569, 5.97205)
@@ -105,10 +104,10 @@ radius = 1.45654
 height = 6.11255
 
 [node name="UNION_cylinder5" type="CSGCylinder3D" parent="island_test/IslandBuilder/Node3D"]
-transform = Transform3D(0.980498, 0.196528, 0, -0.196528, 0.980498, 0, 0, 0, 1, -8.1551, -2.14777, 2.82161)
+transform = Transform3D(0.980498, 0.196528, 0, -0.196528, 0.980498, 0, 0, 0, 1, -8.196309, -2.3533666, 2.82161)
 material_override = ExtResource("4_lkpm7")
-radius = 1.6582
-height = 5.31067
+radius = 2.3232422
+height = 5.730042
 
 [node name="UNION_cylinder4" type="CSGCylinder3D" parent="island_test/IslandBuilder/Node3D"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.296256, -2.28568, 8.30254)
@@ -122,7 +121,7 @@ material_override = ExtResource("4_lkpm7")
 radius = 2.61793
 
 [node name="UNION_box5" type="CSGBox3D" parent="island_test/IslandBuilder"]
-transform = Transform3D(0.814184, -0.0366008, -0.579452, 0.0103233, 0.998766, -0.0485814, 0.580515, 0.0335724, 0.813557, -7.36685, 5.01641, 0.132843)
+transform = Transform3D(0.814184, -0.0366008, -0.579452, 0.0103233, 0.998766, -0.0485814, 0.580515, 0.0335724, 0.813557, -7.6754932, 4.451212, 0.57577324)
 material_override = ExtResource("4_lkpm7")
 size = Vector3(3.57031, 10.0484, 4.48096)
 
