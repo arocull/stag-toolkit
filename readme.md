@@ -3,7 +3,7 @@
 [Godot](https://godotengine.org/) addon for real-time 3D games, art, and simulations.
 [Rust library](#as-a-rust-library) also available for non-Godot development.
 
-Currently equipped for Godot **4.5**+ on Windows and Linux.
+Currently equipped for Godot **4.5**+ on Windows and Linux (gdextension), or all platforms (without gdextension).
 
 > [!WARNING]
 > Areas of this addon are highly experimental and frequently subject to change based on personal needs.
@@ -15,16 +15,16 @@ Currently equipped for Godot **4.5**+ on Windows and Linux.
 
 ## Feature List
 
-- ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg) **[StagTest](docs/stagtest.md)** framework for simulating gameplay and performing benchmarks
-- ![](godot/addons/stag_toolkit/icons/icon_islandbuilder.svg) **[IslandBuilder](https://alanocull.com/island_builder.html)**\* tool and corresponding Rust backend
+- ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg) **[StagTest](docs/stagtest.md)** test framework for simulating gameplay and performing benchmarks
+- ![](godot/addons/stag_toolkit/icons/icon_islandbuilder.svg) **[IslandBuilder](https://alanocull.com/island_builder.html)**\* tool for instantly converting whiteboxes into game-ready terrain
 - ![](godot/addons/stag_toolkit/icons/icon_simulatedropebinding.svg) [**SimulatedRope** and **SimulatedRopeBinding**](docs/simulatedrope.md)\* nodes for performing and interacting with rope simulations
 - ![](godot/addons/stag_toolkit/icons/icon_queuefloat.svg) **QueueFloat**\* class for handling and analyzing float buffers with minimal allocations
-- ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg) **StagLogger** which wraps [Logger](https://docs.godotengine.org/en/stable/classes/class_logger.html) for granular debugging and error listening
-- **Simple LOD** importer for hands-free importing of scenes with custom LODs and collision
-- [**Texture/Material** importer](docs/ironpress.md) for `.ironpress` files
+- ![](godot/addons/stag_toolkit/icons/icon_stagtoolkit_monochrome.svg) **StagLogger** (wraps [Logger](https://docs.godotengine.org/en/stable/classes/class_logger.html)) for error catching and granular logs
+- **Simple LOD** importer for hands-free importing of scenes with custom LODs and collision siblings
+- [**Texture/Material** importer](docs/ironpress.md) for [`.ironpress`](https://github.com/arocull/IronPress) material imports
 - **[Shader includes](godot/addons/stag_toolkit/utils/shader_includes)** and debug shaders
 
-\* *Requires the built-in gdextension. Unmarked features only need GDScript.*
+\* *Requires the built-in gdextension.*
 
 Some features can be toggled on/off via the Project Settings under `addons/stag_toolkit`. May require an plugin reload or editor restart.
 
@@ -32,7 +32,7 @@ Some features can be toggled on/off via the Project Settings under `addons/stag_
 
 These projects use StagToolkit! Feel free to contribute your own.
 
-- [Abyss](https://stagmath.itch.io/abyss-demo), a platformer tower-defense game (in development)
+- **Abyss**, a tower-defense platformer ( [itch.io](https://stagmath.itch.io/abyss-demo) )
 
 ## Installation
 
@@ -51,9 +51,10 @@ This crate is not officially published to `crates.io` yet, but may be in the fut
 
 ## Documentation
 
-For the most up-to-date API documentation, use Godot's internal "Search Help" feature (hotkey F1).
+For the most up-to-date API documentation, use Godot Editor's internal "Search Help" feature (hotkey F1) to see internal class documentation.
+The `master` branch API is also hosted on [GitHub pages](https://arocull.github.io/stag-toolkit/), although the GDExtension docs are not properly generated yet.
 
-You can read manually-updated [docs](docs/) online too, or see example usage on my [website](https://alanocull.com/).
+Guides are manually documenated in the [docs](docs/) folder.
 
 ![](docs/images/godot-internal-docs.png)
 
@@ -76,7 +77,13 @@ Make use of Rust's target system!
 - Get a list of [all platforms](https://doc.rust-lang.org/nightly/rustc/platform-support.html): `$ rustup target list`
 - Ensure you have the proper linker installed [to make use of cargo](https://stackoverflow.com/a/62853319)
 
-Platforms still working on support for: `x86_64-apple-darwin` `wasm32-unknown-emscripten`
+These platforms currently are not supported, but may be supported in the future, in order of priority:
+
+1. Web Export `wasm32-unknown-emscripten` with threads
+2. Web Export `wasm32-unknown-emscripten` without threads
+3. Linux 32-bit
+4. Windows 32-bit
+5. Mac `x86_64-apple-darwin`
 
 #### On Linux
 
@@ -85,23 +92,25 @@ Install the proper linkers!
 - Ubuntu: `$ sudo apt-get install mingw-w64`
 - Fedora: `$ sudo dnf install mingw64-gcc`
 
-### Contribution
-
-If making a contribution, please follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) standard for commit names (as best you can).
+### Development
 
 You may need to install additional toolchains for pre-commit hooks.
 
 - `$ pip install pre-commit gdtoolkit` - Installs pre-commit hooks and a linting/formatting toolchain for GDScript.
 - `$ pre-commit install` - Initialize pre-commit hooks.
 
+## Contribution
+
+This repository is mirrored from a private git server, but if you're interested in contributing, let me know!
+
+My roadmap is based on personal needs.
+
+### Bug Reports
+
+Feel free to file an issue ticket on [GitHub](https://github.com/arocull/stag-toolkit/issues) with your issue.
+
 ## Credits
 
 - **[godot-rust](https://godot-rust.github.io/)** is used to hook StagToolkit into Godot Engine
 - **[Fast Surface Nets](https://github.com/bonsairobo/fast-surface-nets-rs)** for converting Signed Distance Field data to initial triangle meshes
 - **[Godot Engine](https://godotengine.org/)** where the plugin resides
-
-## Disclaimer
-
-This is a mirror of my own private repository.
-
-Issues and feature proposals are tracked there and might not be described here until implementation.

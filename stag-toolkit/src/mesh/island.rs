@@ -22,6 +22,7 @@ type IslandChunkSize = ConstShape3u32<48, 48, 48>; // Same size as VolumeMaxCell
 #[settings_resource_from(IslandBuilderSettingsVoxels, Resource)]
 pub struct SettingsVoxels {
     /// Number of voxels to pad on each side of the [IslandBuilder] volume.
+    /// This helps reduce cases where large amounts of noise or smoothing result in oddly flat (or cut off) surfaces.
     #[setting(default = 3, min = 0.0, max = 6.0, soft_max)]
     pub voxel_padding: u32,
     /// Width/height/depth of a voxel. This is the approximate resolution of the resulting [IslandBuilder] mesh.
@@ -86,7 +87,7 @@ pub struct SettingsVoxels {
 #[derive(Copy, Clone, PartialEq, ExposeSettings)]
 #[settings_resource_from(IslandBuilderSettingsMesh, Resource)]
 pub struct SettingsMesh {
-    /// Distance threshold for vertices to be merged for the visual mesh.
+    /// On the baked mesh, vertices within this distance of each other are automatically merged together.
     #[setting(
         default = 0.04,
         min = 0.0,
@@ -97,11 +98,18 @@ pub struct SettingsMesh {
     )]
     pub vertex_merge_distance: f32,
 
-    /// Whether to bake Ambient Occlusion to the Red channel.
+    /// Whether to bake Ambient Occlusion to the Red vertex color channel when baking meshes.
     /// The Red channel defaults to 1.0 if Ambient Occlusion is not baked.
+    ///
+    /// Ambient Occlusion baking greatly slows the bake step, but improves the visual quality of the island.
+    /// It's recommended to use this in tandem with an automated map building pipeline,
+    /// as baking AO can slow down iteration time in the editor.
     #[setting(default = false)]
     pub ao_enabled: bool,
     /// Sampling radius for Ambient Occlusion.
+    /// Defines the maximum distance for self-shadowing.
+    ///
+    /// Rays of this length will be fired from each vertex on the mesh.
     #[setting(
         default = 8.0,
         min = 0.01,
@@ -111,11 +119,15 @@ pub struct SettingsMesh {
         unit = "m"
     )]
     pub ao_radius: f32,
-    /// Weighting value for linearly blending a base value of 1.0 with the baked Ambient Occlusion.
+    /// Linearly blend the Ambient Occlusion value (0.0 to 1.0) with 1.0 based on this weight.
+    /// Determines the intensity of the Ambient Occlusion in the vertex colors.
+    ///
+    /// You can also modify the displayed Ambient Occlusion intensity with a material.
     #[setting(default = 0.8, min = 0.0, max = 1.0, incr = 0.001)]
     pub ao_strength: f32,
     /// Number of ambient occlusion samples to perform.
-    #[setting(default = 32, min = 1.0, max = 256.0, incr = 1.0)]
+    /// More samples take significantly longer to bake, but reduces noise in the result.
+    #[setting(default = 32, min = 1.0, max = 512.0, incr = 1.0)]
     pub ao_samples: u32,
 
     /// Minimum dot value for adding dirt gradation into the Green channel.
@@ -151,7 +163,7 @@ pub struct SettingsMesh {
 #[derive(Copy, Clone, PartialEq, ExposeSettings)]
 #[settings_resource_from(IslandBuilderSettingsCollision, Resource)]
 pub struct SettingsCollision {
-    /// Distance threshold for vertices to be merged for the collision hull.
+    /// On the collision hull, vertices within this distance of each other are automatically merged together.
     #[setting(
         default = 0.15,
         min = 0.0,
@@ -161,8 +173,8 @@ pub struct SettingsCollision {
         unit = "m"
     )]
     pub vertex_merge_distance: f32,
-    /// Angular threshold for decimating triangles used in physics collisions. In degrees.
-    /// If zero, mesh decimation will not occur.
+    /// Angular threshold for decimating triangles used in physics collisions, in degrees.
+    /// When zero, mesh decimation will not occur.
     #[setting(
         default = 2.0,
         min = 0.0,
@@ -177,16 +189,16 @@ pub struct SettingsCollision {
     #[setting(default = 100, min = 0.0, max = 500.0, incr = 1.0, soft_max)]
     pub decimation_iterations: u32,
 
-    /// Stops the decimation if this many triangles or less were removed during the last decimation step.
+    /// Stops the decimation if this many triangles or less were removed during the previous decimation step.
     /// This makes collision much faster to generate as it avoids chaining many steps with little gain,
-    /// at the cost of some determinism and a (very *very* slightly) more optimized mesh.
+    /// at the cost of some determinism and slightly less optimized collision.
     ///
-    /// Example: scanning a 5000-triangle mesh only to remove 1 edge is a lot of wasted computation time.
+    /// Example: scanning a 5000-triangle mesh only to remove 1 edge is a lot of computation time that is not totally necessary.
     #[setting(default = 8, min = 0.0, max = 24.0, incr = 1.0, soft_max)]
     pub decimation_dropout: u32,
 }
 
-/// Tweakable settings for a specific [IslandBuilder].
+/// Tweakable noise seeds for a given [IslandBuilder] node.
 #[derive(Copy, Clone, PartialEq, ExposeSettings)]
 #[settings_resource_from(IslandBuilderSettingsTweaks, Resource)]
 pub struct SettingsTweaks {
