@@ -49,6 +49,7 @@ debug: bindir
 bundle: clean build build-windows
 	@mkdir -p build/
 	@cd godot && zip -qqr9 ../build/addon_StagToolkit.zip addons/
+	$(MAKE) derust && cd godot && zip -qrr9 ../build/addon_StagToolkit_nogdext.zip addons/
 
 
 ## TEST / BENCH ##

@@ -27,9 +27,8 @@ jobs:
       - name: Setup StagToolkit
         uses: ./.gitea/composite/setup
         with:
-          godot-version: null
           cross-compile: true
-          toolkit-path: '.'
+          toolkit-path: "."
           import-assets: false
 
       - name: Build and Bundle
@@ -42,5 +41,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           token: ${{ secrets.ACCESS_TOKEN }}
-          files: build/addon_StagToolkit.zip
+          files: |
+            build/addon_StagToolkit.zip
+            build/addon_StagToolkit_nogdext.zip
           generate_release_notes: true
