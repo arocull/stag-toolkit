@@ -1,42 +1,42 @@
-name: 'StagToolkit Setup'
-description: 'Installs necessary toolchains for building StagToolkit and running it inside Godot.'
+name: "StagToolkit Setup"
+description: "Installs necessary toolchains for building StagToolkit and running it inside Godot."
 # https://docs.github.com/en/actions/sharing-automations/creating-actions/creating-a-composite-action#creating-an-action-metadata-file
 inputs:
   godot-version:
-    description: 'What version of the Godot editor to install. Set to null for no installation.'
+    description: "What version of the Godot editor to install. Set to null for no installation."
     required: false
-    default: '4.5.1-stable'
+    default: "4.5.1-stable"
   rust-version:
-    description: 'What version of the Rust toolchain to install'
+    description: "What version of the Rust toolchain to install"
     required: false
     default: stable
   toolkit-path:
-    description: 'Path to where stag-toolkit is installed'
+    description: "Path to where stag-toolkit is installed"
     required: false
-    default: 'stag-toolkit'
+    default: "stag-toolkit"
   cross-compile:
-    description: 'If true, builds StagToolkit binaries for all supported platforms'
+    description: "If true, builds StagToolkit binaries for all supported platforms"
     required: false
     type: boolean
     default: false
   fetch-lfs:
-    description: 'If true, fetches LFS files using a Gitea workaround'
+    description: "If true, fetches LFS files using a Gitea workaround"
     required: false
     type: boolean
     default: false
   import-assets:
-    description: 'If true, fetches LFS and launches Godot to import StagToolkit assets'
+    description: "If true, fetches LFS and launches Godot to import StagToolkit assets"
     required: true
     type: boolean
     default: false
 runs:
   using: "composite"
   steps:
-    - name: Debugging
-      shell: bash
-      run: |
-        echo "import-assets = ${{ inputs.import-assets }}"
-        echo "import-assets == true? ${{ inputs.import-assets == true }}"
+    # - name: Debugging
+    #  shell: bash
+    #  run: |
+    #    echo "import-assets = ${{ inputs.import-assets }}"
+    #    echo "import-assets == true? ${{ inputs.import-assets == true }}"
 
     - name: Install Godot
       if: ${{ inputs.godot-version != null }}
@@ -44,12 +44,12 @@ runs:
       env:
         GODOT_VERSION: ${{ inputs.godot-version }}
       run: |
-          ${{ inputs.toolkit-path }}/godot-build/install.sh
-          /usr/local/bin/godot --version
-          PATH=$PATH:~/usr/local/bin
-          rc=/tmp/rcfile
-          echo 'shopt -s expand_aliases' > $rc
-          echo 'alias godot="/usr/local/bin/godot" ' >> $rc
+        ${{ inputs.toolkit-path }}/godot-build/install.sh
+        /usr/local/bin/godot --version
+        PATH=$PATH:~/usr/local/bin
+        rc=/tmp/rcfile
+        echo 'shopt -s expand_aliases' > $rc
+        echo 'alias godot="/usr/local/bin/godot" ' >> $rc
 
     - name: Install MinGW
       if: ${{ inputs.cross-compile == 'true' }}
@@ -86,8 +86,8 @@ runs:
         cd ${{ inputs.toolkit-path }}
         make build build-windows
 
-    # Regular LFS fetch does not work on Gitea
-    # https://gitea.com/gitea/act_runner/issues/164
+      # Regular LFS fetch does not work on Gitea
+      # https://gitea.com/gitea/act_runner/issues/164
     - name: Fetch LFS
       id: fetch-lfs
       if: ${{ (inputs.fetch-lfs == 'true') || (inputs.import-assets == 'true') }}
@@ -102,8 +102,8 @@ runs:
         /usr/bin/git lfs fetch origin refs/remotes/origin/${{ github.ref_name }}
         /usr/bin/git lfs checkout
 
-    # Note: with UUID changes, Godot MUST import asstes in order to run scenes
-    # https://github.com/godotengine/godot/issues/107695
+      # Note: with UUID changes, Godot MUST import asstes in order to run scenes
+      # https://github.com/godotengine/godot/issues/107695
     - name: Import Assets
       if: ${{ inputs.import-assets == 'true' }}
       shell: bash

@@ -46,7 +46,7 @@ debug: bindir
 	@cargo build
 	@cp target/debug/libstag_toolkit.so godot/addons/stag_toolkit/bin/debug/libstag_toolkit.so
 
-bundle: clean build build-windows
+bundle: build build-windows
 	@mkdir -p build/
 	@cd godot && zip -qqr9 ../build/addon_StagToolkit.zip addons/
 	$(MAKE) derust && cd godot && zip -qrr9 ../build/addon_StagToolkit_nogdext.zip addons/
