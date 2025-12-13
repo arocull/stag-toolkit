@@ -1,0 +1,19 @@
+[gd_scene load_steps=2 format=3 uid="uid://is8q2vtvux8j"]
+
+[ext_resource type="Script" uid="uid://ccyfetvcma6lh" path="res://test/gdextension/required_apis.gd" id="1_0byqm"]
+
+[node name="RequiredApis" type="Node"]
+script = ExtResource("1_0byqm")
+
+[node name="Node3D" type="Node3D" parent="."]
+
+[node name="IslandBuilder" type="IslandBuilder" parent="Node3D" groups=["StagToolkit_IslandBuilder"]]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Node3D/IslandBuilder"]
+size = Vector3(5, 5, 5)
+
+[node name="mesh_island" type="MeshInstance3D" parent="Node3D/IslandBuilder"]
+layers = 5
+metadata/_edit_lock_ = true
+
+[node name="SpotLight3D" type="SpotLight3D" parent="Node3D"]
