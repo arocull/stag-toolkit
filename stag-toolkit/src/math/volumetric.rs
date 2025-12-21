@@ -1,9 +1,10 @@
 use crate::math::noise::Perlin1D;
 use glam::{FloatExt, Mat4, Vec3, Vec4};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
-use std::mem::swap;
+use std::{mem::swap, ops::Rem};
 
-/// A container for storing volume data
+/// A container for storing and managing volumetric data.
+#[derive(Clone)]
 pub struct VolumeData<T> {
     /// Internal data for voxel grid.
     pub data: Vec<T>,
@@ -31,6 +32,24 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
 
         Self {
             data: vec![default; size],
+            dim,
+            strides: [1, dim[0], dim[0] * dim[1]],
+            size,
+        }
+    }
+
+    pub fn with_data(data: Vec<T>, dim: [usize; 3]) -> Self {
+        let size = dim[0] * dim[1] * dim[2];
+
+        #[cfg(debug_assertions)]
+        assert_eq!(
+            data.len(),
+            size,
+            "buffer size does not match specified dimensions"
+        );
+
+        Self {
+            data,
             dim,
             strides: [1, dim[0], dim[0] * dim[1]],
             size,
@@ -105,8 +124,17 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
     }
 
     /// Splits the Volume into a set of worker data for parallel operations.
+    /// The data is handled via linear buffers and does not correspond to any actual 3D chunking.
+    ///
     /// If `preserve_data` is true, the data of the volume is copied into the vector.
     pub fn to_workers(&self, group_size: usize, preserve_data: bool) -> Vec<VolumeWorker<T>> {
+        #[cfg(debug_assertions)]
+        assert_eq!(
+            self.data.len(),
+            self.size,
+            "buffer size does not match specified dimensions"
+        );
+
         let worker_count = self.worker_count(group_size);
 
         let mut workers: Vec<VolumeWorker<T>> = Vec::with_capacity(worker_count);
@@ -118,7 +146,7 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
 
             let mut worker_data: Vec<T> = vec![T::default(); range_width];
             if preserve_data {
-                worker_data[range_min..range_max].copy_from_slice(&self.data[range_min..range_max]);
+                worker_data[0..range_width].copy_from_slice(&self.data[range_min..range_max]);
             }
 
             workers.push(VolumeWorker {
@@ -130,6 +158,69 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
         }
 
         workers
+    }
+
+    /// Splits the volume into separate cubic chunks for parallel operations.
+    /// This is slower than `to_workers`, but useful if the data must be spatially related.
+    ///
+    /// The original volume's dimensions *must be divisible* by the chunk's corresponding dimension sizes.
+    // TODO: Could optionally support arbritrary dimensions, instead of only divisible ones.
+    pub fn to_chunks(&self, dim: [usize; 3]) -> Vec<Vec<Vec<Self>>> {
+        // Ensure that the volume can actually be divded this way.
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(
+                0,
+                self.dim[0].rem(dim[0]),
+                "Dimension 0 is not divisible by {}",
+                dim[0]
+            );
+            assert_eq!(
+                0,
+                self.dim[1].rem(dim[1]),
+                "Dimension 1 is not divisible by {}",
+                dim[1]
+            );
+            assert_eq!(
+                0,
+                self.dim[2].rem(dim[2]),
+                "Dimension 2 is not divisible by {}",
+                dim[2]
+            );
+        }
+
+        let max_chunks_x = self.dim[0] / dim[0];
+        let max_chunks_y = self.dim[1] / dim[1];
+        let max_chunks_z = self.dim[2] / dim[2];
+        let mut chunks: Vec<Vec<Vec<Self>>> = Vec::with_capacity(max_chunks_x);
+
+        for chunkx in 0..max_chunks_x {
+            let mut chunks_x = Vec::with_capacity(max_chunks_y);
+            for chunky in 0..max_chunks_y {
+                let mut chunks_y = vec![Self::new(T::default(), dim); max_chunks_z];
+
+                for chunkz in 0..max_chunks_z {
+                    let chunk = &mut chunks_y[chunkz];
+
+                    let globalx_offset = chunkx * dim[0];
+                    let globaly_offset = chunky * dim[1];
+                    let globalz_offset = chunkz * dim[1];
+
+                    for i in 0..chunk.size {
+                        let [x, y, z] = chunk.delinearize(i);
+                        chunk.data[i] = self.get_linear(self.linearize(
+                            globalx_offset + x,
+                            globaly_offset + y,
+                            globalz_offset + z,
+                        ));
+                    }
+                }
+                chunks_x.push(chunks_y)
+            }
+            chunks.push(chunks_x);
+        }
+
+        chunks
     }
 }
 
@@ -257,5 +348,79 @@ mod tests {
         // Test clamping
         assert_eq!(vol.linearize(0, 0, 0), 0, "Linearize at -1,-1,-1");
         assert_eq!(vol.linearize(4, 4, 4), idx_max, "Linearize at 4,4,4");
+    }
+
+    #[test]
+    fn test_volume_workers() {
+        let volume = VolumeData::<f32>::with_data((1u8..=27).map(f32::from).collect(), [3, 3, 3]);
+
+        assert_eq!(
+            27,
+            volume.get_buffer_size(),
+            "buffer size should match expected"
+        );
+
+        let workers = volume.to_workers(6, true);
+
+        for i in 0..3 {
+            // First 4 workers have 2 points of data
+            assert_eq!(
+                6,
+                workers[i].data.len(),
+                "worker should be of expected size"
+            );
+        }
+
+        // Last worker has 1
+        assert_eq!(
+            3,
+            workers[4].data.len(),
+            "last worker should have remainder of data"
+        );
+    }
+
+    #[test]
+    fn test_volume_chunks() {
+        let volume =
+            VolumeData::<f32>::with_data((1u16..=729u16).map(f32::from).collect(), [9, 9, 9]);
+
+        assert_eq!(
+            729,
+            volume.get_buffer_size(),
+            "buffer size should match expected"
+        );
+
+        let chunks = volume.to_chunks([3, 3, 3]);
+
+        assert_eq!(3, chunks.len(), "x axis length is 3 chunks");
+        for x in chunks.iter() {
+            assert_eq!(3, x.len(), "y axis length is 3 chunks");
+            for y in x.iter() {
+                assert_eq!(3, y.len(), "z axis length is 3 chunks");
+                for z in y.iter() {
+                    assert_eq!(
+                        27,
+                        z.get_buffer_size(),
+                        "all chunks should be expected size"
+                    );
+                }
+            }
+        }
+
+        assert_eq!(
+            vec!(
+                1.0f32, 2.0f32, 3.0f32, // 4 5 6, 7 8 9
+                10.0f32, 11.0f32, 12.0f32, // 13 14 15, 16 17 18
+                19.0f32, 20.0f32, 21.0f32, // End Slice 1
+                82.0f32, 83.0f32, 84.0f32, // Start slice 2
+                91.0f32, 92.0f32, 93.0f32, // mid slice 2
+                100.0f32, 101.0f32, 102.0f32, // End slice 2
+                163.0f32, 164.0f32, 165.0f32, // Start slice 3
+                172.0f32, 173.0f32, 174.0f32, // More slice 3
+                181.0f32, 182.0f32, 183.0f32, // End slice 3
+            ),
+            chunks[0][0][0].data,
+            "chunk data should follow expected layout"
+        );
     }
 }
