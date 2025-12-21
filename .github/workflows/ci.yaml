@@ -1,6 +1,6 @@
 #checkov:skip:CKV2_GHA_1:Comment
-name: Rust CI Workflow
-run-name: CI - ${{ github.event.repository.name }}
+name: Lint and Test
+run-name: Lint and Test ${{ github.sha }}
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 jobs:
   rust:
     runs-on: ubuntu-latest
-    name: Test + Lint Rust
+    name: Lint and Test
     permissions:
       id-token: write
       contents: read
@@ -21,14 +21,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.head_ref }}
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Install Rust toolchain
         uses: crusty-pie/toolchain@v1
         with:
           toolchain: stable
           override: true
-          components: rustfmt, clippy
+          components: rustfmt
 
       - name: Rust fmt
         id: rust-fmt
@@ -45,21 +45,21 @@ jobs:
           cargo install cargo-tarpaulin
           cargo tarpaulin -o html --output-dir reports/
 
-      - name: Super-Linter
-        uses: super-linter/super-linter@v6.8.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SUPPRESS_POSSUM: true
-          LINTER_RULES_PATH: .
-          DISABLE_ERRORS: true
-          VALIDATE_RUST_2015: false
-          VALIDATE_RUST_2018: false
-          VALIDATE_RUST_2021: false
-          VALIDATE_RUST_CLIPPY: false
-          VALIDATE_JSCPD: false # takes forever
-          # These seem to be broken
-          VALIDATE_GROOVY: false
-          FIX_GROOVY: false
+      # - name: Super-Linter
+      #   uses: super-linter/super-linter@v6.8.0
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     SUPPRESS_POSSUM: true
+      #     LINTER_RULES_PATH: .
+      #     DISABLE_ERRORS: true
+      #     VALIDATE_RUST_2015: false
+      #     VALIDATE_RUST_2018: false
+      #     VALIDATE_RUST_2021: false
+      #     VALIDATE_RUST_CLIPPY: false
+      #     VALIDATE_JSCPD: false # takes forever
+      #     # These seem to be broken
+      #     VALIDATE_GROOVY: false
+      #     FIX_GROOVY: false
 
       - name: Archive Coverage Results
         uses: actions/upload-artifact@v4
@@ -67,26 +67,11 @@ jobs:
           name: code-coverage-report
           path: reports/tarpaulin-report.html
 
-  godot:
-    runs-on: ubuntu-latest
-    name: Test Godot
-    permissions:
-      id-token: write
-      contents: read
-      actions: write
-
-    steps:
-      - name: Clone
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-
       - name: Setup StagToolkit
         uses: ./.gitea/composite/setup
         with:
           cross-compile: false
-          toolkit-path: '.'
+          toolkit-path: "."
           import-assets: true
 
       - name: Godot Unit Tests

@@ -124,7 +124,7 @@ impl StagPhysicsServer {
         max_depth: f32,
         hit_backfaces: bool,
         collision_mask: u32,
-    ) -> Dictionary {
+    ) -> VarDictionary {
         let params = PhysicsRaycastParameters::new(
             RaycastParameters::new(
                 origin.to_vector3(),
@@ -137,7 +137,7 @@ impl StagPhysicsServer {
         let result = self.server.raycast(params);
 
         if let Some(result) = result {
-            let mut dictionary = Dictionary::new();
+            let mut dictionary = VarDictionary::new();
             dictionary.set(
                 "point",
                 <Vec3 as ToVector3<Vector3>>::to_vector3(&result.raycast_result.point),
@@ -152,6 +152,6 @@ impl StagPhysicsServer {
             return dictionary;
         }
 
-        Dictionary::new()
+        VarDictionary::new()
     }
 }

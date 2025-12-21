@@ -1,7 +1,7 @@
 use crate::math::noise::Perlin1D;
 use glam::{FloatExt, Mat4, Vec3, Vec4};
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
-use std::{mem::swap, ops::Rem};
+use std::mem::swap;
 
 /// A container for storing and managing volumetric data.
 #[derive(Clone)]
@@ -171,19 +171,19 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
         {
             assert_eq!(
                 0,
-                self.dim[0].rem(dim[0]),
+                self.dim[0] % dim[0],
                 "Dimension 0 is not divisible by {}",
                 dim[0]
             );
             assert_eq!(
                 0,
-                self.dim[1].rem(dim[1]),
+                self.dim[1] % dim[1],
                 "Dimension 1 is not divisible by {}",
                 dim[1]
             );
             assert_eq!(
                 0,
-                self.dim[2].rem(dim[2]),
+                self.dim[2] % dim[2],
                 "Dimension 2 is not divisible by {}",
                 dim[2]
             );
