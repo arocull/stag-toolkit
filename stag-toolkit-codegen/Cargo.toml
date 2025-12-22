@@ -1,6 +1,6 @@
 [package]
 name = "stag-toolkit-codegen"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2024"
 license = "Apache-2.0"
 description = "Internal crate used by stag-toolkit"

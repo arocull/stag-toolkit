@@ -20,7 +20,7 @@ stag_toolkit/island_builder/default_settings=""
 
 config/name="StagToolkit"
 config/description="All-purpose toolkit for Godot game creation."
-config/version="0.5.1"
+config/version="0.5.2"
 config/tags=PackedStringArray("abyss", "plugin", "prototype")
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.5", "Forward Plus")

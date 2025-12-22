@@ -1,7 +1,7 @@
 [package]
 name = "stag-toolkit"
 description = "Real-time solutions for 3D games, art, and simulations."
-version = "0.5.1"
+version = "0.5.2"
 edition = "2024"
 license = "Apache-2.0"
 readme = "readme.md"
@@ -31,7 +31,7 @@ godot = { version = "0.4.2", features = ["api-4-5", "experimental-threads", "reg
 ndshape = "0.3.0"
 noise = "0.9.0"
 rayon = "1.11.0"
-stag-toolkit-codegen = { path = "../stag-toolkit-codegen" }
+stag-toolkit-codegen = { path = "../stag-toolkit-codegen", version = "0.5.2" }
 
 [dev-dependencies]
 criterion = { version = "0.7.0", features = ["html_reports"] }
