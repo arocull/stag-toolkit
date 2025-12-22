@@ -1,7 +1,6 @@
 # ![](godot/icon.svg) Stag Toolkit
 
-[Godot](https://godotengine.org/) addon for real-time 3D games, art, and simulations.
-[Rust library](#as-a-rust-library) also available for non-Godot development.
+[Godot](https://godotengine.org/) addon and [Rust library](#as-a-rust-library) for real-time 3D games, art, and simulations.
 
 Currently equipped for Godot **4.5**+ on Windows and Linux (gdextension), or all platforms (without gdextension).
 
@@ -40,14 +39,15 @@ The latest stable plugin versions are published in the [releases tab](https://gi
 
 ### As a Rust Library
 
-The `stag-toolkit` crate can also be used as a library for your own Rust projects, with the option to disable Godot-related features. In your `Cargo.toml`, add:
+The [`stag-toolkit` crate](https://crates.io/crates/stag-toolkit) can also be used as a library for your own Rust projects: `cargo add stag-toolkit`
+
+Or, in your `Cargo.toml`, add:
 
 ```toml
 [dependencies]
-stag-toolkit = { version = "0.4.0", git = "https://github.com/arocull/stag-toolkit", default-features = false }
+# ...
+stag-toolkit = "0.5.2"
 ```
-
-This crate is not officially published to `crates.io` yet, but may be in the future.
 
 ## Documentation
 
