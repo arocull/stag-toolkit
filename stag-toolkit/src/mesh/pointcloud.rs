@@ -1,15 +1,13 @@
+use crate::math::{bounding_box::BoundingBox, projection::Plane};
 use glam::{Vec3, Vec4};
-use godot::builtin::{Aabb, Vector3};
 
-use crate::math::{projection::Plane, types::ToVector3};
-
-/// A set of 3D points that can be operated on.
+/// A set of points for analysis.
 pub trait PointCloud {
     /// Returns the axis-aligned bounding box for the given list of points.
-    fn bounds(&self) -> Aabb;
+    fn bounds(&self) -> BoundingBox;
 
     /// Returns the indices two most distant pairing of points in the cloud, given the bounding box.
-    fn distant(&self, aabb: Aabb) -> (usize, usize);
+    fn distant(&self, aabb: BoundingBox) -> (usize, usize);
 
     /// Returns the index of the most distant point from the given line.
     fn distant_line(&self, from: Vec3, to: Vec3) -> usize;
@@ -19,32 +17,33 @@ pub trait PointCloud {
 }
 
 impl PointCloud for Vec<Vec3> {
-    fn bounds(&self) -> Aabb {
+    fn bounds(&self) -> BoundingBox {
         // If we have no points, returns an empty bounding box.
         if self.is_empty() {
-            return Aabb::new(Vector3::ZERO, Vector3::ZERO);
+            return BoundingBox::new(Vec3::ZERO, Vec3::ZERO);
         }
 
         // Otherwise, start bounding box on first item.
-        let mut aabb = Aabb::new(self[0].to_vector3(), Vector3::ZERO);
+        let mut aabb = BoundingBox::new(self[0], Vec3::ZERO);
 
         // Expand AABB to contain each item.
         for item in self.iter() {
-            aabb = aabb.expand(item.to_vector3());
+            aabb = aabb.enclose(*item);
         }
 
         aabb
     }
 
-    fn distant(&self, aabb: Aabb) -> (usize, usize) {
-        if let Some(axis) = aabb.longest_axis_index() {
+    fn distant(&self, aabb: BoundingBox) -> (usize, usize) {
+        if !aabb.zero() {
+            let axis = aabb.size().max_position();
             let mut min_idx = 0;
             let mut max_idx = 0;
             let mut max: f32 = 0.0;
             let mut min: f32 = 0.0;
 
             for (idx, pt) in self.iter().enumerate() {
-                let d = (*pt)[axis as usize];
+                let d = (*pt)[axis];
 
                 if idx == 0 || d < min {
                     min_idx = idx;
@@ -112,10 +111,8 @@ impl PointCloud for Vec<Vec3> {
 
 #[cfg(test)]
 mod tests {
-    use godot::builtin::math::ApproxEq;
-
     use crate::{
-        math::projection::plane,
+        math::{delta::assert_in_delta_vector, projection::plane},
         mesh::trimesh::{Triangle, TriangleOperations},
     };
 
@@ -132,16 +129,18 @@ mod tests {
 
         let aabb = pts.bounds();
 
-        // Assert that each transform is equal to its counterpart
-        assert!(
-            aabb.position.approx_eq(&Vector3::new(-2.0, 2.0, 0.0)),
-            "Bounds start in proper position: {0}",
-            aabb.position
+        assert_in_delta_vector(
+            Vec3::new(-2.0, 2.0, 0.0),
+            aabb.minimum,
+            1e-6,
+            "Bounds start in proper position",
         );
-        assert!(
-            aabb.size.approx_eq(&Vector3::new(5.0, 2.0, 5.0)),
-            "Bounds have correct size: {0}",
-            aabb.size
+
+        assert_in_delta_vector(
+            Vec3::new(5.0, 2.0, 5.0),
+            aabb.size(),
+            1e-6,
+            "Bounds have correct size",
         );
     }
 

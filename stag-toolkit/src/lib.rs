@@ -1,14 +1,24 @@
 #![doc(html_favicon_url = "https://alanocull.com/favicon.ico")]
-//! Game development utilities addon for Godot, written in Rust for speed and stability.
+//! Real-time solutions for 3D games, art, and simulations.
 //!
-//! Contains these nodes:
-//! - IslandBuilder
-//! - SimulatedRope
-//! - QueueFloat
+//! This library provides utility data structures for handling 3D data, such as meshes and volumetrics.
+//! Additional utilities like projection and SDF libraries are also provided.
 //!
-//! Crate Features:
-//! - **`godot`** (default) - Enables Godot Engine classes using [godot-rust/gdext](https://github.com/godot-rust/gdext) crate. Disable if you just want to use this as a library.
-//! - **`nothreads`** (WIP) - Experimental feature for single-threaded Web exports.
+//! ## Module Layout
+//!
+//! - [`animation`]: under `animation` feature flag, contains experimental animation data structures.
+//! - [`classes`]: under `godot` feature flag, contains [Godot-Rust](https://github.com/godot-rust/gdext) classes for use inside [Godot Engine](https://godotengine.org/)'s [Stag Toolkit](https://github.com/arocull/stag-toolkit) addon
+//! - [`math`]: Math utilities including projection, volumetrics, Signed Distance Fields, and raycasting.
+//! - [`mesh`]: Mesh utilities including the TriangleMesh data structure, and an SDF-based terrain generation system.
+//! - [`physics`]: under the `physics_server` feature flag, contains experimental physics-related data structures
+//! - [`simulation`]: includes simple a rope simulation
+//! - [`utils`]: various utilities used globally across the crate
+//!
+//! ## Feature Flags
+//! - **`animation`** - Enables experimental animation library. Not solidified and will see breaking changes over time.
+//! - **`physics_server`** - Enables experimental physics server utilities. Not solidified and will see breaking changes over time.
+//! - **`godot`** - Enables [Godot Engine](https://godotengine.org/) classes using [godot-rust/gdext](https://github.com/godot-rust/gdext) crate.
+// - **`nothreads`** (WIP) - Experimental feature for single-threaded Web exports.
 
 // MODULE DECLARATION //
 
@@ -42,6 +52,8 @@ pub mod mesh {
     // pub mod hull;
     /// Net algorithms like Naive Surface Nets.
     pub mod nets;
+    /// PointCloud trait for managing large sets of point data.
+    pub mod pointcloud;
     /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
 
@@ -49,12 +61,10 @@ pub mod mesh {
     pub mod island;
 
     /// Ineroperable mesh data with Godot Engine.
+    ///
+    /// Requires `godot` feature flag.
     #[cfg(feature = "godot")]
     pub mod godot;
-    /// Point Cloud trait and associated functions for managing large sets of point data.
-    /// TODO: decouple this from Godot.
-    #[cfg(feature = "godot")]
-    pub mod pointcloud;
 }
 /// Data structures and tools for simulated systems.
 pub mod simulation {
@@ -63,6 +73,8 @@ pub mod simulation {
     pub mod rope;
 }
 /// Physics-server related classes.
+///
+/// Requires `physics_server` feature flag.
 #[cfg(feature = "physics_server")]
 pub mod physics {
     /// Physics bodies with collision, mass, and intertia.
@@ -78,6 +90,7 @@ pub mod physics {
     pub mod server;
 }
 /// Custom animation system for Godot Engine.
+#[cfg(feature = "animation")]
 pub mod animation {
     /// Animation-focused mixing implementation for HashMaps.
     /// Godot-agnostic.
@@ -87,11 +100,15 @@ pub mod animation {
     pub mod pose;
 
     /// Godot-related AnimationSoup classes.
+    ///
+    /// Requires `godot` feature flag.
     #[cfg(feature = "godot")]
     pub mod soup;
 }
 
 /// Godot-specific tools and classes, including the extension itself.
+///
+/// Requires `godot` feature flag.
 #[cfg(feature = "godot")]
 pub mod classes {
     // IMPORTS //

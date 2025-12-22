@@ -43,7 +43,7 @@ build-mac: bindir
 	@cp target/x86_64-apple-darwin/release/libstag_toolkit.dylib godot/addons/stag_toolkit/bin/release/libstag_toolkit.dylib
 
 debug: bindir
-	@cargo build
+	@cargo build --features godot,physics_server
 	@cp target/debug/libstag_toolkit.so godot/addons/stag_toolkit/bin/debug/libstag_toolkit.so
 
 bundle: build build-windows

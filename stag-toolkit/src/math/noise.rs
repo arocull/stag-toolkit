@@ -1,6 +1,7 @@
 use glam::{Vec3, Vec4};
 use noise::{NoiseFn, Perlin, Seedable};
 
+/// A one-dimensional perlin noise function.
 #[derive(Clone)]
 pub struct Perlin1D {
     pub frequency: [f64; 4],
@@ -55,6 +56,7 @@ impl Default for Perlin1D {
     }
 }
 
+/// A three-dimensional perlin noise function.
 #[derive(Clone)]
 pub struct Perlin3D {
     pub frequency: [f64; 4],

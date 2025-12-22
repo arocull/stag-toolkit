@@ -5,10 +5,10 @@ repos:
     rev: v5.0.0
     hooks:
       - id: check-json
-        exclude: .vscode/
+        exclude: "(.vscode|.zed)/.*"
       - id: pretty-format-json
         args: [--autofix]
-        exclude: .vscode/
+        exclude: "(.vscode|.zed)/.*"
       - id: check-yaml
       - id: check-toml
       - id: trailing-whitespace
@@ -33,19 +33,19 @@ repos:
 
   # GDScript Toolkit - https://github.com/Scony/godot-gdscript-toolkit
   # - repo: local
-    # rev: 4.5
-    # hooks:
+  # rev: 4.5
+  # hooks:
 
-    # GDLint is not updated for Godot 4.5 yet, missing vararg support:
-    # https://github.com/Scony/godot-gdscript-toolkit/issues/399
-      # - id: gdlint
-      #   name: gdlint
-      #   description: "gdlint - linter for GDScript"
-      #   entry: gdlint
-      #   language: python
-      #   language_version: python3
-      #   require_serial: true
-      #   types: [gdscript]
+  # GDLint is not updated for Godot 4.5 yet, missing vararg support:
+  # https://github.com/Scony/godot-gdscript-toolkit/issues/399
+  # - id: gdlint
+  #   name: gdlint
+  #   description: "gdlint - linter for GDScript"
+  #   entry: gdlint
+  #   language: python
+  #   language_version: python3
+  #   require_serial: true
+  #   types: [gdscript]
   #   Disabling because formatter sucks right now.
   #   Looks like it may be getting added to Godot though:
   #   https://github.com/godotengine/godot/pull/97383

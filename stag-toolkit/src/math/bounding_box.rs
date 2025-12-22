@@ -94,6 +94,11 @@ impl BoundingBox {
             maximum: self.maximum.max(point),
         }
     }
+
+    /// Returns true if the bounding box has no volume.
+    pub fn zero(&self) -> bool {
+        self.minimum.eq(&self.maximum)
+    }
 }
 
 impl Mul<BoundingBox> for Mat4 {

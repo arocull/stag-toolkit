@@ -298,6 +298,7 @@ impl IslandBuilder {
         }
     }
 
+    /// Returns the currently used [IslandBuilderSettings] resource.
     #[func]
     fn fetch_settings(&self) -> Gd<IslandBuilderSettings> {
         self.settings_internal.clone()

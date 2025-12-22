@@ -1,0 +1,18 @@
+{
+  "languages": {
+    "Rust": {
+      "hard_tabs": true,
+    },
+  },
+  "lsp": {
+    // https://zed.dev/docs/languages/rust
+    "rust-analyzer": {
+      // https://rust-analyzer.github.io/book/configuration.html#cargo.features
+      "initialization_options": {
+        "cargo": {
+          "features": "all",
+        },
+      },
+    },
+  },
+}

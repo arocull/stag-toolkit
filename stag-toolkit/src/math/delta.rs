@@ -5,6 +5,7 @@ pub fn assert_in_delta(expected: f32, actual: f32, delta: f32, descriptor: Strin
     assert!((expected - actual).abs() < delta, "{descriptor}");
 }
 
+/// Asserts that two vectors are within the given delta of each other.
 pub fn assert_in_delta_vector(expected: Vec3, actual: Vec3, delta: f32, descriptor: &str) {
     assert!(
         (expected - actual).length() < delta,

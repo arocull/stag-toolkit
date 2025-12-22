@@ -1,7 +1,14 @@
 [package]
 name = "stag-toolkit"
+description = "Real-time solutions for 3D games, art, and simulations."
 version = "0.5.1"
 edition = "2024"
+license = "Apache-2.0"
+readme = "readme.md"
+repository = "https://github.com/arocull/stag-toolkit"
+homepage = "https://github.com/arocull/stag-toolkit"
+keywords = ["mesh", "gamedev", "volumetrics"]
+categories = ["visualization", "mathematics"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,10 +18,11 @@ crate-type = ["cdylib", "lib"]  # Compile this crate to a dynamic C library.
 # doc = true
 
 [features]
-default = ["godot", "physics_server"]
+default = []
 godot = ["dep:godot"] # Enables compiling as a Godot plugin
 # nothreads = ["godot/experimental-wasm-nothreads"] # Intended for WASM exports
 physics_server = [] # Experimental physics server
+animation = [] # Experimental animation system
 
 [dependencies]
 fast-surface-nets = "0.2.1"
