@@ -24,6 +24,12 @@ var settings: Array[Dictionary] = [
 		"default": true,
 	},
 	{
+		"name": "addons/stag_toolkit/importers/gaussian_splat/enabled",
+		"type": TYPE_BOOL,
+		"description": "Whether the Gaussian Splat importer is enabled or not. Requires plugin reload.",
+		"default": true,
+	},
+	{
 		"name": "addons/stag_toolkit/island_builder/enabled",
 		"type": TYPE_BOOL,
 		"hint": PROPERTY_HINT_FILE,
@@ -66,6 +72,12 @@ var dockers: Array[Dictionary] = [
 	{
 		"toggle": "addons/stag_toolkit/importer/ironpress",
 		"resource": "res://addons/stag_toolkit/plugin/importer/ironpress.gd",
+		"constructed": null,
+		"type": DockerType.Import,
+	},
+	{
+		"toggle": "addons/stag_toolkit/importer/gaussian_splat",
+		"resource": "res://addons/stag_toolkit/plugin/importer/gaussian_splat.gd",
 		"constructed": null,
 		"type": DockerType.Import,
 	},

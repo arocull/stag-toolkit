@@ -1,0 +1,8 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://cmb1bu750pnyf"]
+
+[ext_resource type="Shader" uid="uid://cvsygvqhalqnm" path="res://addons/stag_toolkit/utils/shaders/mat_gaussian_splat.gdshader" id="1_c4sjl"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_c4sjl")
+shader_parameter/discard_threshold = 0.0250000011875
