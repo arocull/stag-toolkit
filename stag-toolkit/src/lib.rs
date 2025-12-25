@@ -110,6 +110,7 @@ pub mod animation {
 ///
 /// Requires `godot` feature flag.
 #[cfg(feature = "godot")]
+#[allow(rustdoc::broken_intra_doc_links)] // For Godot documentation processing.
 pub mod classes {
     // IMPORTS //
     use godot::prelude::*;

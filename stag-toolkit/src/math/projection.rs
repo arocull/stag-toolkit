@@ -96,7 +96,7 @@ pub fn furthest_point(points: &[Vec3], plane_normal: Vec3, plane_point: Vec3) ->
 /// Assumes Z is in range \[-1 to 1\].
 /// Assumes theta is in range \[-PI, PI).
 ///
-/// See a 3D example here: https://www.desmos.com/3d/vtqnlijzr8
+/// See a 3D example here: <https://www.desmos.com/3d/vtqnlijzr8>
 pub fn vector_in_cone(orientation: Quat, z: f32, theta: f32) -> Vec3 {
     // https://math.stackexchange.com/questions/56784/generate-a-random-direction-within-a-cone
     // https://www.desmos.com/3d/vtqnlijzr8

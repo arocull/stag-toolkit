@@ -21,11 +21,11 @@ type IslandChunkSize = ConstShape3u32<48, 48, 48>; // Same size as VolumeMaxCell
 #[derive(Copy, Clone, PartialEq, ExposeSettings)]
 #[settings_resource_from(IslandBuilderSettingsVoxels, Resource)]
 pub struct SettingsVoxels {
-    /// Number of voxels to pad on each side of the [IslandBuilder] volume.
+    /// Number of voxels to pad on each side of the island volume.
     /// This helps reduce cases where large amounts of noise or smoothing result in oddly flat (or cut off) surfaces.
     #[setting(default = 3, min = 0.0, max = 6.0, soft_max)]
     pub voxel_padding: u32,
-    /// Width/height/depth of a voxel. This is the approximate resolution of the resulting [IslandBuilder] mesh.
+    /// Width/height/depth of a voxel. This is the approximate resolution of the resulting island mesh.
     #[setting(default=Vec3::splat(0.275), min=0.05, max=1.0, incr=0.001, soft_max, unit="m")]
     pub voxel_size: Vec3,
 
@@ -198,7 +198,7 @@ pub struct SettingsCollision {
     pub decimation_dropout: u32,
 }
 
-/// Tweakable noise seeds for a given [IslandBuilder] node.
+/// Tweakable noise seeds for a given island builder.
 #[derive(Copy, Clone, PartialEq, ExposeSettings)]
 #[settings_resource_from(IslandBuilderSettingsTweaks, Resource)]
 pub struct SettingsTweaks {

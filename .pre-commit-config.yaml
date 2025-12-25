@@ -67,6 +67,13 @@ repos:
         pass_filenames: false
         types: [rust]
 
+      - id: cargo-doc
+        name: check rust docs
+        entry: make doc-rust-strict
+        language: system
+        pass_filenames: false
+        types_or: [rust, toml]
+
       # Updating accomplishes a few things:
       # - verifies dependencies are actually up to date (branch specifiers are
       #   lazily evaluated)

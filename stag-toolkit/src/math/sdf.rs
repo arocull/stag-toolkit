@@ -2,7 +2,7 @@ use crate::math::bounding_box::BoundingBox;
 use glam::{Mat4, Vec2, Vec3, Vec3Swizzles, Vec4, Vec4Swizzles, vec2, vec3};
 
 /// Joins two distance functions, using a logarithm for smoothing values.
-/// `k = 32.0`` was the original suggestion for smoothing value.
+/// `k = 32.0` was the original suggestion for smoothing value.
 pub fn smooth_union(a: f32, b: f32, k: f32) -> f32 {
     let res = (-k * a).exp() + (-k * b).exp();
     -res.max(0.0001).log10() / k
@@ -30,8 +30,8 @@ pub fn sample_sphere(sample_position: Vec3, shape_radius: f32) -> f32 {
 
 /// Distance function for a rounded box.
 ///
-/// https://github.com/jasmcole/Blog/blob/master/CSG/src/fragment.ts#L13
-/// https://github.com/fogleman/sdf/blob/main/sdf/d3.py#L140
+/// <https://github.com/jasmcole/Blog/blob/master/CSG/src/fragment.ts#L13>
+/// <https://github.com/fogleman/sdf/blob/main/sdf/d3.py#L140>
 pub fn sample_box_rounded(sample_position: Vec3, shape_dim: Vec3, radius_edge: f32) -> f32 {
     let q = sample_position.abs() - shape_dim * Vec3::splat(0.5) + Vec3::splat(radius_edge);
     let m = q.max(Vec3::ZERO).length();
@@ -40,8 +40,8 @@ pub fn sample_box_rounded(sample_position: Vec3, shape_dim: Vec3, radius_edge: f
 
 /// Distance function for a rounded cylinder.
 ///
-/// https://iquilezles.org/articles/distfunctions/
-/// https://www.shadertoy.com/view/fl3GRl
+/// <https://iquilezles.org/articles/distfunctions/>
+/// <https://www.shadertoy.com/view/fl3GRl>
 pub fn sample_cylinder_rounded(
     sample_position: Vec3,
     shape_radius: f32,
@@ -57,7 +57,7 @@ pub fn sample_cylinder_rounded(
 
 /// Distance function for a torus.
 ///
-/// https://iquilezles.org/articles/distfunctions/
+/// <https://iquilezles.org/articles/distfunctions/>
 pub fn sample_torus(sample_position: Vec3, ring_thickness: f32, radius: f32) -> f32 {
     let q = vec2(sample_position.xz().length() - radius, sample_position.y);
     q.length() - ring_thickness

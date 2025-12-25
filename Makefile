@@ -106,6 +106,9 @@ doc-gdextension:
 doc-rust:
 	@cargo doc --lib --no-default-features
 
+doc-rust-strict:
+	@RUSTDOCFLAGS="-D rustdoc::broken-intra-doc-links -D rustdoc::private-intra-doc-links -D rustdoc::invalid-codeblock-attributes -D rustdoc::invalid-rust-codeblocks -D rustdoc::invalid-html-tags -D rustdoc::bare-urls -D rustdoc::unescaped-backticks -D warnings" cargo doc -p stag-toolkit --no-deps --all-features
+
 sphinx:
 	@cd sphinx && ./build.sh
 	@cd sphinx && sphinx-build . ../build/public
