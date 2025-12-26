@@ -48,7 +48,7 @@ class SignalExpector extends RefCounted:
 	var _mutex: Mutex = Mutex.new()
 
 	## Increments the emitter count by 1.
-	func _increment(...args: Array[Variant]) -> void:
+	func _increment(..._args: Array[Variant]) -> void:
 		_mutex.lock()
 		_count += 1
 		_mutex.unlock()

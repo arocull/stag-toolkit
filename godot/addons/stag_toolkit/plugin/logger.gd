@@ -90,7 +90,16 @@ var _messages_until_flush: int = 0
 
 # Called from push_warning, push_error, and Engine errors.
 # Errors are already printed to console, so just save these to the log and emit events.
-func _log_error(function: String, file: String, line: int, code: String, rationale: String, editor_notify: bool, error_type: int, script_backtraces: Array[ScriptBacktrace]) -> void:
+func _log_error(
+	function: String,
+	file: String,
+	line: int,
+	code: String,
+	rationale: String,
+	_editor_notify: bool,
+	error_type: int,
+	script_backtraces: Array[ScriptBacktrace],
+) -> void:
 	var backtrace: String = ""
 	if error_backtraces:
 		backtrace = "\n\tBacktrace:"
@@ -127,7 +136,7 @@ func _log_error(function: String, file: String, line: int, code: String, rationa
 			event_error_shader.emit(message)
 
 # Called from regular print functions.
-func _log_message(message: String, is_error: bool) -> void:
+func _log_message(_message: String, _is_error: bool) -> void:
 	pass # Don't double up on logging!
 
 ## Logs a message with the "debug" log level.
