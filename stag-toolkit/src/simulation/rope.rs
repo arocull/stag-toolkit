@@ -1,6 +1,5 @@
-use std::collections::HashMap;
-
 use glam::{FloatExt, Vec3, Vec4, Vec4Swizzles, vec3};
+use std::collections::HashMap;
 
 /// Returns a tuple of values A and B, constrainted within the given distance from each other.
 /// Acts as a double-sided Jakobsen constraint, with added strain.

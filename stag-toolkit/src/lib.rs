@@ -15,6 +15,7 @@
 //! - [`utils`]: various utilities used globally across the crate
 //!
 //! ## Feature Flags
+//! - **`analytics`** - Enables experimental analytics system (requires `godot` flag). Not solidified and will see breaking changes over time.
 //! - **`animation`** - Enables experimental animation library. Not solidified and will see breaking changes over time.
 //! - **`physics_server`** - Enables experimental physics server utilities. Not solidified and will see breaking changes over time.
 //! - **`godot`** - Enables [Godot Engine](https://godotengine.org/) classes using [godot-rust/gdext](https://github.com/godot-rust/gdext) crate.
@@ -114,6 +115,9 @@ pub mod animation {
 pub mod classes {
     // IMPORTS //
     use godot::prelude::*;
+
+    #[cfg(feature = "analytics")]
+    pub mod analytics;
 
     /// Island Builder data handling.
     pub mod island_settings;

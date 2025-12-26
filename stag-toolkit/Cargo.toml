@@ -23,6 +23,7 @@ godot = ["dep:godot"] # Enables compiling as a Godot plugin
 # nothreads = ["godot/experimental-wasm-nothreads"] # Intended for WASM exports
 physics_server = [] # Experimental physics server
 animation = [] # Experimental animation system
+analytics = ["glam/serde"] # Experimental analytics logging/parsing for Godot Engine addon
 
 [dependencies]
 fast-surface-nets = "0.2.1"
