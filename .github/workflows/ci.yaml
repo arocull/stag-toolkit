@@ -43,23 +43,7 @@ jobs:
         id: tarpaulin
         run: |
           cargo install cargo-tarpaulin
-          cargo tarpaulin -o html --output-dir reports/
-
-      # - name: Super-Linter
-      #   uses: super-linter/super-linter@v6.8.0
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #     SUPPRESS_POSSUM: true
-      #     LINTER_RULES_PATH: .
-      #     DISABLE_ERRORS: true
-      #     VALIDATE_RUST_2015: false
-      #     VALIDATE_RUST_2018: false
-      #     VALIDATE_RUST_2021: false
-      #     VALIDATE_RUST_CLIPPY: false
-      #     VALIDATE_JSCPD: false # takes forever
-      #     # These seem to be broken
-      #     VALIDATE_GROOVY: false
-      #     FIX_GROOVY: false
+          make coverage
 
       - name: Archive Coverage Results
         uses: actions/upload-artifact@v4

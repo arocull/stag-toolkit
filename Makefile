@@ -1,52 +1,32 @@
 .PHONY: all bindir clean clean-bin derust fetch import debug build build-windows build-mac test test-rust test-godot test-sanity bench bench-rust bench-godot bundle doc doc-clean doc-gdscript doc-gdextension doc-rust sphinx
 
-all: build
+FEATURE_FLAGS=physics_server
 
+all: build
 
 ## CLEANUP ##
 
-clean: clean-bin doc-clean
-	@cargo clean
-	@rm -rf build/
+clean: doc-clean
+	@./build.sh clean
 
-clean-bin:
-	@rm -rf godot/addons/stag_toolkit/bin/
-
-derust: clean-bin
-	@rm godot/addons/stag_toolkit/*.gdext*
-	@rm -rf godot/addons/stag_toolkit/plugin/island_builder/
-
-fetch:
-	@cargo fetch
+derust:
+	@./build.sh derust
 
 ## BUILD ##
 
-bindir:
-	@mkdir -p godot/addons/stag_toolkit/bin/
-	@touch godot/addons/stag_toolkit/bin/.gdignore
-	@mkdir -p godot/addons/stag_toolkit/bin/release/
-	@mkdir -p godot/addons/stag_toolkit/bin/debug/
-
 import:
 	@cd godot && godot --headless --import
-
-build: bindir
-	@cargo build --target x86_64-unknown-linux-gnu --release --features godot,physics_server
-	@cp target/x86_64-unknown-linux-gnu/release/libstag_toolkit.so godot/addons/stag_toolkit/bin/release/libstag_toolkit.so
-
-build-windows: bindir
-	@cargo build --target x86_64-pc-windows-gnu --release --features godot,physics_server
-	@cp target/x86_64-pc-windows-gnu/release/stag_toolkit.dll godot/addons/stag_toolkit/bin/release/stag_toolkit.dll
-
-build-mac: bindir
-	@cargo build --target x86_64-apple-darwin  --release --features godot,physics_server
-	@cp target/x86_64-apple-darwin/release/libstag_toolkit.dylib godot/addons/stag_toolkit/bin/release/libstag_toolkit.dylib
-
-debug: bindir
-	@cargo build --features godot,physics_server
-	@cp target/debug/libstag_toolkit.so godot/addons/stag_toolkit/bin/debug/libstag_toolkit.so
-
-bundle: build build-windows
+sanity:
+	./build.sh build sanity $(FEATURE_FLAGS)
+dev:
+	./build.sh build dev $(FEATURE_FLAGS)
+debug:
+	./build.sh build debug $(FEATURE_FLAGS)
+debug-all:
+	./build.sh build debug $(FEATURE_FLAGS) x86_64-unknown-linux-gnu,x86_64-pc-windows-gnu
+release:
+	./build.sh build release $(FEATURE_FLAGS) x86_64-unknown-linux-gnu,x86_64-pc-windows-gnu
+bundle: debug-all release
 	@mkdir -p build/
 	@cd godot && zip -qqr9 ../build/addon_StagToolkit.zip addons/
 	$(MAKE) derust && cd godot && zip -qrr9 ../build/addon_StagToolkit_nogdext.zip addons/
@@ -54,31 +34,25 @@ bundle: build build-windows
 
 ## TEST / BENCH ##
 
-test: test-rust-release test-godot
+coverage:
+	cargo tarpaulin -o html --output-dir reports/ --packages stag-toolkit --all-features
 
+test: test-rust test-godot
 test-rust:
-	@cargo test --all-features
-
-test-rust-release:
-	@cargo test --release --features godot,physics_server
-
-test-godot: build
+	@./build.sh test
+test-godot: dev
 	@godot --path godot/ --headless --no-header --stagtest --timeout=90 --timescale=5.0
-
-test-sanity: build test-rust
+test-sanity: sanity test-rust
 	@godot --path godot/ --headless --no-header --stagtest --timeout=90 --test=res://test/sanity
 
 
 bench: bench-rust bench-godot
 
 bench-rust: bench-rust-mesh bench-rust-island bench-rust-simulation
-
 bench-rust-mesh:
 	cargo bench --no-default-features --features physics_server -- Trimesh/
-
 bench-rust-island:
 	cargo bench --no-default-features --features physics_server -- IslandBuilder/
-
 bench-rust-simulation:
 	cargo bench --no-default-features --features physics_server -- simulation
 

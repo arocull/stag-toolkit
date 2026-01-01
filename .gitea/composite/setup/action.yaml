@@ -64,7 +64,6 @@ runs:
         profile: minimal
         toolchain: ${{ inputs.rust-version }}
         override: false
-        targets: x86_64-pc-windows-gnu
 
     - name: Add Rust Windows Target
       if: ${{ inputs.cross-compile == 'true' }}
@@ -77,14 +76,14 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
-        make build
+        make debug
 
     - name: Build StagToolkit (Cross-Platform)
       if: ${{ inputs.cross-compile == 'true' }}
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
-        make build build-windows
+        make release
 
       # Regular LFS fetch does not work on Gitea
       # https://gitea.com/gitea/act_runner/issues/164
