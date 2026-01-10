@@ -1,8 +1,8 @@
-.PHONY: all bindir clean clean-bin derust fetch import debug build build-windows build-mac test test-rust test-godot test-sanity bench bench-rust bench-godot bundle doc doc-clean doc-gdscript doc-gdextension doc-rust sphinx
+.PHONY: all clean derust import sanity dev debug debug-all release bundle test test-rust test-godot test-sanity bench bench-rust bench-godot doc doc-clean doc-gdscript doc-gdextension doc-rust sphinx
 
 FEATURE_FLAGS=physics_server
 
-all: build
+all: debug
 
 ## CLEANUP ##
 
