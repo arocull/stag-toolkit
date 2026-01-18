@@ -104,6 +104,7 @@ static func default(
 ## For example, [code]res://data/level_info/data.tres[/code]
 ## might be exported as [code]res://data/level_info/data.tres.remap[/code],
 ## which causes [String].get_extension() to just return [code]remap[/code] instead of the original [code]tres[/code].
+## Providing no file extensions assumes all files are valid.
 ##[br][br]
 ## Returns a packed array of all filepaths.
 ## File paths that are closer to top-level directories will be ordered first in the list.
@@ -127,8 +128,8 @@ static func default(
 ##[/codeblock]
 static func walk_directory(
 	directory: String,
-	allowed_extensions: PackedStringArray,
-	list: PackedStringArray = []
+	allowed_extensions: PackedStringArray = PackedStringArray(),
+	list: PackedStringArray = PackedStringArray()
 ) -> PackedStringArray:
 	var dir := DirAccess.open(directory)
 	if !dir:
@@ -136,9 +137,12 @@ static func walk_directory(
 		return list
 
 	for filepath in dir.get_files():
-		for ext in allowed_extensions:
-			if filepath.ends_with(ext):
-				list.append("{0}/{1}".format([directory, filepath]).simplify_path())
+		if allowed_extensions.size() > 0:
+			for ext in allowed_extensions:
+				if filepath.ends_with(ext):
+					list.append("{0}/{1}".format([directory, filepath]).simplify_path())
+		else:
+			list.append("{0}/{1}".format([directory, filepath]).simplify_path())
 	for subdirpath in dir.get_directories():
 		walk_directory("{0}/{1}".format([directory, subdirpath]).simplify_path(), allowed_extensions, list)
 
