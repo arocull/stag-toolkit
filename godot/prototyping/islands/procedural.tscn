@@ -1,0 +1,51 @@
+[gd_scene load_steps=10 format=3 uid="uid://c42pk8buhs3lm"]
+
+[ext_resource type="Script" uid="uid://cdt8ago1awm0t" path="res://prototyping/islands/procedural.gd" id="1_p8cjt"]
+
+[sub_resource type="IslandBuilderSettingsCollision" id="IslandBuilderSettingsCollision_p8cjt"]
+
+[sub_resource type="IslandBuilderSettingsMesh" id="IslandBuilderSettingsMesh_t8yru"]
+
+[sub_resource type="IslandBuilderSettingsVoxels" id="IslandBuilderSettingsVoxels_tqeoy"]
+sampling_density_noise_amplitude = 0.05
+sampling_offset_noise_amplitude = Vector3(0.1, 0.1, 0.1)
+
+[sub_resource type="IslandBuilderSettings" id="IslandBuilderSettings_k5pg0"]
+voxels = SubResource("IslandBuilderSettingsVoxels_tqeoy")
+mesh = SubResource("IslandBuilderSettingsMesh_t8yru")
+collision = SubResource("IslandBuilderSettingsCollision_p8cjt")
+
+[sub_resource type="IslandBuilderSettingsTweaks" id="IslandBuilderSettingsTweaks_oxtnw"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_p8cjt"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_t8yru"]
+sky_material = SubResource("ProceduralSkyMaterial_p8cjt")
+
+[sub_resource type="Environment" id="Environment_tqeoy"]
+background_mode = 2
+sky = SubResource("Sky_t8yru")
+tonemap_mode = 2
+glow_enabled = true
+
+[node name="Procedural" type="Node"]
+script = ExtResource("1_p8cjt")
+settings = SubResource("IslandBuilderSettings_k5pg0")
+tweaks = SubResource("IslandBuilderSettingsTweaks_oxtnw")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_tqeoy")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+shadow_enabled = true
+
+[node name="world" type="Node3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="world"]
+transform = Transform3D(0.7071067, -0.18301272, 0.6830128, 0, 0.9659259, 0.2588191, -0.7071068, -0.18301271, 0.68301266, 5, 3, 6)
+current = true
+
+[node name="result" type="Node3D" parent="world"]
