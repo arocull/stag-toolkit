@@ -57,7 +57,7 @@ pub mod mesh {
     /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
 
-    /// Godot-agnostic Island Builder utilities.
+    /// Island Builder data structures and processing.
     pub mod island;
 
     /// Ineroperable mesh data with Godot Engine.
@@ -123,6 +123,9 @@ pub mod classes {
 
     /// Godot interfaces for primitive queues.
     pub mod primqueue;
+
+    /// Line-mesh data structures and processing.
+    pub mod line;
 
     /// Godot interfaces for rope simulations.
     pub mod rope;

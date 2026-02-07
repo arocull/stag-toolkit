@@ -52,11 +52,11 @@ bench: bench-rust bench-godot
 
 bench-rust: bench-rust-mesh bench-rust-island bench-rust-simulation
 bench-rust-mesh:
-	cargo bench --no-default-features --features physics_server -- Trimesh/
+	cargo bench --no-default-features --features $(FEATURE_FLAGS) -- Trimesh/
 bench-rust-island:
-	cargo bench --no-default-features --features physics_server -- IslandBuilder/
+	cargo bench --no-default-features --features $(FEATURE_FLAGS) -- IslandBuilder/
 bench-rust-simulation:
-	cargo bench --no-default-features --features physics_server -- simulation
+	cargo bench --no-default-features --features $(FEATURE_FLAGS) -- simulation
 
 bench-godot: build
 	@godot --path godot/ --headless --no-header --stagtest --bench --timeout=300
