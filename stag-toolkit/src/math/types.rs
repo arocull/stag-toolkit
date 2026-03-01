@@ -69,7 +69,10 @@ pub mod gdmath {
 
     impl ToVector3<Vec<Vec3>> for PackedVector3Array {
         fn to_vector3(&self) -> Vec<Vec3> {
-            Vec::from_iter(self.to_vec().iter().map(|val| -> Vec3 { val.to_vector3() }))
+            self.as_slice()
+                .iter()
+                .map(|val| -> Vec3 { val.to_vector3() })
+                .collect()
         }
     }
 

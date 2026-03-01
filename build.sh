@@ -3,7 +3,7 @@
 set -e
 
 COMMAND=$1
-if [ ! -n "$COMMAND" ] || [ "$COMMAND" == "help" ]; then
+if [ ! -n "$COMMAND" ] || [ "$COMMAND" == "help" ] || [ "$COMMAND" == "--help" ]; then
     echo "Usage examples:"
     echo "   ./build.sh help   # Provides this help output"
     echo "   ./build.sh clean  # Removes all build artifacts"

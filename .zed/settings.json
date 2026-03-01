@@ -5,6 +5,9 @@
 			"tab_size": 4
 		}
 	},
+	"file_types": {
+		"GDShader": ["*.gdshader", "*.gdshaderinc"]
+	},
 	"lsp": {
 		// https://zed.dev/docs/languages/rust
 		"rust-analyzer": {
