@@ -18,9 +18,6 @@ class_name PreprocessorShaderMaterial
 ## [b]Defined Flags[/b] (sorted alphabetically),
 ## [b]Prelude[/b],
 ## [b]Includes[/b] (using the provided order).
-## [br][br]
-## It is recommended to disable "Open Resources in Current Inspector" under your (Advanced) Editor Settings
-## while working with these materials, to prevent the Shader Editor from being flooded with new shader resources.
 
 ## Emitted when the shader is initially built or rebuilt.
 signal rebuilt()
@@ -150,6 +147,9 @@ static func shader_type_string(st: Shader.Mode) -> String:
 			return "fog"
 		Shader.Mode.MODE_SPATIAL, _:
 			return "spatial"
+
+func _init():
+	build_shader.call_deferred()
 
 ## Rebuilds the shader from scratch.
 ## In order for Godot to recompile the shader code, a new [Shader] is created.
