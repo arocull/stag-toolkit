@@ -11,6 +11,8 @@ on:
   #     - closed
   #     - synchronize
   push:
+    tags-ignore:
+      - '**'
     branches:
       - master
   workflow_dispatch:

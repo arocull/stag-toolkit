@@ -1,4 +1,4 @@
-.PHONY: all clean derust import sanity dev debug debug-all release bundle test test-rust test-godot test-sanity bench bench-rust bench-godot doc doc-clean doc-gdscript doc-gdextension doc-rust sphinx
+.PHONY: all clean derust import sanity dev debug debug-all release bundle bundle-derust test test-rust test-godot test-sanity bench bench-rust bench-godot doc doc-clean doc-gdscript doc-gdextension doc-rust sphinx
 
 FEATURE_FLAGS=physics_server
 
@@ -29,7 +29,9 @@ release:
 bundle: debug-all release
 	@mkdir -p build/
 	@cd godot && zip -qqr9 ../build/addon_StagToolkit.zip addons/
-	$(MAKE) derust && cd godot && zip -qrr9 ../build/addon_StagToolkit_nogdext.zip addons/
+bundle-derust: derust
+	@mkdir -p build/
+	cd godot && zip -qrr9 ../build/addon_StagToolkit_nogdext.zip addons/
 
 
 ## TEST / BENCH ##

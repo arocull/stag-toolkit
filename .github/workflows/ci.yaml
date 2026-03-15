@@ -4,6 +4,10 @@ run-name: Lint and Test ${{ github.sha }}
 
 on:
   push:
+    tags-ignore:
+      - '**'
+    branches:
+      - '**'
   workflow_dispatch:
 
 jobs:

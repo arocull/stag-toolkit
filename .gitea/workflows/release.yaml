@@ -36,7 +36,7 @@ jobs:
 
       - name: Build and Bundle
         id: build-bundle
-        run: make bundle
+        run: make bundle && make bundle-derust
 
       # https://github.com/softprops/action-gh-release
       # - name: Upload Release

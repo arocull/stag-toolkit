@@ -30,9 +30,11 @@ if [ "$COMMAND" == "derust" ]; then
     echo "Removing gdextension from addon"
     rm -f godot/addons/stag_toolkit/*.gdext*
     rm -rf godot/addons/stag_toolkit/plugin/island_builder/
+    rm -rf godot/addons/stag_toolkit/bin/
+    exit 0
 fi
 # Clean build artifacts
-if [ "$COMMAND" == "clean" ] || [ "$COMMAND" == "derust" ]; then
+if [ "$COMMAND" == "clean" ]; then
     echo "Clearing Rust cache and removing build artifacts"
     cargo clean
     rm -rf build/
