@@ -123,7 +123,6 @@ func _get(property: StringName):
 		return property.substr(_FLAG_PREFIX.length()) in flags_enabled
 
 func _set(property: StringName, value):
-	print(property, "\t", value)
 	if property.begins_with(_FLAG_PREFIX):
 		var flag_name := property.substr(_FLAG_PREFIX.length())
 
