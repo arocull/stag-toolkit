@@ -27,8 +27,14 @@ const _FLAG_PREFIX = "flag_"
 # Generated shader structure
 const _STRUCTURE = "shader_type {shader_type};\n// Constants\n{constants}\n// Flags\n{defines}\n// Prelude\n{prelude}\n//Includes\n{includes}\n"
 
+# If true, the resource has been fully deserialized.
+var _initialized: bool = false
+
 # Force the shader to rebuild in case it is not automatically updating.
 @export_tool_button("Force Rebuild") var _build_shader = build_shader
+
+## Automatically resave the resource while you are working in edotr.
+# @export var autosave: bool = true
 
 @export_group("Shader Setup")
 ## The shader type to generate.
@@ -78,6 +84,8 @@ const _STRUCTURE = "shader_type {shader_type};\n// Constants\n{constants}\n// Fl
 # This does not recursive through shader includes not provided in the list.
 @export_tool_button("Fetch Available Flags") var _fetch_defines = _update_flags_available
 func _update_flags_available() -> void:
+	if not _initialized:
+		return
 	flags_available = fetch_available_defines()
 
 ## Sets the given flag as enabled or disabled.
@@ -109,6 +117,12 @@ func remove_constant(constant: String) -> bool:
 func _get_property_list() -> Array[Dictionary]:
 	var properties: Array[Dictionary] = []
 
+	properties.append({
+		name = "Flags",
+		type = TYPE_NIL,
+		hint_string = _FLAG_PREFIX,
+		usage = PROPERTY_USAGE_GROUP
+	})
 	for flag_name in flags_available:
 		properties.append({
 			"name": "{0}{1}".format([_FLAG_PREFIX, flag_name]),
@@ -131,6 +145,15 @@ func _set(property: StringName, value):
 			build_shader()
 
 		return true
+
+	# HACK: This property always seems to be set AFTER deserialization
+	# This is the best solution I have right now
+	# https://github.com/godotengine/godot-proposals/issues/5994
+	if property == "metadata/_custom_type_script":
+		initialized = true
+		_postinit()
+		return false
+
 	return false
 
 ## Returns a string for the given shader type.
@@ -148,13 +171,26 @@ static func shader_type_string(st: Shader.Mode) -> String:
 			return "spatial"
 
 func _init():
-	build_shader.call_deferred()
+	initialized = false # This is called before we deserialize
+
+func _postinit():
+	initialized = true # Okay I think we're done deserializing
+
+	if Engine.is_editor_hint(): # Make sure our flags show up to users in the editor
+		_update_flags_available()
+
+	if not is_instance_valid(shader): # If we never had a shader to begin with, build one
+		build_shader()
+
 
 ## Rebuilds the shader from scratch.
 ## In order for Godot to recompile the shader code, a new [Shader] is created.
 ## [br]
 ## Frequently rebuilding the shader can have a negative impact on performance, so only call this when necessary.
 func build_shader():
+	if not _initialized:
+		#push_warning("PreprocessorShaderMaterial: Attempted to build shader before initialization")
+		return
 	var newShader: Shader = Shader.new()
 
 	var constants_list: PackedStringArray = PackedStringArray()
@@ -163,7 +199,10 @@ func build_shader():
 		if val is float or val is int or val is bool or val is String:
 			constants_list.append("#define {0} {1}".format([key, str(val)]))
 		else:
-			push_warning("Unsupported shader constant: {0} is type {1}", key, type_string(typeof(val)))
+			push_warning(
+				"PreprocessorShaderMaterial: Unsupported shader constant: {0} is type {1}",
+				key, type_string(typeof(val)),
+			)
 	constants_list.sort() # Sort for consistency
 
 	var flags_list: PackedStringArray = PackedStringArray()
@@ -173,7 +212,8 @@ func build_shader():
 
 	var includes_list: PackedStringArray = PackedStringArray()
 	for include in includes:
-		includes_list.append("#include \"{0}\"".format([include.resource_path]))
+		if is_instance_valid(include):
+			includes_list.append("#include \"{0}\"".format([include.resource_path]))
 	# Do not sort includes list, order is important
 
 	# Finally construct shader
@@ -188,6 +228,11 @@ func build_shader():
 	# Swap shader (Godot should recompile it)
 	shader = newShader
 
+	#if Engine.is_editor_hint() and autosave and (not self.resource_path.is_empty()):
+		#var err := ResourceSaver.save(self, self.resource_path, ResourceSaver.FLAG_NONE)
+		#if err != OK:
+			#push_error("PreprocessorShaderMaterial: Autosave failed ({0}): {1}".format([err, error_string(err)]))
+
 	rebuilt.emit()
 
 ## Searches through all provided shader includes, and returns a list of toggleable shader defines.
@@ -198,13 +243,14 @@ func fetch_available_defines() -> PackedStringArray:
 	var search = RegEx.new()
 	var err := search.compile("(#ifdef|#ifndef|#undef)\\s+([a-zA-Z0-9_]+)\\s+?")
 	if err != OK:
-		push_error("Failed to compile Regex: ", error_string(err))
+		push_error("PreprocessorShaderMaterial: Failed to compile Regex: ", error_string(err))
 		return flags_available
 
 	# Iterate over all includes and find potential defines
 	for include in includes:
-		if include.code.length() == 0:
-			push_warning("Shader Include {0} is empty".format([include.resource_path]))
+		if (not is_instance_valid(include)) or include.get_code().is_empty():
+			push_warning("PreprocessorShaderMaterial: Shader Include {0} is empty".format([include.resource_path]))
+			continue
 		var matches := search.search_all(include.code)
 		for potential_define in matches:
 			# Make sure our capture group is filled
