@@ -594,7 +594,7 @@ dependencies = [
 
 [[package]]
 name = "stag-toolkit"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "criterion",
  "fast-surface-nets",
@@ -608,7 +608,7 @@ dependencies = [
 
 [[package]]
 name = "stag-toolkit-codegen"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "quote",
  "syn",
