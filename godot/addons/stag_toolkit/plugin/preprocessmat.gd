@@ -150,7 +150,7 @@ func _set(property: StringName, value):
 	# This is the best solution I have right now
 	# https://github.com/godotengine/godot-proposals/issues/5994
 	if property == "metadata/_custom_type_script":
-		initialized = true
+		_initialized = true
 		_postinit()
 		return false
 
@@ -171,10 +171,10 @@ static func shader_type_string(st: Shader.Mode) -> String:
 			return "spatial"
 
 func _init():
-	initialized = false # This is called before we deserialize
+	_initialized = false # This is called before we deserialize
 
 func _postinit():
-	initialized = true # Okay I think we're done deserializing
+	_initialized = true # Okay I think we're done deserializing
 
 	if Engine.is_editor_hint(): # Make sure our flags show up to users in the editor
 		_update_flags_available()
