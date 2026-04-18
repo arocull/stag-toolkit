@@ -67,6 +67,7 @@ struct Setting {
     soft_min: bool,
     soft_max: bool,
     unit: Option<String>,
+    public: bool,
 }
 
 struct SettingAttr {
@@ -82,6 +83,7 @@ impl Parse for SettingAttr {
         let mut soft_min = false;
         let mut soft_max = false;
         let mut unit: Option<String> = None;
+        let mut public = false;
 
         while !input.is_empty() {
             let ident: Ident = input.parse()?;
@@ -136,6 +138,7 @@ impl Parse for SettingAttr {
                         ));
                     }
                 }
+                "public" => public = true,
                 _ => return Err(syn::Error::new_spanned(ident, "Unknown attribute")),
             }
 
@@ -154,6 +157,7 @@ impl Parse for SettingAttr {
                 soft_min,
                 soft_max,
                 unit,
+                public,
             }),
         })
     }
@@ -201,6 +205,7 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                 // Default field attributes
                 let mut exporter = quote! {#[export]};
                 let mut initializer = quote! {#[init(val=#type_tokens::default())]};
+                let mut public = quote! {};
 
                 if let Some(attr) = field
                     .attrs
@@ -241,6 +246,10 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
                         if let Some(default) = settings.default {
                             initializer = quote! {#[init(val=#default #type_conversion)]};
                         }
+
+                        if settings.public {
+                            public = quote! {pub,};
+                        };
                     }
                 }
 
@@ -249,7 +258,7 @@ pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStre
 
                 class_fields.extend(quote! {
                     #doc_comment
-                    #[var(get, set = #setter_name)]
+                    #[var(#public set = #setter_name)]
                     #exporter
                     #initializer
                     #identifier:#type_tokens,

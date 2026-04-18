@@ -46,11 +46,11 @@ impl StagPhysicsServer {
         mass: f32,
         collision_exist: u32,
         collision_mask: u32,
-    ) -> u64 {
+    ) -> Identity {
         let mut meshes: Vec<Arc<TriangleMesh>> = Vec::with_capacity(collision_shapes.len());
 
         // Convert convex collision shapes into meshes
-        for mut shape in collision_shapes.iter_shared() {
+        for shape in collision_shapes.iter_shared() {
             if let Some(debug_mesh) = shape.get_debug_mesh() {
                 // Get vertices with face winding
                 let vertices: Vec<Vec3> = debug_mesh.get_faces().to_vector3();
@@ -89,7 +89,7 @@ impl StagPhysicsServer {
     #[func]
     fn set_body_state(
         &mut self,
-        id: u64,
+        id: Identity,
         global_transform: Transform3D,
         linear_velocity: Vector3,
         angular_velocity: Vector3,
