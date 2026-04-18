@@ -110,6 +110,11 @@ pub mod gdmath {
             Color::from_rgba(self.x, self.y, self.z, self.w)
         }
     }
+    impl ToColor<Vec4> for Color {
+        fn to_color(&self) -> Vec4 {
+            Vec4::new(self.r, self.g, self.b, self.a)
+        }
+    }
     impl ToColor<PackedColorArray> for Vec<Vec4> {
         fn to_color(&self) -> PackedColorArray {
             PackedColorArray::from_iter(self.iter().map(|val| -> Color { val.to_color() }))
@@ -148,19 +153,19 @@ pub mod gdmath {
     }
 
     /// Creates a PackedInt32Array from a vector of indices.
-    pub fn packed_index_array_usize(index_arr: Vec<usize>) -> PackedInt32Array {
+    pub fn packed_index_array_usize(index_arr: &[usize]) -> PackedInt32Array {
         PackedInt32Array::from_iter(index_arr.iter().map(|val| -> i32 { *val as i32 }))
     }
     /// Creates a PackedInt32Array from a vector of indices.
-    pub fn packed_index_array_u32(index_arr: Vec<u32>) -> PackedInt32Array {
+    pub fn packed_index_array_u32(index_arr: &[u32]) -> PackedInt32Array {
         PackedInt32Array::from_iter(index_arr.iter().map(|val| -> i32 { *val as i32 }))
     }
     /// Creates a PackedFloat32Array from a vector of floats.
-    pub fn packed_float32_array(arr: Vec<f32>) -> PackedFloat32Array {
+    pub fn packed_float32_array(arr: &[f32]) -> PackedFloat32Array {
         PackedFloat32Array::from_iter(arr.iter().copied())
     }
     /// Creates a PackedFloat64Array from a vector of floats.
-    pub fn packed_float64_array(arr: Vec<f64>) -> PackedFloat64Array {
+    pub fn packed_float64_array(arr: &[f64]) -> PackedFloat64Array {
         PackedFloat64Array::from_iter(arr.iter().copied())
     }
 

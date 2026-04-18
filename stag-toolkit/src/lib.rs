@@ -54,6 +54,8 @@ pub mod mesh {
     pub mod nets;
     /// PointCloud trait for managing large sets of point data.
     pub mod pointcloud;
+    /// Utilities for specifically [triangle strip](https://en.wikipedia.org/wiki/Triangle_strip) meshes.
+    pub mod strip;
     /// TriangleMesh and related classes for handling and operating on 3D geometry.
     pub mod trimesh;
 

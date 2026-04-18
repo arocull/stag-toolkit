@@ -70,7 +70,8 @@ impl QueueFloat {
     /// Does not modify the queue.
     #[func]
     pub fn sorted(&self) -> PackedFloat32Array {
-        packed_float32_array(self.queue.sorted())
+        let sorted = self.queue.sorted();
+        packed_float32_array(&sorted)
     }
 
     /// Returns the average of the queue.

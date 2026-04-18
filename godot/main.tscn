@@ -1,3 +1,19 @@
-[gd_scene format=3 uid="uid://ca8vtdpjve4qq"]
+[gd_scene load_steps=4 format=3 uid="uid://ca8vtdpjve4qq"]
+
+[ext_resource type="Material" uid="uid://bepetaw1bxs0" path="res://addons/stag_toolkit/utils/shaders/mat_linerender.tres" id="1_ig7tw"]
+
+[sub_resource type="Gradient" id="Gradient_ig7tw"]
+
+[sub_resource type="StagLineMesh" id="StagLineMesh_7dm0k"]
+uv_mode = 0
+dynamic = true
+points = PackedVector3Array(0, 0, 0, 0, 0, -22.533)
+gradient = SubResource("Gradient_ig7tw")
+material = ExtResource("1_ig7tw")
 
 [node name="main" type="Node"]
+
+[node name="Node3D" type="Node3D" parent="."]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D"]
+mesh = SubResource("StagLineMesh_7dm0k")

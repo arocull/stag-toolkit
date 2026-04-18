@@ -1,7 +1,10 @@
-use crate::math::types::ToVector3;
-use glam::Vec3;
+use crate::math::bounding_box::BoundingBox;
+use crate::math::types::{ToVector3, gdmath, gdmath::ToColor};
+use crate::mesh::godot::GodotSurfaceArrays;
+use crate::mesh::strip::TriangleStripMesh;
+use glam::{Vec2, Vec3, Vec4};
 use godot::builtin::VarDictionary;
-use godot::classes::rendering_server::PrimitiveType;
+use godot::classes::rendering_server::{ArrayFormat, PrimitiveType};
 use godot::classes::{Gradient, IMesh, Material, Mesh};
 use godot::prelude::*;
 
@@ -32,7 +35,7 @@ use godot::prelude::*;
 //     pub radius: f32,
 // }
 
-#[derive(GodotConvert, Var, Export, Default, Clone)]
+#[derive(GodotConvert, Var, Export, Default, Clone, PartialEq)]
 #[godot(via = i8)]
 pub enum StagLineMeshUVMode {
     /// UV Y coordinate is the current point index divided by (the total number of points minus one).
@@ -109,8 +112,13 @@ pub struct StagLineMesh {
     #[export]
     pub material: Option<Gd<Material>>,
 
+    /// Generated Godot-facing mesh.
+    surface_arrays: GodotSurfaceArrays,
+
     /// Bounding box from current generation.
     bounds: Aabb,
+
+    has_colors: bool,
 
     base: Base<Mesh>,
 }
@@ -135,28 +143,33 @@ impl IMesh for StagLineMesh {
             gradient: None,
             material: None,
 
+            surface_arrays: GodotSurfaceArrays::default(),
             bounds: Aabb::default(),
+            has_colors: false,
             base,
         }
     }
 
     fn surface_get_array_len(&self, index: i32) -> i32 {
         match index {
-            0 => todo!(), // TODO: determine what this even is
+            0 => (self.points.len() * 2) as i32, // TODO: determine what this even is
             _ => 0,
         }
     }
 
     fn surface_get_array_index_len(&self, index: i32) -> i32 {
         match index {
-            0 => todo!(),
+            0 => (self.points.len() * 2) as i32,
             _ => 0,
         }
     }
 
     // TODO: do mesh conversion, and/or cache this on generation
     fn surface_get_arrays(&self, _index: i32) -> AnyArray {
-        todo!()
+        println!("surface get arrays called for index {_index}");
+        (&self.surface_arrays.surface_arrays)
+            .clone()
+            .upcast_any_array()
     }
 
     fn surface_get_blend_shape_arrays(&self, _index: i32) -> Array<AnyArray> {
@@ -171,7 +184,18 @@ impl IMesh for StagLineMesh {
     // TODO: no idea what this is, is it array format??
     // https://docs.godotengine.org/en/stable/classes/class_mesh.html#enum-mesh-arrayformat
     fn surface_get_format(&self, _index: i32) -> u32 {
-        1
+        if self.has_colors {
+            return (ArrayFormat::INDEX.ord()
+                | ArrayFormat::VERTEX.ord()
+                | ArrayFormat::NORMAL.ord()
+                | ArrayFormat::COLOR.ord()
+                | ArrayFormat::TEX_UV.ord()) as u32;
+        }
+
+        (ArrayFormat::INDEX.ord()
+            | ArrayFormat::VERTEX.ord()
+            | ArrayFormat::NORMAL.ord()
+            | ArrayFormat::TEX_UV.ord()) as u32
     }
 
     fn surface_set_material(&mut self, index: i32, material: Option<Gd<Material>>) {
@@ -188,9 +212,8 @@ impl IMesh for StagLineMesh {
     }
 
     // https://docs.godotengine.org/en/stable/classes/class_mesh.html#enum-mesh-primitivetype
-    // TODO: investigate TRIANGLE_STRIPS
     fn surface_get_primitive_type(&self, _index: i32) -> u32 {
-        PrimitiveType::TRIANGLES.ord() as u32
+        PrimitiveType::TRIANGLE_STRIP.ord() as u32
     }
 
     fn get_surface_count(&self) -> i32 {
@@ -244,6 +267,58 @@ impl StagLineMesh {
     /// Does NOT update `points`.
     /// Use this to use other Rust-side methods to directly re-render the rope, without worrying about copying memory.
     pub fn redraw_with_points(&mut self, points: &[Vec3]) {
-        todo!()
+        let mut strip = TriangleStripMesh::new(points.len() * 2);
+
+        let mut total_length: f32 = 1.0f32; // Total length of the line (if calculated)
+        let mut current_length: f32 = 0.0f32;
+        if self.uv_mode == StagLineMeshUVMode::FactorProportional {
+            for i in 1..points.len() {
+                total_length += (points[i] - points[i - 0]).length();
+            }
+        }
+
+        // Create the starting corner
+        strip.push(points[0], (points[1] - points[0]).normalize(), Vec2::ZERO);
+
+        for i in 0..points.len() - 1 {
+            let offset = points[i + 1] - points[i];
+            let length = offset.length();
+            strip.push(
+                points[i],
+                offset / length,
+                Vec2::new(((i + 1) % 2) as f32, current_length / total_length),
+            );
+            current_length += length;
+        }
+
+        // Cap off line with end corner
+        strip.push(
+            points[points.len() - 1],
+            (points[points.len() - 1] - points[points.len() - 2]).normalize(),
+            Vec2::new(1.0f32, current_length / total_length),
+        );
+
+        // Handle color sampling at as necessary
+        let mut colors: Option<PackedColorArray> = None;
+        if let Some(mut gradient) = self.gradient.clone() {
+            let mut color_samples = PackedColorArray::new();
+            color_samples.resize(strip.uv1.len());
+
+            for (idx, uv) in strip.uv1.iter().enumerate() {
+                color_samples[idx] = gradient.sample(uv.y / total_length);
+            }
+            colors = Some(color_samples);
+            self.has_colors = true;
+        } else {
+            self.has_colors = false;
+        }
+
+        self.surface_arrays = GodotSurfaceArrays::from_tristrip(&strip, colors);
+
+        self.bounds = BoundingBox::from(&strip.position)
+            .expand_margin(self.radius)
+            .to_aabb();
+
+        println!("regenerated mesh!!");
     }
 }

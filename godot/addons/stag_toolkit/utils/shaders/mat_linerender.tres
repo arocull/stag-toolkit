@@ -1,0 +1,8 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://bepetaw1bxs0"]
+
+[ext_resource type="Shader" uid="uid://cksexhinioaqr" path="res://addons/stag_toolkit/utils/shaders/shader_linerender.gdshader" id="1_62iuq"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_62iuq")
+shader_parameter/line_radius = 0.05

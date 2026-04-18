@@ -1,3 +1,4 @@
+use super::strip::TriangleStripMesh;
 use super::trimesh::TriangleMesh;
 use crate::math::sdf;
 use crate::math::sdf::{ShapeOperation, shape_list_bounds};
@@ -11,9 +12,9 @@ use godot::obj::IndexEnum;
 use godot::prelude::*;
 
 // MESH DATA HANDLING //
-/// A helper class for batch-handling mesh surface data within Godot Engine.
+/// A helper class for handling mesh surface data within Godot Engine.
 pub struct GodotSurfaceArrays {
-    surface_arrays: Array<Variant>,
+    pub surface_arrays: Array<Variant>,
 }
 impl Default for GodotSurfaceArrays {
     fn default() -> Self {
@@ -61,11 +62,12 @@ impl GodotSurfaceArrays {
         Self { surface_arrays: sa }
     }
 
-    /// Creates a corresponding GodotSurfaceArrays set from a TriangleMesh.
+    /// Creates a corresponding GodotSurfaceArrays set from a [TriangleMesh].
     pub fn from_trimesh(mesh: &TriangleMesh) -> Self {
         let mut surface = Self::new();
 
-        surface.set_indices(packed_index_array_usize(mesh.indices()));
+        let indices = mesh.indices();
+        surface.set_indices(packed_index_array_usize(&indices));
         surface.set_vertices(mesh.positions.to_vector3());
 
         if !mesh.normals.is_empty() {
@@ -79,6 +81,23 @@ impl GodotSurfaceArrays {
         }
         if let Some(uv2) = &mesh.uv2 {
             surface.set_uv2(uv2.to_vector2());
+        }
+
+        surface
+    }
+
+    /// Creates a corresponding GodotSurfaceArrays set from a [TriangleStripMesh].
+    /// Optionally specify colors along the strip.
+    pub fn from_tristrip(mesh: &TriangleStripMesh, color: Option<PackedColorArray>) -> Self {
+        let mut surface = Self::new();
+
+        surface.set_indices(packed_index_array_usize(&mesh.index));
+        surface.set_vertices(mesh.position.to_vector3());
+        surface.set_normals(mesh.normal.to_vector3());
+        surface.set_uv1(mesh.uv1.to_vector2());
+
+        if let Some(colors) = color {
+            surface.set_colors(colors);
         }
 
         surface
