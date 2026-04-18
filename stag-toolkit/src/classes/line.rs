@@ -1,4 +1,4 @@
-use crate::math::types::{ToVector3, gdmath};
+use crate::math::types::ToVector3;
 use glam::Vec3;
 use godot::builtin::VarDictionary;
 use godot::classes::rendering_server::PrimitiveType;
@@ -73,7 +73,7 @@ pub struct StagLineMesh {
     /// Radius of the line.
     /// **Changing this property will regenerate the entire line mesh** (if `dynamic` is false).
     #[export(range=(0.01,1.0,0.001,or_greater,suffix="m"))]
-    #[var(get, set=set_radius)]
+    #[var(set=set_radius)]
     pub radius: f32,
 
     /// Local-space vector used to determine the alignment of the mesh vertices.
@@ -97,7 +97,7 @@ pub struct StagLineMesh {
     /// Points on the line.
     /// **Changing this property will regenerate the entire line mesh.**
     #[export]
-    #[var(get, set=set_points)]
+    #[var(set=set_points)]
     pub points: PackedVector3Array,
 
     /// Optional gradient that will be used to set vertex colors along the line.
@@ -228,11 +228,13 @@ impl StagLineMesh {
         self.redraw_with_points(&points);
     }
 
+    #[func]
     fn set_radius(&mut self, radius: f32) {
         self.radius = radius;
         self.redraw_internal();
     }
 
+    #[func]
     fn set_points(&mut self, points: PackedVector3Array) {
         self.points = points;
         self.redraw_internal();
