@@ -10,7 +10,7 @@ use crate::{
 use core::f32;
 use glam::Vec3;
 use godot::classes::{Engine, ImporterMesh, ResourceLoader};
-use godot::register::ConnectHandle;
+use godot::signal::ConnectHandle;
 use godot::{
     classes::{
         ArrayMesh, CollisionShape3D, ConvexPolygonShape3D, MeshInstance3D, ProjectSettings,
@@ -63,7 +63,7 @@ pub struct IslandBuilder {
 
     /// If true, the node will watch for changes in its settings, and regenerate when needed.
     /// Only during editor.
-    #[var(get,set = set_realtime_preview)]
+    #[var(set = set_realtime_preview)]
     #[export]
     #[init(val = false)]
     realtime_preview: bool,
@@ -74,11 +74,11 @@ pub struct IslandBuilder {
     #[init(val=None)]
     realtime_preview_mesh_buffer: Option<Gd<ArrayMesh>>,
 
-    #[var(get, set=set_tweaks)]
+    #[var(set=set_tweaks)]
     #[export]
     #[init(val=None)]
     tweaks: Option<Gd<IslandBuilderSettingsTweaks>>,
-    #[var(get, set=set_settings)]
+    #[var(set=set_settings)]
     #[export]
     #[init(val=None)]
     settings: Option<Gd<IslandBuilderSettings>>,
@@ -551,7 +551,7 @@ impl IslandBuilder {
             target.add_child(&shape); // Add shape to scene
 
             // Set shape owner so it is included and saved within the scene
-            if let Some(tree) = target.get_tree()
+            if let Some(tree) = target.get_tree_or_null()
                 && let Some(root) = tree.get_edited_scene_root()
             {
                 shape.set_owner(&root);
@@ -588,7 +588,8 @@ impl IslandBuilder {
 
         // Apply navigation properties if target has them available
         if p.has_method("set_navigation_properties") {
-            p.callv("set_navigation_properties", &varray![Variant::from(props)]);
+            let arr: Array<Gd<NavIslandProperties>> = array![&props];
+            p.callv("set_navigation_properties", &arr);
             return;
         }
 
@@ -596,7 +597,8 @@ impl IslandBuilder {
         if let Some(mut parent) = p.get_parent()
             && parent.has_method("set_navigation_properties")
         {
-            parent.callv("set_navigation_properties", &varray![Variant::from(props)]);
+            let arr: Array<Gd<NavIslandProperties>> = array![&props];
+            parent.callv("set_navigation_properties", &arr);
         }
     }
 
@@ -638,7 +640,7 @@ impl IslandBuilder {
 
         // Ensure scene owns mesh object
         // If no scene tree found, instead use target node as owner
-        if let Some(tree) = target.get_tree() {
+        if let Some(tree) = target.get_tree_or_null() {
             mesh.set_owner(&tree.get_edited_scene_root().unwrap_or(target));
         }
 
@@ -712,7 +714,7 @@ impl IslandBuilder {
 
     /// Returns a list of all IslandBuilder nodes within the `"StagToolkit_IslandBuilder"` group in the given SceneTree.
     #[func]
-    fn all_builders(mut tree: Gd<SceneTree>) -> Array<Gd<Self>> {
+    fn all_builders(tree: Gd<SceneTree>) -> Array<Gd<Self>> {
         let nodes = tree.get_nodes_in_group(GROUP_NAME);
         let mut builders: Array<Gd<Self>> = array![];
 

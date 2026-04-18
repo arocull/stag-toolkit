@@ -1,1 +1,1 @@
-pub type Identity = u64;
+pub type Identity = i64;
