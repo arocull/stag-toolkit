@@ -1,7 +1,7 @@
 [package]
 name = "stag-toolkit"
 description = "Real-time solutions for 3D games, art, and simulations."
-version = "0.5.4"
+version = "0.5.5"
 edition = "2024"
 license = "Apache-2.0"
 readme = "readme.md"
@@ -27,11 +27,11 @@ animation = [] # Experimental animation system
 [dependencies]
 fast-surface-nets = "0.2.1"
 glam = { version = "0.30.9", features = ["approx"] }
-godot = { version = "0.4.2", features = ["api-4-5", "experimental-threads", "register-docs"], optional = true }
+godot = { version = "0.4.5", features = ["api-4-5", "experimental-threads", "register-docs"], optional = true }
 ndshape = "0.3.0"
 noise = "0.9.0"
 rayon = "1.11.0"
-stag-toolkit-codegen = { path = "../stag-toolkit-codegen", version = "0.5.4" }
+stag-toolkit-codegen = { path = "../stag-toolkit-codegen", version = "0.5.5" }
 
 [dev-dependencies]
 criterion = { version = "0.7.0", features = ["html_reports"] }
