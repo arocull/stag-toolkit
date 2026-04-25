@@ -3,6 +3,10 @@
 		"Rust": {
 			"hard_tabs": false,
 			"tab_size": 4
+		},
+		"YAML": {
+			"hard_tabs": false,
+			"tab_size": 2
 		}
 	},
 	"lsp": {

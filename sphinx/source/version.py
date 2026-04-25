@@ -1,7 +1,7 @@
 short_name = "stagtoolkit"
 name = "Stag Toolkit"
 major = 0
-minor = 4
+minor = 6
 patch = 0
 status = ""
 module_config = ""

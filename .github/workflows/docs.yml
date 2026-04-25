@@ -2,80 +2,71 @@
 name: Build and Deploy Docs
 run-name: Docs - ${{ github.event.repository.name }}
 
-
 on:
-  # pull_request:
-  #   types:
-  #     - opened
-  #     - reopened
-  #     - closed
-  #     - synchronize
-  push:
-    tags-ignore:
-      - '**'
-    branches:
-      - master
-  workflow_dispatch:
+    # pull_request:
+    #   types:
+    #     - opened
+    #     - reopened
+    #     - closed
+    #     - synchronize
+    push:
+        tags-ignore:
+            - "**"
+        branches:
+            - master
+    workflow_dispatch:
+
+concurrency:
+    group: ${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
-  docgen:
-    runs-on: ubuntu-latest
-    name: Build Docs
-    permissions:
-      id-token: write
-      contents: read
-      actions: write
+    pages:
+        runs-on: ubuntu-slim
+        name: Build Docs
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        permissions:
+            id-token: write # to verify the deployment originates from an appropriate source
+            contents: read
+            pages: write # to deploy to Pages
 
-    steps:
-      - name: Clone
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 1
+        steps:
+            - name: Clone
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.head_ref }}
+                  fetch-depth: 1
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+            - name: Set up Python
+              uses: actions/setup-python@v6
+              with:
+                  python-version-file: "pyproject.toml"
 
-      - name: Install Python Dependencies
-        run: |
-          pip install sphinx sphinx_rtd_theme myst_parser
+            - name: Install Python Dependencies
+              run: |
+                  pip install -r pyproject.toml
 
-      - name: Setup StagToolkit
-        uses: ./.gitea/composite/setup
-        with:
-          cross-compile: false
-          toolkit-path: '.'
-          import-assets: true
+            - name: Setup StagToolkit
+              uses: ./.gitea/composite/setup
+              with:
+                  cross-compile: false
+                  toolkit-path: "."
+                  import-assets: false
 
-      - name: Generate Documentation
-        shell: bash
-        run: |
-          make doc
+            - name: Generate Documentation
+              shell: bash
+              run: |
+                  cd sphinx && ./build.sh
 
-      # https://github.com/actions/upload-pages-artifact
-      - name: Upload static files as artifact
-        id: deployment
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./build/public/
-
-  deploy:
-    # Add a dependency to the build job
-    needs: docgen
-
-    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
-    permissions:
-      pages: write      # to deploy to Pages
-      id-token: write   # to verify the deployment originates from an appropriate source
-
-    # Deploy to the github-pages environment
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    # Specify runner + deployment step
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+            - name: Deploy to GitHub Pages
+              id: deployment
+              uses: sphinx-notes/pages@v3
+              with:
+                  documentation_path: ./sphinx/
+                  requirements_path: pyproject.toml
+                  python_version: 3.14
+                  pyproject_extras: docs
+                  checkout: false
+                  publish: true

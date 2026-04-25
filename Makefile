@@ -88,4 +88,4 @@ doc-rust-strict:
 
 sphinx:
 	@cd sphinx && ./build.sh
-	@cd sphinx && sphinx-build . ../build/public
+	@$(MAKE) -C sphinx/ html
