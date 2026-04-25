@@ -144,6 +144,21 @@ pub mod gdmath {
         }
     }
 
+    pub trait ToQuaternion<T> {
+        /// Converts a rotation quaternion from one type to another.
+        fn to_quaternion(self) -> T;
+    }
+    impl ToQuaternion<Quat> for Quaternion {
+        fn to_quaternion(self) -> Quat {
+            Quat::from_xyzw(self.x, self.y, self.z, self.w)
+        }
+    }
+    impl ToQuaternion<Quaternion> for Quat {
+        fn to_quaternion(self) -> Quaternion {
+            Quaternion::new(self.x, self.y, self.z, self.w)
+        }
+    }
+
     /// Creates a PackedInt32Array from a vector of indices.
     pub fn packed_index_array_usize(index_arr: Vec<usize>) -> PackedInt32Array {
         PackedInt32Array::from_iter(index_arr.iter().map(|val| -> i32 { *val as i32 }))

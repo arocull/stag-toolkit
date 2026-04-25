@@ -1,0 +1,92 @@
+[gd_scene load_steps=9 format=3 uid="uid://bnxn8hos8aqd3"]
+
+[sub_resource type="Gradient" id="Gradient_ig7tw"]
+colors = PackedColorArray(0.81797093, 0.80477226, 0.656858, 1, 1, 1, 1, 1)
+
+[sub_resource type="FastNoiseLite" id="FastNoiseLite_0xm2m"]
+frequency = 0.3919
+
+[sub_resource type="NoiseTexture2D" id="NoiseTexture2D_h2yge"]
+width = 1024
+height = 1024
+noise = SubResource("FastNoiseLite_0xm2m")
+color_ramp = SubResource("Gradient_ig7tw")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_7dm0k"]
+albedo_color = Color(0.13560139, 0.2755853, 0.09407816, 1)
+albedo_texture = SubResource("NoiseTexture2D_h2yge")
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_7dm0k"]
+material = SubResource("StandardMaterial3D_7dm0k")
+size = Vector2(100, 100)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ig7tw"]
+albedo_color = Color(1, 0, 0, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_0xm2m"]
+albedo_color = Color(0, 1, 0, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_h2yge"]
+albedo_color = Color(0, 0, 1, 1)
+
+[node name="main" type="Node"]
+
+[node name="Node3D" type="Node3D" parent="."]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Node3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+mesh = SubResource("PlaneMesh_7dm0k")
+skeleton = NodePath("../..")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="Node3D"]
+transform = Transform3D(0.6625416, -0.5750953, 0.47990003, 0, 0.64069957, 0.76779175, -0.7490251, -0.508694, 0.4244901, 3.784562, 1.0559125, 0)
+shadow_enabled = true
+
+[node name="target" type="Node3D" parent="Node3D"]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Node3D/target"]
+size = Vector3(0.5, 0.5, 0.5)
+material = SubResource("StandardMaterial3D_ig7tw")
+
+[node name="target2" type="Node3D" parent="Node3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.5359507, 0.56329584, 2.2621903)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Node3D/target2"]
+size = Vector3(0.5, 0.5, 0.5)
+material = SubResource("StandardMaterial3D_0xm2m")
+
+[node name="target3" type="Node3D" parent="Node3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.167417, 1.6921461, -0.36368436)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Node3D/target3"]
+size = Vector3(0.5, 0.5, 0.5)
+material = SubResource("StandardMaterial3D_h2yge")
+
+[node name="rotator" type="Node3D" parent="Node3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5444512, 0.6935451, 2.9955106)
+
+[node name="StagCameraRotator" type="StagCameraRotator" parent="Node3D/rotator" node_paths=PackedStringArray("tracking_targets")]
+editor_preview = true
+tracking_targets = [NodePath("../../target"), NodePath("../../target2"), NodePath("../../target3")]
+transform = Transform3D(0.61433935, 0.036094647, 0.7882158, 0, 0.99895304, -0.045744907, -0.78904176, 0.0281029, 0.6136963, 0, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Node3D/rotator/StagCameraRotator"]
+
+[node name="positioned_dolly" type="Node3D" parent="Node3D"]
+
+[node name="StagCameraPositioner" type="StagCameraPositioner" parent="Node3D/positioned_dolly" node_paths=PackedStringArray("tracking_targets")]
+editor_preview = true
+tracking_targets = [NodePath("../../target"), NodePath("../../target2"), NodePath("../../target3")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.0837085, 0.84607303, 0.9492529)
+
+[node name="Node3D" type="Node3D" parent="Node3D/positioned_dolly/StagCameraPositioner"]
+transform = Transform3D(0.7071067, -0.1830127, 0.6830126, 0, 0.9659258, 0.258819, -0.7071067, -0.1830127, 0.6830126, 0, 0, -1.1920929e-07)
+
+[node name="StagCameraDolly" type="StagCameraDolly" parent="Node3D/positioned_dolly/StagCameraPositioner/Node3D" node_paths=PackedStringArray("tracking_targets")]
+editor_preview = true
+tracking_targets = [NodePath("../../../../target"), NodePath("../../../../target2"), NodePath("../../../../target3")]
+depth_max = 25.0
+depth_min = -25.0
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 3.4163227)
+
+[node name="Camera3D" type="Camera3D" parent="Node3D/positioned_dolly/StagCameraPositioner/Node3D/StagCameraDolly"]

@@ -3,7 +3,7 @@
 use proc_macro::TokenStream;
 use quote::{ToTokens, quote};
 use syn::parse::{Parse, ParseStream};
-use syn::{Error, Expr, Ident, LitFloat, LitStr, Token};
+use syn::{Error, Expr, Ident, LitFloat, LitStr, Token, parse_macro_input};
 
 // https://doc.rust-lang.org/reference/procedural-macros.html#derive-macros
 // https://www.freecodecamp.org/news/procedural-macros-in-rust/#heading-the-intostringhashmap-derive-macro
@@ -11,7 +11,7 @@ use syn::{Error, Expr, Ident, LitFloat, LitStr, Token};
 /// Settings management with sensible defaults.
 #[proc_macro_derive(ExposeSettings, attributes(setting))]
 pub fn expose_settings_fn(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    let input = parse_macro_input!(input as syn::DeriveInput);
     let struct_identifier = &input.ident;
 
     match &input.data {
@@ -167,8 +167,8 @@ impl Parse for SettingAttr {
 /// This macro requires a struct name and Godot base class as input.
 #[proc_macro_attribute]
 pub fn settings_resource_from(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let args = syn::parse_macro_input!(attr as SettingResourceAttr);
-    let input = syn::parse_macro_input!(item as syn::DeriveInput);
+    let args = parse_macro_input!(attr as SettingResourceAttr);
+    let input = parse_macro_input!(item as syn::DeriveInput);
     let struct_identifier = &input.ident;
 
     match &input.data {
@@ -335,4 +335,61 @@ impl Parse for SettingResourceAttr {
         let base_class = input.parse()?;
         Ok(SettingResourceAttr { name, base_class })
     }
+}
+
+#[proc_macro_attribute]
+pub fn camera_process_toggles(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as syn::DeriveInput);
+    let struct_identifier = &input.ident.to_token_stream();
+
+    match &input.data {
+        syn::Data::Struct(syn::DataStruct { fields, .. }) => {
+            let mut attributes = quote! {};
+            for attribute in &input.attrs {
+                attributes.extend(quote! { #attribute });
+            }
+
+            let mut field_tokens = quote! {};
+            for field in fields {
+                let f = field.to_token_stream();
+                field_tokens.extend(quote! { #f, });
+            }
+
+            quote! {
+                #[automatically_derived]
+                #attributes
+                pub struct #struct_identifier {
+                    #[export_group(name = "Process")]
+                    /// Whether to continue tracking targets or not.
+                    #[export]
+                    #[var(set = set_enabled)]
+                    #[init(val = true)]
+                    enabled: bool,
+
+                    /// Whether to perform tracking in-editor.
+                    #[export]
+                    #[var(set = set_editor_preview)]
+                    #[init(val = true)]
+                    editor_preview: bool,
+
+                    #field_tokens
+                }
+
+                #[automatically_derived]
+                // #[godot_api(secondary)]
+                impl #struct_identifier {
+                    /// Decides whether processing is enabled or not.
+                    fn update_tracking(&mut self) {
+                        let mut enabled = self.enabled;
+                        if Engine::singleton().is_editor_hint() {
+                            enabled = enabled && self.editor_preview;
+                        }
+                        self.base_mut().set_process(enabled);
+                    }
+                }
+            }
+        }
+        _ => unimplemented!(),
+    }
+    .into()
 }

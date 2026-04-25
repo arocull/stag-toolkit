@@ -115,6 +115,9 @@ pub mod classes {
     // IMPORTS //
     use godot::prelude::*;
 
+    /// Simple nodes for building complex camera rigs.
+    pub mod camera;
+
     /// Island Builder data handling.
     pub mod island_settings;
 
