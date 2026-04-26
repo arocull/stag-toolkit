@@ -1,0 +1,22 @@
+[project]
+name = "stag-pylib"
+version = "0.1.0"
+description = "Python library for data visualization"
+readme = "readme.md"
+authors = [
+    { name = "Alan O'Cull", email = "masteralan2001@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[tool.maturin]
+module-name = "stag_pylib._core"
+python-packages = ["stag_pylib"]
+python-source = "src"
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "src/**/*.rs" }, { file = "Cargo.toml" }, { file = "Cargo.lock" }]
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"

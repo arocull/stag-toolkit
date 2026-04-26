@@ -17,7 +17,7 @@ docs = [
 	"sphinx-copybutton",
 ]
 
-# [tool.uv.workspace]
-# members = [
-#     "stag-toolkit",
-# ]
+[tool.uv.workspace]
+members = [
+    "stag-pylib",
+]

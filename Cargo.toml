@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "stag-toolkit-codegen",
     "stag-toolkit",
+    "stag-pylib"
 ]
 
 # https://doc.rust-lang.org/cargo/reference/profiles.html#default-profiles
