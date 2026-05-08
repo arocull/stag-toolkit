@@ -730,13 +730,12 @@ impl TriangleMesh {
 
     /// Writes the mesh as an OBJ file to the given write buffer.
     pub fn export_obj(&self, out: &'_ mut dyn io::Write) -> io::Result<()> {
-        match write!(out, "# StagToolkit\no trimesh") {
-            Err(e) => return Err(e),
-            Ok(_) => (),
+        if let Err(e) = write!(out, "# StagToolkit\no trimesh") {
+            return Err(e);
         }
 
         // First, write vertices
-        if self.colors.len() > 0 {
+        if !self.colors.is_empty() {
             for (p, c) in self.positions.iter().zip(&self.colors) {
                 let x = p.x;
                 let y = p.y;
@@ -745,9 +744,8 @@ impl TriangleMesh {
                 let g = c.y;
                 let b = c.z;
                 let a = c.w;
-                match write!(out, "v {x} {y} {z} {r} {g} {b} {a}") {
-                    Err(e) => return Err(e),
-                    Ok(_) => (),
+                if let Err(e) = write!(out, "v {x} {y} {z} {r} {g} {b} {a}") {
+                    return Err(e);
                 }
             }
         } else {
@@ -755,24 +753,22 @@ impl TriangleMesh {
                 let x = p.x;
                 let y = p.y;
                 let z = p.z;
-                match write!(out, "v {x} {y} {z}") {
-                    Err(e) => return Err(e),
-                    Ok(_) => (),
+                if let Err(e) = write!(out, "v {x} {y} {z}") {
+                    return Err(e);
                 }
             }
         }
 
         // Write texture normals
         let mut normals = false;
-        if self.normals.len() > 0 {
+        if !self.normals.is_empty() {
             normals = true;
             for n in self.normals.iter() {
                 let x = n.x;
                 let y = n.y;
                 let z = n.z;
-                match write!(out, "vn {x} {y} {z}") {
-                    Err(e) => return Err(e),
-                    Ok(_) => (),
+                if let Err(e) = write!(out, "vn {x} {y} {z}") {
+                    return Err(e);
                 }
             }
         }
@@ -780,29 +776,26 @@ impl TriangleMesh {
         // Write UV coordinates
         let mut has_uvs = false;
         if let Some(uvs) = &self.uv1
-            && uvs.len() > 0
+            && !uvs.is_empty()
         {
             has_uvs = true;
             for t in uvs.iter() {
                 let u = t.x;
                 let v = t.y;
-                match write!(out, "vt {u} {v}") {
-                    Err(e) => return Err(e),
-                    Ok(_) => (),
+                if let Err(e) = write!(out, "vt {u} {v}") {
+                    return Err(e);
                 }
             }
         }
 
         // Specify surface
         if normals {
-            match write!(out, "s 1") {
-                Err(e) => return Err(e),
-                Ok(_) => (),
+            if let Err(e) = write!(out, "s 1") {
+                return Err(e);
             }
         } else {
-            match write!(out, "s 0") {
-                Err(e) => return Err(e),
-                Ok(_) => (),
+            if let Err(e) = write!(out, "s 0") {
+                return Err(e);
             }
         }
 
@@ -813,9 +806,8 @@ impl TriangleMesh {
                 let a = tri[0];
                 let b = tri[1];
                 let c = tri[2];
-                match write!(out, "f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}") {
-                    Err(e) => return Err(e),
-                    Ok(_) => (),
+                if let Err(e) = write!(out, "f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}") {
+                    return Err(e);
                 }
             }
         } else if normals {
@@ -823,9 +815,8 @@ impl TriangleMesh {
                 let a = tri[0];
                 let b = tri[1];
                 let c = tri[2];
-                match write!(out, "f {a}//{a} {b}//{b} {c}//{c}") {
-                    Err(e) => return Err(e),
-                    Ok(_) => (),
+                if let Err(e) = write!(out, "f {a}//{a} {b}//{b} {c}//{c}") {
+                    return Err(e);
                 }
             }
         } else if has_uvs {
@@ -833,9 +824,8 @@ impl TriangleMesh {
                 let a = tri[0];
                 let b = tri[1];
                 let c = tri[2];
-                match write!(out, "f {a}/{a} {b}/{a} {c}/{a}") {
-                    Err(e) => return Err(e),
-                    Ok(_) => (),
+                if let Err(e) = write!(out, "f {a}/{a} {b}/{a} {c}/{a}") {
+                    return Err(e);
                 }
             }
         } else {
@@ -843,9 +833,8 @@ impl TriangleMesh {
                 let a = tri[0];
                 let b = tri[1];
                 let c = tri[2];
-                match write!(out, "f {a} {b} {c}") {
-                    Err(e) => return Err(e),
-                    Ok(_) => (),
+                if let Err(e) = write!(out, "f {a} {b} {c}") {
+                    return Err(e);
                 }
             }
         }

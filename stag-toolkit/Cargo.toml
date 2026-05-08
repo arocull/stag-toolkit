@@ -27,7 +27,7 @@ animation = [] # Experimental animation system
 [dependencies]
 fast-surface-nets = "0.2.1"
 glam = { version = "0.32.1", features = ["approx"] }
-godot = { version = "0.5.1", features = ["api-4-5", "experimental-threads", "register-docs"], optional = true }
+godot = { version = "0.5.2", features = ["api-4-5", "experimental-threads", "register-docs"], optional = true }
 ndshape = "0.3.0"
 noise = "0.9.0"
 rayon = "1.12.0"
