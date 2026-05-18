@@ -1,6 +1,7 @@
 .PHONY: all clean derust import sanity dev debug debug-all release bundle bundle-derust test test-rust test-godot test-sanity bench bench-rust bench-godot doc doc-clean doc-gdscript doc-gdextension doc-rust sphinx
 
-FEATURE_FLAGS=physics_server
+FEATURE_FLAGS=,
+FEATURE_FLAGS_DEV=physics_server
 
 all: debug
 
@@ -19,7 +20,7 @@ import:
 sanity:
 	./build.sh build sanity $(FEATURE_FLAGS)
 dev:
-	./build.sh build dev $(FEATURE_FLAGS)
+	./build.sh build dev $(FEATURE_FLAGS_DEV)
 debug:
 	./build.sh build debug $(FEATURE_FLAGS)
 debug-all:
@@ -87,4 +88,4 @@ doc-rust-strict:
 
 sphinx:
 	@cd sphinx && ./build.sh
-	@cd sphinx && sphinx-build . ../build/public
+	@$(MAKE) -C sphinx/ html

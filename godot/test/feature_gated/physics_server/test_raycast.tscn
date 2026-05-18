@@ -1,6 +1,6 @@
 [gd_scene load_steps=8 format=3 uid="uid://bwse27vewxv3p"]
 
-[ext_resource type="Script" uid="uid://8xux1cpwhjdu" path="res://test/scenarios/physics_server/test_raycast.gd" id="1_0gpf5"]
+[ext_resource type="Script" uid="uid://8xux1cpwhjdu" path="res://test/feature_gated/physics_server/test_raycast.gd" id="1_0gpf5"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_rltjr"]
 
