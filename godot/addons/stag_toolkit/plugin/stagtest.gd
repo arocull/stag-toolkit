@@ -548,6 +548,7 @@ func _physics_process(_delta: float) -> void:
 		_tick_timers_physics_process_mu.unlock()
 		internal_tick_physics_process_list_ready.emit()
 
+# Callback that fails the test upon receiving a logged error.
 func _catch_error(message: String):
 	if is_active() and in_test:
 		fail(message)
@@ -568,13 +569,24 @@ func is_active() -> bool:
 func path() -> String:
 	return tests[test_idx]
 
-## Sets the pause of the scene tree.
+## Sets [member SceneTree.paused].
 func pause(paused: bool) -> void:
 	get_tree().paused = paused
 
-## Sets the engine time scale.
-func time_scale(new_scale: float = _time_scale_base) -> void:
-	Engine.time_scale = new_scale
+## Sets [member Engine.time_scale] for the given test.
+## [br]
+## [br]
+## [code]new_scale[/code] is the new time scale to use.
+## Uses the default time scale provided by the command-line by default.
+## [br]
+## [br]
+## If [code]as_maximum[/code] is true, then the new time scale is only applied if the current time scale is greater.
+## This is useful if you forcibly run a test in slow motion from command-line, but do not want it sped up in your default CI.
+func time_scale(new_scale: float = _time_scale_base, as_maximum: bool = false) -> void:
+	if as_maximum:
+		Engine.time_scale = minf(Engine.time_scale, new_scale)
+	else:
+		Engine.time_scale = new_scale
 
 ## Puts the test into Teardown mode.
 ## If the test is not skipped or failed during Teardown, it passes.
@@ -643,7 +655,7 @@ func assert_valid(a: Object, message: String = "") -> void:
 			_format_assertion_message(message)]))
 
 ## Assert that two values are equal within an epsilon value, that scales with magnitude.[br]
-## [b]Note[/b]: to use a specific delta threshold value, use [code]StagTest.assert_in_delta(...)[/code] instead.
+## [b]Note[/b]: to use a specific delta threshold value, use [method StagTest.assert_in_delta] instead.
 func assert_approx_equal(a: Variant, b: Variant, message: String = "") -> void:
 	test_data["assertions"] += 1
 
@@ -675,7 +687,8 @@ func assert_approx_equal(a: Variant, b: Variant, message: String = "") -> void:
 			_format_assertion_message(message)]))
 
 ## Assert that two values are equal, within a threshold amount.
-## Use [code]StagTest.assert_approx_equal()[/code] if the delta must scale with magnitude.[br][br]
+## Use [method StagTest.assert_approx_equal] if the delta must scale with magnitude.
+## [br][br]
 ## For floating-point vectors, the overall distance between vectors is compared.
 ## For integer vectors, Manhattan distance is used instead.
 func assert_in_delta(a: Variant, b: Variant, delta: float = 1e-5, message: String = "") -> void:
@@ -803,10 +816,10 @@ func benchmark(f: Callable, count: int, label: String, timeout: float = -1) -> B
 		failure = true
 
 	if failure: # Return empty report on failure
-		var res = BenchmarkResult.new()
-		_add_report(_benchmarks, res, label)
-		_add_report(_reports_benchmarks, res.dict(), label)
-		return res
+		var resfailed = BenchmarkResult.new()
+		_add_report(_benchmarks, resfailed, label)
+		_add_report(_reports_benchmarks, resfailed.dict(), label)
+		return resfailed
 
 	# Initialize float queue and store timings
 	var queue = ClassDB.instantiate("QueueFloat")
