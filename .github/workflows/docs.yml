@@ -44,9 +44,9 @@ jobs:
               with:
                   python-version-file: "pyproject.toml"
 
-            - name: Install Python Dependencies
-              run: |
-                  pip install .[docs]
+            # - name: Install Python Dependencies
+            #   run: |
+            #       pip install .[docs]
 
             - name: Setup StagToolkit
               uses: ./.gitea/composite/setup

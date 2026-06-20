@@ -25,7 +25,16 @@ signal rebuilt()
 # Variable name prefix for toggleable defines
 const _FLAG_PREFIX = "flag_"
 # Generated shader structure
-const _STRUCTURE = "shader_type {shader_type};\n// Constants\n{constants}\n// Flags\n{defines}\n// Prelude\n{prelude}\n//Includes\n{includes}\n"
+const _STRUCTURE = """shader_type {shader_type};
+// Constants
+{constants}
+// Flags
+{defines}
+// Prelude
+{prelude}
+//Includes
+{includes}
+"""
 
 # If true, the resource has been fully deserialized.
 var _initialized: bool = false
@@ -135,6 +144,7 @@ func _get_property_list() -> Array[Dictionary]:
 func _get(property: StringName):
 	if property.begins_with(_FLAG_PREFIX):
 		return property.substr(_FLAG_PREFIX.length()) in flags_enabled
+	return null
 
 func _set(property: StringName, value):
 	if property.begins_with(_FLAG_PREFIX):
