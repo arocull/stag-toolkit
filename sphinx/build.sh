@@ -32,8 +32,7 @@ python3 source/make_rst.py -o "source/gdextension" -l "en" xml/gdextension || /b
 rm source/plugin/index.rst
 rm source/gdextension/index.rst
 
-make html
-
 # Build documentation for Rust
 cargo doc --lib --all-features --no-deps -r
+mkdir -p build/html/
 cp -r ../target/doc/ build/html/crate/
