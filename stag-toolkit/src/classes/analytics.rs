@@ -20,23 +20,22 @@ pub enum GenericData {
     Transform(Mat4),
 }
 
+#[derive(GodotClass)]
+#[class(init,base=Resource,tool)]
+pub struct StagRecordKeys {
+
+}
+
+pub struct StagRecord {
+	data: HashMap<u32, GenericData>,
+}
+
 /// Can be used to store various analytics data before being packaged up and sent to a given endpoint.
 ///
 /// @experimental: Still debating implementation.
 #[derive(GodotClass)]
-#[class(init,base=Node,tool)]
-pub struct StagAnalytics {
-    /// Current time offset, in milliseconds, from start of recording.
-    #[export(range=(0.0,50000.0,or_greater,suffix="ms"))]
-    #[init(val = 0)]
-    pub time_offset: i64,
-
-    /// Duration of time between data points when recording is active.
-    #[export_group(name = "Time", prefix = "time_")]
-    #[export(range=(1.0, 5000.0,or_greater,suffix="ms"))]
-    #[init(val = 2000)]
-    pub time_resolution: u32,
-
+#[class(init,base=RefCounted,tool)]
+pub struct StagRecording {
     /// Whether to enable Zstd compression when pulling data as a byte array.
     #[export]
     #[export_group(name = "Compression", prefix = "compression_")]
@@ -49,9 +48,6 @@ pub struct StagAnalytics {
     #[init(val = 0)]
     pub compression_level: i8,
 
-    #[init(val = false)]
-    recording: bool,
-
     #[init(val = 0)]
     record_step: u32,
 
@@ -60,10 +56,10 @@ pub struct StagAnalytics {
 }
 
 #[godot_api]
-impl INode for StagAnalytics {}
+impl IRefCounted for StagAnalytics {}
 
 #[godot_api]
-impl StagAnalytics {
+impl StagRecord {
     #[func]
     fn record_vector3(&mut self, key: GString, val: Vector3) {}
 
