@@ -117,7 +117,11 @@ pub mod classes {
     use godot::prelude::*;
 
     #[cfg(feature = "analytics")]
+    /// Simple gameplay analytics system for studying player habits.
     pub mod analytics;
+
+    /// Simple nodes for building complex camera rigs.
+    pub mod camera;
 
     /// Island Builder data handling.
     pub mod island_settings;

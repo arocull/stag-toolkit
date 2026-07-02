@@ -10,7 +10,9 @@ use noise::{NoiseFn, Perlin};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::f64::consts::PI;
+use std::io;
 use std::num::NonZero;
+
 // EDGES //
 
 /// A mesh edge of vertex indices. In counter-clockwise winding order.
@@ -724,6 +726,120 @@ impl TriangleMesh {
         for (i, triangle) in self.triangles.iter().enumerate() {
             self.planes[i] = triangle.plane(&self.positions);
         }
+    }
+
+    /// Writes the mesh as an OBJ file to the given write buffer.
+    pub fn export_obj(&self, out: &'_ mut dyn io::Write) -> io::Result<()> {
+        if let Err(e) = write!(out, "# StagToolkit\no trimesh") {
+            return Err(e);
+        }
+
+        // First, write vertices
+        if !self.colors.is_empty() {
+            for (p, c) in self.positions.iter().zip(&self.colors) {
+                let x = p.x;
+                let y = p.y;
+                let z = p.z;
+                let r = c.x;
+                let g = c.y;
+                let b = c.z;
+                let a = c.w;
+                if let Err(e) = write!(out, "v {x} {y} {z} {r} {g} {b} {a}") {
+                    return Err(e);
+                }
+            }
+        } else {
+            for p in self.positions.iter() {
+                let x = p.x;
+                let y = p.y;
+                let z = p.z;
+                if let Err(e) = write!(out, "v {x} {y} {z}") {
+                    return Err(e);
+                }
+            }
+        }
+
+        // Write texture normals
+        let mut normals = false;
+        if !self.normals.is_empty() {
+            normals = true;
+            for n in self.normals.iter() {
+                let x = n.x;
+                let y = n.y;
+                let z = n.z;
+                if let Err(e) = write!(out, "vn {x} {y} {z}") {
+                    return Err(e);
+                }
+            }
+        }
+
+        // Write UV coordinates
+        let mut has_uvs = false;
+        if let Some(uvs) = &self.uv1
+            && !uvs.is_empty()
+        {
+            has_uvs = true;
+            for t in uvs.iter() {
+                let u = t.x;
+                let v = t.y;
+                if let Err(e) = write!(out, "vt {u} {v}") {
+                    return Err(e);
+                }
+            }
+        }
+
+        // Specify surface
+        if normals {
+            if let Err(e) = write!(out, "s 1") {
+                return Err(e);
+            }
+        } else {
+            if let Err(e) = write!(out, "s 0") {
+                return Err(e);
+            }
+        }
+
+        // Finally, define mesh buffer
+        // vertex, uv coordinate, normal
+        if has_uvs && normals {
+            for tri in self.triangles.iter() {
+                let a = tri[0];
+                let b = tri[1];
+                let c = tri[2];
+                if let Err(e) = write!(out, "f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}") {
+                    return Err(e);
+                }
+            }
+        } else if normals {
+            for tri in self.triangles.iter() {
+                let a = tri[0];
+                let b = tri[1];
+                let c = tri[2];
+                if let Err(e) = write!(out, "f {a}//{a} {b}//{b} {c}//{c}") {
+                    return Err(e);
+                }
+            }
+        } else if has_uvs {
+            for tri in self.triangles.iter() {
+                let a = tri[0];
+                let b = tri[1];
+                let c = tri[2];
+                if let Err(e) = write!(out, "f {a}/{a} {b}/{a} {c}/{a}") {
+                    return Err(e);
+                }
+            }
+        } else {
+            for tri in self.triangles.iter() {
+                let a = tri[0];
+                let b = tri[1];
+                let c = tri[2];
+                if let Err(e) = write!(out, "f {a} {b} {c}") {
+                    return Err(e);
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

@@ -1,0 +1,23 @@
+[project]
+name = "stag-toolkit"
+version = "0.6.0"
+description = "Godot addon for real-time 3D games, art, and simulations"
+readme = "readme.md"
+authors = [
+    { name = "Alan O'Cull", email = "masteralan2001@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.optional-dependencies]
+docs = [
+	"docutils",
+	"furo",
+	"sphinx",
+	"sphinx-copybutton",
+]
+
+# [tool.uv.workspace]
+# members = [
+#     "stag-toolkit",
+# ]

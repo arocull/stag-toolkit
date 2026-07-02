@@ -199,9 +199,7 @@ impl<T: Clone + Copy + Default> VolumeData<T> {
             for chunky in 0..max_chunks_y {
                 let mut chunks_y = vec![Self::new(T::default(), dim); max_chunks_z];
 
-                for chunkz in 0..max_chunks_z {
-                    let chunk = &mut chunks_y[chunkz];
-
+                for (chunkz, chunk) in chunks_y.iter_mut().enumerate() {
                     let globalx_offset = chunkx * dim[0];
                     let globaly_offset = chunky * dim[1];
                     let globalz_offset = chunkz * dim[1];

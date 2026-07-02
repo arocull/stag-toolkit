@@ -1,7 +1,7 @@
 [package]
 name = "stag-toolkit"
 description = "Real-time solutions for 3D games, art, and simulations."
-version = "0.5.2"
+version = "0.6.0"
 edition = "2024"
 license = "Apache-2.0"
 readme = "readme.md"
@@ -27,15 +27,15 @@ analytics = ["glam/serde"] # Experimental analytics logging/parsing for Godot En
 
 [dependencies]
 fast-surface-nets = "0.2.1"
-glam = { version = "0.30.9", features = ["approx"] }
-godot = { version = "0.4.2", features = ["api-4-5", "experimental-threads", "register-docs"], optional = true }
+glam = { version = "0.33.0", features = ["std", "approx"], default-features=false }
+godot = { version = "0.5.3", features = ["api-4-5", "experimental-threads", "register-docs", "upcoming-editor-placeholders"], optional = true }
 ndshape = "0.3.0"
 noise = "0.9.0"
-rayon = "1.11.0"
-stag-toolkit-codegen = { path = "../stag-toolkit-codegen", version = "0.5.2" }
+rayon = "1.12.0"
+stag-toolkit-codegen = { path = "../stag-toolkit-codegen" }
 
 [dev-dependencies]
-criterion = { version = "0.7.0", features = ["html_reports"] }
+criterion = { version = "0.8.2", features = ["html_reports"] }
 
 [package.metadata.docs.rs]
 all-features = true

@@ -622,7 +622,7 @@ impl Data {
                             + self.bounds.minimum;
                         grid_offset[grid_idx] = offset;
 
-                        for i in 0usize..IslandChunkSize::USIZE {
+                        for (i, result) in grids[grid_idx].iter_mut().enumerate() {
                             // Local XYZ coordinate of Surface Nets volume
                             let coord = IslandChunkSize::delinearize(i as u32);
                             // Global index of Voxel Grid
@@ -633,7 +633,7 @@ impl Data {
                             );
 
                             let sample = voxels.get_linear(voxels_idx);
-                            grids[grid_idx][i] = -sample;
+                            *result = -sample;
 
                             if sample < 0.0 {
                                 volume += volume_per_voxel;

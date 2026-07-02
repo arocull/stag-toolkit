@@ -46,7 +46,7 @@ Or, in your `Cargo.toml`, add:
 ```toml
 [dependencies]
 # ...
-stag-toolkit = "0.5.2"
+stag-toolkit = "0.6.0"
 ```
 
 ## Documentation

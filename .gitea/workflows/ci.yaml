@@ -52,13 +52,19 @@ jobs:
         id: tarpaulin
         run: |
           cargo install cargo-tarpaulin
-          cargo tarpaulin -o html --output-dir reports/
+          make coverage
+
+      - name: Archive Coverage Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-coverage-report
+          path: reports/tarpaulin-report.html
 
       # Disabled Clippy temporarily as we're creating libraries for future use, hence unused functions
-      # - name: Clippy
-      #   id: rust-clippy
-      #   run: |
-      #     cargo clippy -- -D warnings
+      - name: Clippy
+        id: rust-clippy
+        run: |
+          cargo clippy -- -D warnings
 
       - name: Super-Linter
         uses: super-linter/super-linter@v6.8.0
@@ -75,13 +81,6 @@ jobs:
           # These seem to be broken
           VALIDATE_GROOVY: false
           FIX_GROOVY: false
-
-
-      - name: Archive Coverage Results
-        uses: actions/upload-artifact@v3
-        with:
-          name: code-coverage-report
-          path: reports/tarpaulin-report.html
 
       # - name: Rust Build
       #   id: rust-build
@@ -116,7 +115,7 @@ jobs:
         uses: ./.gitea/composite/setup
         with:
           cross-compile: false
-          toolkit-path: '.'
+          toolkit-path: "."
           import-assets: true
 
       - name: Godot Unit Tests

@@ -1,23 +1,23 @@
 [configuration]
 entry_symbol = "gdext_rust_init"
-compatibility_minimum = 4.4
+compatibility_minimum = 4.5
 reloadable = false
 
 [libraries]
-linux.debug.x86_64 =     "res://addons/stag_toolkit/bin/release/libstag_toolkit.so"
+linux.debug.x86_64 =     "res://addons/stag_toolkit/bin/debug/libstag_toolkit.so"
 linux.release.x86_64 =   "res://addons/stag_toolkit/bin/release/libstag_toolkit.so"
 
-windows.debug.x86_64 =   "res://addons/stag_toolkit/bin/release/stag_toolkit.dll"
+windows.debug.x86_64 =   "res://addons/stag_toolkit/bin/debug/stag_toolkit.dll"
 windows.release.x86_64 = "res://addons/stag_toolkit/bin/release/stag_toolkit.dll"
 
-macos.debug =            "res://addons/stag_toolkit/bin/release/libstag_toolkit.dylib"
+macos.debug =            "res://addons/stag_toolkit/bin/debug/libstag_toolkit.dylib"
 macos.release =          "res://addons/stag_toolkit/bin/release/libstag_toolkit.dylib"
-macos.debug.arm64 =      "res://addons/stag_toolkit/bin/release/libstag_toolkit.dylib"
+macos.debug.arm64 =      "res://addons/stag_toolkit/bin/debug/libstag_toolkit.dylib"
 macos.release.arm64 =    "res://addons/stag_toolkit/bin/release/libstag_toolkit.dylib"
 
-web.debug.threads.wasm32 =   "res://addons/stag_toolkit/bin/release/stag_toolkit.threads.wasm"
+web.debug.threads.wasm32 =   "res://addons/stag_toolkit/bin/debug/stag_toolkit.threads.wasm"
 web.release.threads.wasm32 = "res://addons/stag_toolkit/bin/release/stag_toolkit.threads.wasm"
-web.debug.wasm32 =           "res://addons/stag_toolkit/bin/release/stag_toolkit.wasm"
+web.debug.wasm32 =           "res://addons/stag_toolkit/bin/debug/stag_toolkit.wasm"
 web.release.wasm32 =         "res://addons/stag_toolkit/bin/release/stag_toolkit.wasm"
 
 [icons]

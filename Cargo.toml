@@ -16,3 +16,12 @@ overflow-checks = true
 opt-level = 3
 debug = false
 strip = "none"
+
+[profile.dev-sanity]
+inherits = "dev"
+opt-level = 0
+
+[profile.release-lto]
+inherits = "release"
+lto = true
+strip = "debuginfo"
