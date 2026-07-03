@@ -39,10 +39,16 @@ jobs:
                   ref: ${{ github.head_ref }}
                   fetch-depth: 1
 
-            - name: Set up Python
-              uses: actions/setup-python@v6
+            # - name: Set up Python
+              # uses: actions/setup-python@v6
+              # with:
+                  # python-version-file: "pyproject.toml"
+
+            - name: Install uv
+              uses: astral-sh/setupuv@v8.2
               with:
-                  python-version-file: "pyproject.toml"
+                python-version: 3.14
+                activate-environment: true
 
             # - name: Install Python Dependencies
             #   run: |
@@ -60,13 +66,22 @@ jobs:
               run: |
                   cd sphinx && ./build.sh
 
+            # - name: Deploy to GitHub Pages
+            #   id: deployment
+            #   uses: sphinx-notes/pages@v3
+            #   with:
+            #       documentation_path: ./sphinx
+            #       requirements_path: ./sphinx/requirements.txt
+            #       python_version: 3.14
+            #       pyproject_extras: docs
+            #       checkout: false
+            #       publish: true
+            #
+            - name: Upload static files as artifact
+              id: deployment
+              uses: actions/upload-pages-artifact@v5
+              with:
+                  path: ./sphinx/build/html/
             - name: Deploy to GitHub Pages
               id: deployment
-              uses: sphinx-notes/pages@v3
-              with:
-                  documentation_path: ./sphinx
-                  requirements_path: ./sphinx/requirements.txt
-                  python_version: 3.14
-                  pyproject_extras: docs
-                  checkout: false
-                  publish: true
+              uses: actions/deploy-pages@v5

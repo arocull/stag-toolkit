@@ -65,11 +65,11 @@ runs:
         toolchain: ${{ inputs.rust-version }}
         override: false
 
-    - name: Add Rust Windows Target
+    - name: Add Rust Cross-Compile Targets
       if: ${{ inputs.cross-compile == 'true' }}
       shell: bash
       run: |
-        rustup target add x86_64-pc-windows-gnu
+        rustup target add x86_64-pc-windows-gnu,wasm32-unknown-emscripten
 
     - name: Build StagToolkit
       if: ${{ ! (inputs.cross-compile == 'true') }}
@@ -89,7 +89,7 @@ runs:
       # https://gitea.com/gitea/act_runner/issues/164
     - name: Fetch LFS
       id: fetch-lfs
-      if: ${{ (inputs.fetch-lfs == 'true') || (inputs.import-assets == 'true') }}
+      if: ${{ inputs.fetch-lfs == 'true' }}
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
