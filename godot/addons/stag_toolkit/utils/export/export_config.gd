@@ -157,8 +157,8 @@ class StagExportPreset extends RefCounted:
 
 	## Builds this preset, appending data to the configuration file.
 	func build_preset(cfg: ConfigFile, platform: String, index: int):
-		print("Hello world!")
 		var preset_name: String = "{0}_{1}".format([preset_name.to_snake_case(), platform.to_snake_case()])
+		print("Building preset: " +  preset_name)
 		var export_path: String = get_config("export_path", Variant.Type.TYPE_STRING, "")
 		if export_path.is_empty():
 			push_warning("Export path for {0} is empty, unable to create directory", preset_name)

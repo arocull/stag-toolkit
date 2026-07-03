@@ -51,7 +51,7 @@ if [ "$COMMAND" == "clean" ]; then
 fi
 
 if [ "$COMMAND" == "test" ]; then
-    cargo test --all-features
+    cargo test --features default,godot,physics_server,animation
     exit 0
 fi
 
@@ -65,7 +65,7 @@ fi
 # Always include Godot feature for building the addon
 FEATURES="godot,$FEATURES"
 if [[ "$STAGTOOLKIT_THREADING" == "0" ]]; then
-    FEATURES="$FEATURES,nothreads"
+    FEATURES="$FEATURES"
 else
     FEATURES="$FEATURES,godot/experimental-threads"
 fi
@@ -147,17 +147,20 @@ for TARGET in "${TARGET_NAMES[@]}"; do
         # ...requires standard library
         TARGET_FLAGS="${TARGET_FLAGS} -Zbuild-std"
         # ...requires additional crate features
-        TARGET_FEATURES="${TARGET_FEATURES},godot/experimental-wasm"
 
         # If threading is disabled, enable threads in build
         if [[ $STAGTOOLKIT_THREADING != "0" ]]; then
+            TARGET_FEATURES="${TARGET_FEATURES},godot/experimental-wasm"
             TARGET_RUSTFLAGS='RUSTFLAGS="-C link-args=-pthread \
             -C target-feature=+atomics \
             -C link-args=-sSIDE_MODULE=2 \
             -C llvm-args=-enable-emscripten-cxx-exceptions=0 \
             -Z default-visibility=hidden \
             -Z link-native-libraries=no \
-            -Z emscripten-wasm-eh=false"'
+            -Z unstable options \
+            -C panic=immediate-abort"'
+        else
+            TARGET_FEATURES="${TARGET_FEATURES},godot/experimental-wasm-nothreads,godot/lazy-function-tables"
         fi
     fi
 

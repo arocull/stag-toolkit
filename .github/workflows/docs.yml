@@ -34,7 +34,7 @@ jobs:
 
         steps:
             - name: Clone
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   ref: ${{ github.head_ref }}
                   fetch-depth: 1
@@ -64,8 +64,8 @@ jobs:
               id: deployment
               uses: sphinx-notes/pages@v3
               with:
-                  documentation_path: ./sphinx/
-                  requirements_path: pyproject.toml
+                  documentation_path: ./sphinx
+                  requirements_path: ./sphinx/requirements.txt
                   python_version: 3.14
                   pyproject_extras: docs
                   checkout: false

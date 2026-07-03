@@ -369,7 +369,7 @@ mod tests {
         );
 
         // rotate quaternion towards +X
-        let right = vector_in_cone(Quat::look_to_rh(Vec3::X, Vec3::Y), 0.0, 0.0);
+        let right = vector_in_cone(look_to_quat(Vec3::X, Vec3::Y), 0.0, 0.0);
         assert_in_delta_vector(
             Vec3::X,
             right,
