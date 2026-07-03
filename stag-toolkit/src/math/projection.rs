@@ -1,3 +1,4 @@
+use glam::camera::rh::view::look_to_quat;
 use glam::{Mat3, Quat, Vec3, Vec4, Vec4Swizzles};
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -132,7 +133,7 @@ pub fn direction_to_quaternion(vector: Vec3) -> Quat {
         return Quat::from_mat3(&Mat3::from_cols(Vec3::X, Vec3::Z, Vec3::NEG_Y)).normalize();
     }
 
-    Quat::look_to_rh(-vector, Vec3::Y).conjugate()
+    look_to_quat(-vector, Vec3::Y).conjugate()
 }
 
 #[cfg(test)]

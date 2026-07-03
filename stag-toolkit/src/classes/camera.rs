@@ -1,3 +1,4 @@
+use glam::camera::rh::view::look_to_quat;
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use godot::builtin::{Aabb, Array, Transform3D};
 use godot::classes::Engine;
@@ -83,7 +84,7 @@ impl INode3D for Rotator {
         // Get current and goal orientations
         let current: Quat = self.base().get_quaternion().to_quaternion().normalize();
         // Not sure why this needs to be inversed, but it does!
-        let mut goal: Quat = Quat::look_to_rh(target_vector, Vec3::Y).inverse();
+        let mut goal: Quat = look_to_quat(target_vector, Vec3::Y).inverse();
 
         // TODO: fancy interpolation code here?
         goal = current

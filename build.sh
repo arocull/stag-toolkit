@@ -10,11 +10,11 @@ if [ ! -n "$COMMAND" ] || [ "$COMMAND" == "help" ]; then
     echo "   ./build.sh derust # Removes gdextension from StagToolkit Godot addon"
     echo "   ./build.sh test   # Perform Rust unit tests"
     echo ""
-    echo "   ./build.sh build <sanity|dev|debug|release> <features> [platforms]"
-    echo "      sanity - All assertions, no optimization (for when you're losing your mind)"
-    echo "      dev - All gdext assertions, light optimization (for development)"
-    echo "      debug - Some gdext assertions, heavy optimization (for editor/debug exports)"
-    echo "      release - No gdext assertions, heavy optimization (for release exports)"
+    echo "   ./build.sh build <dev|debug|release|sanity> <features> [platforms]"
+    echo "      dev - All gdext assertions, light optimization, documentation (for development)"
+    echo "      debug - Some gdext assertions, heavy optimization, documentation (for editor/debug exports)"
+    echo "      release - No gdext assertions, heavy optimization, no documentation (for release exports)"
+    echo "      sanity - All assertions, no optimization, documentation (for when you're losing your mind)"
     echo ""
     echo "      features are a comma-separated list of crate features, example:"
     echo "          physics_server,animation   - for physics + animation features"
@@ -23,10 +23,14 @@ if [ ! -n "$COMMAND" ] || [ "$COMMAND" == "help" ]; then
     echo "      platforms are a comma-separated list of Rust targets, example:"
     echo "         x86_64-unknown-linux-gnu,x86_64-pc-windows-gnu"
     echo ""
+    echo "		wasm32-unknown-emscripten is supported, but takes significantly longer to build"
+    echo "			threading is enabled by default, STAGTOOLKIT_THREADING=0 to disable it"
+    echo ""
     echo "   Build examples:"
     echo "   ./build.sh build debug physics_server,animation x86_64-unknown-linux-gnu,x86_64-pc-windows-gnu"
     echo "   ./build.sh build release physics_server,animation x86_64-unknown-linux-gnu,x86_64-pc-windows-gnu"
-	exit 1
+    echo "   STAGTOOLKIT_THREADING=0 ./build.sh build release physics_server wasm32-unknown-emscripten"
+    exit 1
 fi
 
 # Remove rust from addon as necessary
@@ -54,24 +58,31 @@ fi
 RELEASE_TYPE=$2
 FEATURES=$3
 if [ ! -n "$RELEASE_TYPE" ]; then
-	echo "must specify release type: 'sanity' 'dev' 'debug' 'release'"
-	exit 1
+    echo "must specify release type: 'dev' 'debug' 'release' 'sanity'"
+    exit 1
 fi
 
 # Always include Godot feature for building the addon
 FEATURES="godot,$FEATURES"
+if [[ "$STAGTOOLKIT_THREADING" == "0" ]]; then
+    FEATURES="$FEATURES,nothreads"
+else
+    FEATURES="$FEATURES,godot/experimental-threads"
+fi
 RELEASE_FOLDER="debug"
 
 # Pick build profile and remove safety checks as necessary
 if [ "$RELEASE_TYPE" == "sanity" ]; then
     BUILD_PROFILE="dev-sanity"
+    FEATURES="$FEATURES,godot/register-docs"
 fi
 if [ "$RELEASE_TYPE" == "dev" ]; then
     BUILD_PROFILE="dev"
+    FEATURES="$FEATURES,godot/register-docs"
 fi
 if [ "$RELEASE_TYPE" == "debug" ]; then
     BUILD_PROFILE="release"
-    FEATURES="$FEATURES,godot/safeguards-dev-balanced"
+    FEATURES="$FEATURES,godot/safeguards-dev-balanced,godot/register-docs"
 fi
 if [ "$RELEASE_TYPE" == "release" ]; then
     RELEASE_FOLDER="release"
@@ -85,9 +96,9 @@ mkdir -p ${ADDON_PATH}
 touch ${ADDON_PATH}/.gdignore
 
 cargo fetch
-BUILD_FLAGS="--lib --profile $BUILD_PROFILE --features $FEATURES"
+BUILD_FLAGS="--lib --profile $BUILD_PROFILE"
 
-LIBNAMES=("libstag_toolkit.so" "stag_toolkit.dll" "libstag_toolkit.dylib")
+LIBNAMES=("libstag_toolkit.so" "stag_toolkit.dll" "libstag_toolkit.dylib" "stag_toolkit.wasm" "stag_toolkit.threads.wasm")
 copyartifact() {
     # Looks for any expected library names,
     # and copies them from the target directory to the addon
@@ -97,8 +108,14 @@ copyartifact() {
 
     for FILENAME in "${LIBNAMES[@]}"; do
         if [ -f "${TARGETDIR}/${FILENAME}" ]; then
-            cp "${TARGETDIR}/${FILENAME}" "${BINDIR}/${FILENAME}";
-            echo "copied artifact ${TARGETDIR}/${FILENAME} -> ${BINDIR}/${FILENAME}";
+            TARGET_FILENAME=$FILENAME
+
+            if [[ $FILENAME == "stag_toolkit.wasm" ]] && [[ $STAGTOOLKIT_THREADING != "0" ]]; then
+                TARGET_FILENAME="stag_toolkit.threads.wasm"
+            fi
+
+            cp "${TARGETDIR}/${FILENAME}" "${BINDIR}/${TARGET_FILENAME}";
+            echo "copied artifact ${TARGETDIR}/${FILENAME} -> ${BINDIR}/${TARGET_FILENAME}";
         fi;
     done
 }
@@ -114,7 +131,37 @@ fi
 IFS="," read -ra TARGET_NAMES <<< "$TARGETS"
 for TARGET in "${TARGET_NAMES[@]}"; do
     echo "Building $TARGET";
-    echo "cargo build ${BUILD_FLAGS} --target $TARGET"
-    cargo build $(IFS="" echo ${BUILD_FLAGS}) --target $TARGET;
+
+    # Certain targets may require a build with nightly
+    NIGHTLY=""
+
+    # Certain targets may require additional flags
+    TARGET_FLAGS=""
+    TARGET_RUSTFLAGS=""
+
+    # Certain targets may require additional features
+    TARGET_FEATURES="${FEATURES}"
+    if [ "$TARGET" == "wasm32-unknown-emscripten" ]; then
+        # godot-rust requires nightly Rust...
+        NIGHTLY="+nightly"
+        # ...requires standard library
+        TARGET_FLAGS="${TARGET_FLAGS} -Zbuild-std"
+        # ...requires additional crate features
+        TARGET_FEATURES="${TARGET_FEATURES},godot/experimental-wasm"
+
+        # If threading is disabled, enable threads in build
+        if [[ $STAGTOOLKIT_THREADING != "0" ]]; then
+            TARGET_RUSTFLAGS='RUSTFLAGS="-C link-args=-pthread \
+            -C target-feature=+atomics \
+            -C link-args=-sSIDE_MODULE=2 \
+            -C llvm-args=-enable-emscripten-cxx-exceptions=0 \
+            -Z default-visibility=hidden \
+            -Z link-native-libraries=no \
+            -Z emscripten-wasm-eh=false"'
+        fi
+    fi
+
+    echo "${TARGET_RUSTFLAGS} cargo $NIGHTLY build ${TARGET_FLAGS} ${BUILD_FLAGS} --features ${TARGET_FEATURES} --no-default-features --target $TARGET"
+    ${TARGET_RUSTFLAGS} cargo $NIGHTLY build ${TARGET_FLAGS} $(IFS="" echo ${BUILD_FLAGS}) --features ${TARGET_FEATURES} --no-default-features --target $TARGET;
     copyartifact;
 done

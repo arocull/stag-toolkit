@@ -8,6 +8,7 @@ reports/
 godot/addons/stag_toolkit/bin/**/*.dll
 godot/addons/stag_toolkit/bin/**/*.so
 godot/addons/stag_toolkit/bin/**/*.dylib
+godot/addons/stag_toolkit/bin/**/*.wasm
 godot/local_tests/
 *.TMP
 ~*

@@ -18,16 +18,17 @@ crate-type = ["cdylib", "lib"]  # Compile this crate to a dynamic C library.
 # doc = true
 
 [features]
-default = []
+default = ["godot/experimental-threads"]
 godot = ["dep:godot"] # Enables compiling as a Godot plugin
 # nothreads = ["godot/experimental-wasm-nothreads"] # Intended for WASM exports
 physics_server = [] # Experimental physics server
 animation = [] # Experimental animation system
+nothreads = ["godot/experimental-wasm-nothreads", "godot/lazy-function-tables"] # For Godot exports without threading
 
 [dependencies]
 fast-surface-nets = "0.2.1"
-glam = { version = "0.33.0", features = ["std", "approx"], default-features=false }
-godot = { version = "0.5.3", features = ["api-4-5", "experimental-threads", "register-docs", "upcoming-editor-placeholders"], optional = true }
+glam = { version = "0.33.2", features = ["std", "approx"], default-features=false }
+godot = { version = "0.5.4", features = ["api-4-5", "upcoming-editor-placeholders"], optional = true }
 ndshape = "0.3.0"
 noise = "0.9.0"
 rayon = "1.12.0"

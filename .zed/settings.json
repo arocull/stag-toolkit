@@ -1,4 +1,5 @@
 {
+	"line_ending": "enforce_lf",
 	"languages": {
 		"Rust": {
 			"hard_tabs": false,
@@ -7,6 +8,10 @@
 		"YAML": {
 			"hard_tabs": false,
 			"tab_size": 2
+		},
+		"Shell Script": {
+			"hard_tabs": false,
+			"tab_size": 4
 		}
 	},
 	"lsp": {

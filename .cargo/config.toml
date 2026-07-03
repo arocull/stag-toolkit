@@ -1,8 +1,16 @@
 [target.wasm32-unknown-emscripten]
 rustflags = [
-    "-C", "link-args=-pthread", # Only for threading support
-    "-C", "target-feature=+atomics", # Only for threading support
+    # "-C", "link-args=-pthread", # Only for threading support
+    # "-C", "target-feature=+atomics", # Only for threading support
     "-C", "link-args=-sSIDE_MODULE=2",
-    "-Zlink-native-libraries=no",
-    "-Cllvm-args=-enable-emscripten-cxx-exceptions=0",
+    "-C", "llvm-args=-enable-emscripten-cxx-exceptions=0",
+    "-Z", "default-visibility=hidden",
+    "-Z", "link-native-libraries=no",
+    # "-Z", "emscripten-wasm-eh=false",
+
+    # Get errors from panics instead of just failing and never starting
+    # This causes any panic to immediately break the program
+    # Best we have for now: https://github.com/godot-rust/gdext/issues/438#issuecomment-4654794355
+    "-Z", "unstable-options",
+    "-C", "panic=immediate-abort"
 ]
