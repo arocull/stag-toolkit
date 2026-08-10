@@ -1,6 +1,6 @@
 [project]
 name = "stag-toolkit"
-version = "0.6.0"
+version = "0.5.6"
 description = "Godot addon for real-time 3D games, art, and simulations"
 readme = "readme.md"
 authors = [

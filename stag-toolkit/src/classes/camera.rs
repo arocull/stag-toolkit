@@ -451,17 +451,14 @@ fn get_target_bounds(
     };
 
     let mut aabb: Option<BoundingBox> = None;
-    for target_option in targets.iter_shared() {
-        // target.global_transform();
-        if let Some(target) = target_option {
-            let pos: Vec3 =
-                parent_transform.transform_point3(target.get_global_position().to_vector3());
+    for target in targets.iter_shared().flatten() {
+        let pos: Vec3 =
+            parent_transform.transform_point3(target.get_global_position().to_vector3());
 
-            if let Some(bounds) = aabb.take() {
-                aabb = Some(bounds.enclose(pos));
-            } else {
-                aabb = Some(BoundingBox::new(pos, pos));
-            }
+        if let Some(bounds) = aabb.take() {
+            aabb = Some(bounds.enclose(pos));
+        } else {
+            aabb = Some(BoundingBox::new(pos, pos));
         }
     }
 

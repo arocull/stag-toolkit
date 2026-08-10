@@ -730,9 +730,7 @@ impl TriangleMesh {
 
     /// Writes the mesh as an OBJ file to the given write buffer.
     pub fn export_obj(&self, out: &'_ mut dyn io::Write) -> io::Result<()> {
-        if let Err(e) = write!(out, "# StagToolkit\no trimesh") {
-            return Err(e);
-        }
+        write!(out, "# StagToolkit\no trimesh")?;
 
         // First, write vertices
         if !self.colors.is_empty() {
@@ -744,18 +742,14 @@ impl TriangleMesh {
                 let g = c.y;
                 let b = c.z;
                 let a = c.w;
-                if let Err(e) = write!(out, "v {x} {y} {z} {r} {g} {b} {a}") {
-                    return Err(e);
-                }
+                write!(out, "v {x} {y} {z} {r} {g} {b} {a}")?;
             }
         } else {
             for p in self.positions.iter() {
                 let x = p.x;
                 let y = p.y;
                 let z = p.z;
-                if let Err(e) = write!(out, "v {x} {y} {z}") {
-                    return Err(e);
-                }
+                write!(out, "v {x} {y} {z}")?;
             }
         }
 
@@ -767,9 +761,7 @@ impl TriangleMesh {
                 let x = n.x;
                 let y = n.y;
                 let z = n.z;
-                if let Err(e) = write!(out, "vn {x} {y} {z}") {
-                    return Err(e);
-                }
+                write!(out, "vn {x} {y} {z}")?;
             }
         }
 
@@ -782,21 +774,15 @@ impl TriangleMesh {
             for t in uvs.iter() {
                 let u = t.x;
                 let v = t.y;
-                if let Err(e) = write!(out, "vt {u} {v}") {
-                    return Err(e);
-                }
+                write!(out, "vt {u} {v}")?;
             }
         }
 
         // Specify surface
         if normals {
-            if let Err(e) = write!(out, "s 1") {
-                return Err(e);
-            }
+            write!(out, "s 1")?;
         } else {
-            if let Err(e) = write!(out, "s 0") {
-                return Err(e);
-            }
+            write!(out, "s 0")?;
         }
 
         // Finally, define mesh buffer
@@ -806,36 +792,28 @@ impl TriangleMesh {
                 let a = tri[0];
                 let b = tri[1];
                 let c = tri[2];
-                if let Err(e) = write!(out, "f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}") {
-                    return Err(e);
-                }
+                write!(out, "f {a}/{a}/{a} {b}/{b}/{b} {c}/{c}/{c}")?;
             }
         } else if normals {
             for tri in self.triangles.iter() {
                 let a = tri[0];
                 let b = tri[1];
                 let c = tri[2];
-                if let Err(e) = write!(out, "f {a}//{a} {b}//{b} {c}//{c}") {
-                    return Err(e);
-                }
+                write!(out, "f {a}//{a} {b}//{b} {c}//{c}")?;
             }
         } else if has_uvs {
             for tri in self.triangles.iter() {
                 let a = tri[0];
                 let b = tri[1];
                 let c = tri[2];
-                if let Err(e) = write!(out, "f {a}/{a} {b}/{a} {c}/{a}") {
-                    return Err(e);
-                }
+                write!(out, "f {a}/{a} {b}/{a} {c}/{a}")?;
             }
         } else {
             for tri in self.triangles.iter() {
                 let a = tri[0];
                 let b = tri[1];
                 let c = tri[2];
-                if let Err(e) = write!(out, "f {a} {b} {c}") {
-                    return Err(e);
-                }
+                write!(out, "f {a} {b} {c}")?;
             }
         }
 

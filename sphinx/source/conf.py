@@ -5,7 +5,7 @@ project = "StagToolkit"
 copyright = "2026 Alan O'Cull"
 author = "Alan O'Cull"
 website = "https://alanocull.com/"
-version = "0.6.0"
+version = "0.5.6"
 
 extensions = [
     "sphinx.ext.duration",
