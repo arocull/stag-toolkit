@@ -1,0 +1,26 @@
+[gd_scene load_steps=2 format=3 uid="uid://b5i0aiktscfbs"]
+
+[ext_resource type="Script" uid="uid://g5r7exp8eg3r" path="res://addons/stag_toolkit/plugin/ui/form/base.gd" id="1_kolrk"]
+
+[node name="align" type="HBoxContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+script = ExtResource("1_kolrk")
+
+[node name="icon" type="TextureRect" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 0
+stretch_mode = 5
+
+[node name="label" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Label"
+vertical_alignment = 1
