@@ -3,7 +3,7 @@ use crate::{math::types::ToVector3, simulation::rope::RopeData};
 use glam::{Mat4, Vec3, Vec4, vec4};
 use godot::classes::PhysicsRayQueryParameters3D;
 use godot::classes::object::ConnectFlags;
-use godot::register::ConnectHandle;
+use godot::signal::ConnectHandle;
 use godot::{
     classes::{
         Engine, Mesh, MeshInstance3D, ProjectSettings, ResourceLoader, RigidBody3D, ShaderMaterial,
@@ -24,7 +24,7 @@ pub struct SimulatedRopeSettings {
     #[export_subgroup(name = "Simulation", prefix = "simulation_")]
     /// Ideal number of meters between each point on the rope.
     /// The amount of points on the rope is rounded based on the rope's ideal length divided by this amount.
-    #[var(get, set = set_simulation_point_distance)]
+    #[var(set = set_simulation_point_distance)]
     #[export(range = (0.0, 2.0, 0.01, or_greater, suffix="m"))]
     #[init(val = 0.25)]
     simulation_point_distance: f32,
@@ -33,14 +33,14 @@ pub struct SimulatedRopeSettings {
     /// For every unit of length overstretched: that distance squared, times this constant, is applied in force.
     ///
     /// This constant should be adjusted according to the average Rigid Body mass and feel of your game.
-    #[var(get, set = set_simulation_spring_constant)]
+    #[var(set = set_simulation_spring_constant)]
     #[export]
     #[init(val = 5000.0)]
     simulation_spring_constant: f32,
 
     /// Number of iterations for applying a Jakobsen constraint (ensures each point is within the `simulation_point_distance`).
     /// Higher iterations result in a greater performance cost, but keeps the rope simulation more true to its actual length.
-    #[var(get, set = set_simulation_constraint_iterations)]
+    #[var(set = set_simulation_constraint_iterations)]
     #[export(range = (0.0, 500.0, 1.0, or_greater))]
     #[init(val = 150)]
     simulation_constraint_iterations: u32,
@@ -86,12 +86,12 @@ pub struct SimulatedRopeSettings {
     /// As the number of points can vary, the shader will have to linearly interpolate this array while adjusting vertex positions.
     #[export]
     #[init(val="points".into())]
-    render_parameter_points: GString,
+    render_parameter_points: StringName,
 
     /// Name of the shader parameter to pass the total number of rope points there is.
     #[export]
     #[init(val="point_count".into())]
-    render_parameter_point_count: GString,
+    render_parameter_point_count: StringName,
 
     /// Updates the rope [AABB] every X seconds.
     /// This makes sure the rope mesh actually draws when it's on your screen.
@@ -160,9 +160,8 @@ impl SimulatedRopeSettings {
     }
 
     #[func]
-    fn set_simulation_constraint_iterations(&mut self, new_constraint_iterations: i64) {
-        self.simulation_constraint_iterations =
-            (new_constraint_iterations.unsigned_abs() as u32).max(1);
+    fn set_simulation_constraint_iterations(&mut self, new_constraint_iterations: u32) {
+        self.simulation_constraint_iterations = new_constraint_iterations;
         self.signals().simulation_changed().emit();
     }
 
@@ -185,13 +184,13 @@ impl SimulatedRopeSettings {
 #[class(init,base=Node3D,tool)]
 pub struct SimulatedRope {
     /// Ideal length of the rope.
-    #[var(get, set = set_ideal_length)]
+    #[var(set = set_ideal_length)]
     #[export(range = (0.1, 100.0, or_greater))]
     #[init(val = 25.0)]
     ideal_length: f32,
 
     /// Settings for the rope.
-    #[var(get, set = set_settings)]
+    #[var(set = set_settings)]
     #[export]
     #[init(val=None)]
     settings: Option<Gd<SimulatedRopeSettings>>,
@@ -372,12 +371,12 @@ impl SimulatedRope {
 
         // If we have an available shader
         if let Some(base_shader) = settings.render_material.clone() {
-            // Make a clone of the shader material so we can freely modify its parameters
-            if let Some(unique_shader_resource) = base_shader.duplicate()
-                && let Ok(unique_shader) = unique_shader_resource.try_cast::<ShaderMaterial>()
-            {
-                self.shader = Some(unique_shader.clone());
-                mesh.set_surface_override_material(0, &unique_shader);
+            // Check if this is a Shader Material
+            if let Ok(actual_shader) = base_shader.try_cast::<ShaderMaterial>() {
+                // Make a clone of the shader material so we can freely modify its parameters
+                let unique_material = actual_shader.duplicate_resource_ex().done();
+                self.shader = Some(unique_material.clone());
+                mesh.set_surface_override_material(0, &unique_material);
             }
         }
 
@@ -507,9 +506,9 @@ impl SimulatedRope {
             let settings = settings_resource.bind();
 
             let pts: PackedVector3Array = self.data.points.clone().to_vector3();
-            shader.set_shader_parameter(settings.render_parameter_points.arg(), &pts.to_variant());
+            shader.set_shader_parameter(&settings.render_parameter_points, &pts.to_variant());
             shader.set_shader_parameter(
-                settings.render_parameter_point_count.arg(),
+                &settings.render_parameter_point_count,
                 &(self.data.point_count as u32).to_variant(),
             );
         }
@@ -556,7 +555,7 @@ impl SimulatedRope {
         }
 
         // Fetch physics direct space state
-        if let Some(mut world3d) = self.base().get_world_3d()
+        if let Some(world3d) = self.base().get_world_3d()
             && let Some(mut space) = world3d.get_direct_space_state()
         {
             self.collision_bindings.clear();
@@ -708,13 +707,13 @@ pub struct SimulatedRopeBinding {
     /// If the bound rope is removed from the tree, the reference is dropped.
     ///
     /// The bound rope must be removed from the tree before queueing for the bound rope deletion.
-    #[var(get, set = set_bind_to)]
+    #[var(pub, set = set_bind_to)]
     #[export]
     #[init(val=None)]
     bind_to: Option<Gd<SimulatedRope>>,
 
     /// Where on the rope, as a percentage of its length ("rope factor"), this binding is attached.
-    #[var(get, set = set_bind_at)]
+    #[var(set = set_bind_at)]
     #[export(range = (0.0, 1.0, 0.00001))]
     #[init(val = 0.0)]
     bind_at: f32,
@@ -725,7 +724,7 @@ pub struct SimulatedRopeBinding {
     spring_constant_multiplier: f32,
 
     /// What tick to update the [SimulatedRope]'s bound position on.
-    #[var(get, set = set_update_tick)]
+    #[var(set = set_update_tick)]
     #[export(enum = (Disabled = 0, Process = 1, PhysicsProcess = 2))]
     #[init(val = 2)]
     update_tick: i32,
@@ -768,6 +767,14 @@ impl INode3D for SimulatedRopeBinding {
         let update_tick = self.update_tick;
         self.base_mut().set_process(update_tick == 1);
         self.base_mut().set_physics_process(true);
+    }
+
+    fn enter_tree(&mut self) {
+        self.update_bind();
+        // Notify that a new rope was bound
+        if let Some(rope) = self.bind_to.clone() {
+            self.bound_signals(&rope);
+        }
     }
 
     fn exit_tree(&mut self) {
@@ -840,27 +847,32 @@ impl SimulatedRopeBinding {
             handler.disconnect();
         }
 
+        // Save the reference
         self.bind_to = new_bind_to.clone();
 
+        // Pass new bind position to the rope simulation
         if self.base().is_inside_tree() {
             self.update_bind();
-        }
 
-        // Notify that a new rope was bound
-        if let Some(rope) = new_bind_to {
-            self.signals().rope_bound().emit(&rope);
-
-            // Automatically remove rope if it is removed from tree.
-            // Note: DO NOT disconnect the binding automatically if the rope is exiting the tree inside the editor!
-            if !Engine::singleton().is_editor_hint() {
-                self.event_rope_tree_exiting = Some(
-                    rope.signals()
-                        .tree_exiting()
-                        .builder()
-                        .flags(ConnectFlags::ONE_SHOT)
-                        .connect_other_mut(&self.to_gd(), Self::clear_bind),
-                );
+            // Notify that a new rope was bound
+            if let Some(rope) = new_bind_to {
+                self.bound_signals(&rope);
             }
+        }
+    }
+
+    fn bound_signals(&mut self, rope: &Gd<SimulatedRope>) {
+        self.signals().rope_bound().emit(rope);
+        // Automatically remove bind if rope is removed from tree.
+        // Note: DO NOT disconnect the binding automatically if the rope is exiting the tree inside the editor!
+        if !Engine::singleton().is_editor_hint() {
+            self.event_rope_tree_exiting = Some(
+                rope.signals()
+                    .tree_exiting()
+                    .builder()
+                    .flags(ConnectFlags::ONE_SHOT)
+                    .connect_other_mut(&self.to_gd(), Self::clear_bind),
+            );
         }
     }
 

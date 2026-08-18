@@ -64,33 +64,32 @@ runs:
         profile: minimal
         toolchain: ${{ inputs.rust-version }}
         override: false
-        targets: x86_64-pc-windows-gnu
 
-    - name: Add Rust Windows Target
+    - name: Add Rust Cross-Compile Targets
       if: ${{ inputs.cross-compile == 'true' }}
       shell: bash
       run: |
-        rustup target add x86_64-pc-windows-gnu
+        rustup target add x86_64-pc-windows-gnu,wasm32-unknown-emscripten
 
     - name: Build StagToolkit
       if: ${{ ! (inputs.cross-compile == 'true') }}
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
-        make build
+        make debug
 
     - name: Build StagToolkit (Cross-Platform)
       if: ${{ inputs.cross-compile == 'true' }}
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}
-        make build build-windows
+        make release
 
       # Regular LFS fetch does not work on Gitea
       # https://gitea.com/gitea/act_runner/issues/164
     - name: Fetch LFS
       id: fetch-lfs
-      if: ${{ (inputs.fetch-lfs == 'true') || (inputs.import-assets == 'true') }}
+      if: ${{ inputs.fetch-lfs == 'true' }}
       shell: bash
       run: |
         cd ${{ inputs.toolkit-path }}

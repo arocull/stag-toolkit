@@ -5,7 +5,7 @@ use crate::physics::identity::Identity;
 use crate::physics::raycast::{PhysicsRaycastParameters, PhysicsRaycastResult};
 use rayon::prelude::*;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicU64;
+use std::sync::atomic::AtomicI64;
 use std::sync::{Arc, RwLock};
 // https://rust-guide.com/en/documentation/concurrency/Arc
 // https://rust-guide.com/en/documentation/concurrency/RwLock
@@ -86,7 +86,7 @@ impl PhysicsFrame {
 
 pub struct PhysicsServer {
     settings: PhysicsServerSettings,
-    allocations: AtomicU64,
+    allocations: AtomicI64,
 
     /// Current physics "frame" or tick.
     pub current: Arc<PhysicsFrame>,
@@ -99,7 +99,7 @@ impl PhysicsServer {
     pub fn new(settings: PhysicsServerSettings) -> Self {
         Self {
             settings,
-            allocations: AtomicU64::new(0),
+            allocations: AtomicI64::new(0),
             current: Arc::new(PhysicsFrame::default()),
             // history: Arc::new(RwLock::new(Vec::new())),
         }

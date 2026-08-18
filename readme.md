@@ -31,7 +31,8 @@ Some features can be toggled on/off via the Project Settings under `addons/stag_
 
 These projects use StagToolkit! Feel free to contribute your own.
 
-- **Abyss**, a tower-defense platformer ( [itch.io](https://stagmath.itch.io/abyss-demo) )
+- **Law of Entropy**, a tower-defense platformer ( [Steam](https://store.steampowered.com/app/3862490/Law_of_Entropy/) | [Website](https://alanocull.com/entropy) )
+- **Abyss**, an action platformer prototype ( [itch.io](https://stagmath.itch.io/abyss-demo) )
 
 ## Installation
 
@@ -46,7 +47,7 @@ Or, in your `Cargo.toml`, add:
 ```toml
 [dependencies]
 # ...
-stag-toolkit = "0.5.2"
+stag-toolkit = "0.5.6"
 ```
 
 ## Documentation

@@ -4,7 +4,7 @@ use crate::mesh::island::{
 };
 use godot::classes::Material;
 use godot::prelude::*;
-use godot::register::ConnectHandle;
+use godot::signal::ConnectHandle;
 
 /// General settings for an [IslandBuilder].
 /// @experimental: This is recently refactored code, and probably bound for more refactoring.
@@ -13,17 +13,17 @@ use godot::register::ConnectHandle;
 pub struct IslandBuilderSettings {
     /// Voxel generation settings, used for generating the base data.
     /// If no settings are provided, sensible defaults are used.
-    #[var(get, set=set_voxels)]
+    #[var(set=set_voxels)]
     #[export]
     voxels: Option<Gd<IslandBuilderSettingsVoxels>>,
     /// Mesh generation settings, used for generating the renderable mesh.
     /// If no settings are provided, sensible defaults are used.
-    #[var(get, set=set_mesh)]
+    #[var(set=set_mesh)]
     #[export]
     mesh: Option<Gd<IslandBuilderSettingsMesh>>,
     /// Collision settings, used for generating the physics collision.
     /// If no settings are provided, sensible defaults are used.
-    #[var(get, set=set_collision)]
+    #[var(set=set_collision)]
     #[export]
     collision: Option<Gd<IslandBuilderSettingsCollision>>,
 
@@ -32,7 +32,7 @@ pub struct IslandBuilderSettings {
     ///
     /// If the [IslandBuilder] target is a [RigidBody3D],
     /// the mass is automatically applied to the target upon collision generation.
-    #[var(get, set = set_physics_density)]
+    #[var(pub,set = set_physics_density)]
     #[export(range=(0.001,50.0,0.001,or_greater,suffix="kg/m³"))]
     #[init(val = 23.23)]
     physics_density: f32,
@@ -41,28 +41,28 @@ pub struct IslandBuilderSettings {
     ///
     /// If the parent of the [IslandBuilder] target has a method named `set_maximum_health`,
     /// the method is called upon collision generation with the computed health value.
-    #[var(get, set = set_physics_health_density)]
+    #[var(pub,set = set_physics_health_density)]
     #[export(range = (0.001,10.0,0.001, or_greater, suffix="HP/m³"))]
     #[init(val = 0.75)]
     physics_health_density: f32,
 
     /// Optional material to apply to baked/finalized meshes.
-    #[var(get, set = set_material_baked)]
+    #[var(pub, set = set_material_baked)]
     #[export]
     #[init(val=None)]
     material_baked: Option<Gd<Material>>,
     /// Optional material to apply to preview meshes, such as the real-time preview in-editor.
-    #[var(get,set = set_material_preview)]
+    #[var(pub, set = set_material_preview)]
     #[export]
     #[init(val=None)]
     material_preview: Option<Gd<Material>>,
 
-    #[var(get,set = set_collision_color)]
+    #[var(pub, set = set_collision_color)]
     #[export]
     #[init(val=Color::from_rgba(1.0, 0.0, 0.667, 1.0))]
     collision_color: Color,
 
-    #[var(get,set = set_render_layers,hint=LAYERS_3D_RENDER)]
+    #[var(pub, set = set_render_layers,hint=LAYERS_3D_RENDER)]
     #[export]
     #[init(val = 5)]
     render_layers: u32,
@@ -92,7 +92,18 @@ pub struct IslandBuilderSettings {
     ///
     /// If you would just like to save the generated [ArrayMesh], use `.res` (for binary) or `.tres` (for text).
     ///
-    /// For reference, smaller Abyss islands are usually about 500KB with binary compression, whereas larger islands approach up to 3 MB.
+    /// For reference, smaller *Law of Entropy* islands are usually about 500KB with binary compression, whereas larger islands approach up to 3 MB.
+    ///
+    /// GDScript example from the editor interface:
+    /// ```gd
+    /// var meta: Dictionary = {
+    ///   "scene": builder.get_tree().edited_scene_root.scene_file_path.get_basename(),
+    ///   "parent": builder.get_parent().name,
+    ///   "node": builder.name,
+    ///   "target": builder.target().name,
+    /// }
+    /// var filename := save_path.format(meta).simplify_path()
+    /// ```
     #[export(file = "*.scn,*.tscn,*.res,*.tres")]
     #[init(val="{scene}/{parent}.scn".into())]
     save_path: GString,

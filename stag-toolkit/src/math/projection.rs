@@ -1,3 +1,4 @@
+use glam::camera::rh::view::look_to_quat;
 use glam::{Mat3, Quat, Vec3, Vec4, Vec4Swizzles};
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -22,6 +23,8 @@ pub trait Plane {
     fn flip(self) -> Self;
     /// Returns the signed distance from the given point to this plane.
     fn signed_distance(self, point: Vec3) -> f32;
+    // /// Returns the nearest point on the plane to the given point.
+    // fn nearest_point(self, point: Vec3) -> Vec3;
     /// Intersects the given plane with the given ray, and returns a [RayIntersectionResult].
     ///
     /// `signed_distance` can be found via the method of the same name.
@@ -43,6 +46,11 @@ impl Plane for Vec4 {
     fn signed_distance(self, point: Vec3) -> f32 {
         self.dot(Self::new(point.x, point.y, point.z, 1.0))
     }
+
+    // https://stackoverflow.com/questions/9605556/how-to-project-a-point-onto-a-plane-in-3d
+    // fn nearest_point(self, point: Vec3) -> Vec3 {
+    //     point
+    // }
 
     fn ray_intersection(
         self,
@@ -125,7 +133,7 @@ pub fn direction_to_quaternion(vector: Vec3) -> Quat {
         return Quat::from_mat3(&Mat3::from_cols(Vec3::X, Vec3::Z, Vec3::NEG_Y)).normalize();
     }
 
-    Quat::look_to_rh(-vector, Vec3::Y).conjugate()
+    look_to_quat(-vector, Vec3::Y).conjugate()
 }
 
 #[cfg(test)]
@@ -361,7 +369,7 @@ mod tests {
         );
 
         // rotate quaternion towards +X
-        let right = vector_in_cone(Quat::look_to_rh(Vec3::X, Vec3::Y), 0.0, 0.0);
+        let right = vector_in_cone(look_to_quat(Vec3::X, Vec3::Y), 0.0, 0.0);
         assert_in_delta_vector(
             Vec3::X,
             right,

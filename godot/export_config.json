@@ -1,0 +1,30 @@
+{
+  "base": {
+    "custom_features": "",
+    "encrypt_pck": false,
+    "exclude": [
+      "res://test/"
+    ],
+    "exclude_filter": "*.txt, *.json",
+    "include": [
+      "res://test/scenarios/example/"
+    ],
+    "include_filter": ""
+  },
+  "desktop": {
+    "embed_pck": true,
+    "extends": "base",
+    "platforms": [
+      "Windows Desktop",
+      "Linux"
+    ]
+  },
+  "web": {
+    "encrypt_pck": false,
+    "extends": "base",
+    "platforms": [
+      "Web"
+    ],
+    "thread_support": true
+  }
+}
